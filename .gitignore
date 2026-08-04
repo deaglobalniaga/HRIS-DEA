@@ -1,0 +1,22 @@
+# Project Configuration
+node_modules/
+.env
+dist/
+dist-ssr/
+build/
+.vscode/
+!.vscode/extensions.json
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+*.local
+.idea
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
