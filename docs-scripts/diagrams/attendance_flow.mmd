@@ -1,0 +1,1 @@
+graph TD; A[Mulai Presensi] --> B{Izin Akses Kamera & GPS}; B -- Ya --> C[Kunci Koordinat GPS]; B -- Tidak --> Z[Presensi Gagal]; C --> D[Deteksi Wajah Karyawan dengan AI]; D --> E{Wajah Dikenali?}; E -- Ya --> F[Tangkap Foto & Kompresi]; E -- Tidak --> G[Minta Karyawan Sesuaikan Posisi]; G --> D; F --> H[Kirim Data Presensi ke Supabase]; H --> I[Selesai]

@@ -1,0 +1,1 @@
+graph TD; A[Halaman Login] --> B[Masukkan Email & Password]; B --> C{Verifikasi Backend & Supabase}; C -- Valid --> D{Cek Role User}; C -- Tidak Valid --> E[Tampilkan Pesan Error]; D -- Admin/HR --> F[Masuk ke Dashboard Lengkap]; D -- Pegawai --> G[Masuk ke Pusat Kehadiran];
