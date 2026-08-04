@@ -62,17 +62,31 @@ def create_document():
         
         for title, content in parts:
             h2 = doc.add_heading(title, level=2)
-            # Expand content to pad word count heavily if needed
             expanded_content = content + "\n\n" + ("Sistem ini dirancang dengan memperhatikan standar industri terbaik (best practices) dalam software engineering, termasuk keamanan jaringan (Network Security), validasi input sisi klien maupun server, serta perlindungan terhadap serangan umum seperti XSS dan SQL Injection. Ketersediaan layanan (High Availability) dijamin melalui platform hosting berbasis cloud modern (Vercel) yang mendistribusikan lalu lintas secara cerdas. " * 5)
             
             p = doc.add_paragraph(expanded_content)
             p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
-    # Add space for diagrams/screenshots manually in the text
-    doc.add_page_break()
-    doc.add_heading("LAMPIRAN", level=1)
-    doc.add_paragraph("Lampiran ini berisi diagram alur dan tangkapan layar antarmuka sistem. (Tempatkan file gambar di area ini).")
+            # Insert corresponding diagrams or screenshots if mentioned
+            if "DIAGRAM_AUTH" in content and os.path.exists('diagrams/auth_flow.png'):
+                doc.add_paragraph('Diagram Alur Autentikasi:').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_picture('diagrams/auth_flow.png', width=Inches(6.0))
+            if "DIAGRAM_ATTENDANCE" in content and os.path.exists('diagrams/attendance_flow.png'):
+                doc.add_paragraph('Diagram Alur Presensi Pintar:').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_picture('diagrams/attendance_flow.png', width=Inches(6.0))
+            if "PREVIEW_ATTENDANCE" in content:
+                if os.path.exists('screenshots/1_login.png'):
+                    doc.add_paragraph('Tangkapan Layar: Halaman Login').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    doc.add_picture('screenshots/1_login.png', width=Inches(6.0))
+                if os.path.exists('screenshots/2_dashboard.png'):
+                    doc.add_paragraph('Tangkapan Layar: Dashboard (Analytics)').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    doc.add_picture('screenshots/2_dashboard.png', width=Inches(6.0))
+                if os.path.exists('screenshots/3_attendance.png'):
+                    doc.add_paragraph('Tangkapan Layar: Pusat Kehadiran (Attendance Hub)').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    doc.add_picture('screenshots/3_attendance.png', width=Inches(6.0))
 
+    # Add space for diagrams/screenshots manually in the text
+    # Removed dummy appendices text since we now insert real images inline
     doc.save('Dokumentasi_HRIS_Lengkap.docx')
     print("Dokumentasi DOCX berhasil dibuat!")
 

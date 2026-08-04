@@ -4,6 +4,7 @@ from pptx import Presentation
 from pptx.util import Inches, Pt
 from pptx.enum.text import PP_ALIGN
 from pptx.dml.color import RGBColor
+import os
 
 def create_presentation():
     prs = Presentation()
@@ -72,6 +73,9 @@ def create_presentation():
     p = body.add_paragraph()
     p.text = "Keamanan Password dengan Bcrypt (Hash 10-rounds)."
     p.level = 1
+    
+    if os.path.exists('diagrams/auth_flow.png'):
+        slide.shapes.add_picture('diagrams/auth_flow.png', Inches(5.5), Inches(1.5), width=Inches(4.0))
 
     # Slide 4: Fitur 2 - Presensi Pintar
     slide = prs.slides.add_slide(slide_layout)
@@ -90,6 +94,9 @@ def create_presentation():
     p = body.add_paragraph()
     p.text = "Kompresi Gambar Otomatis untuk menghemat penyimpanan cloud."
     p.level = 1
+    
+    if os.path.exists('screenshots/3_attendance.png'):
+        slide.shapes.add_picture('screenshots/3_attendance.png', Inches(5.0), Inches(1.5), width=Inches(4.5))
 
     # Slide 5: PWA & Kemudahan Akses
     slide = prs.slides.add_slide(slide_layout)
