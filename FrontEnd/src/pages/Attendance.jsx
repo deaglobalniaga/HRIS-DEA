@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
+import * as faceapi from 'face-api.js';
 
 // Fix leaflet icon missing issues
 delete L.Icon.Default.prototype._getIconUrl;
@@ -34,6 +35,25 @@ const Attendance = () => {
   const [fetchingRecords, setFetchingRecords] = useState(true);
   const [activeRosterTab, setActiveRosterTab] = useState('Belum Absen');
   const ROSTER_TABS = ['Belum Absen', 'Sudah Absen', 'Tidak Hadir'];
+
+  const [modelsLoaded, setModelsLoaded] = useState(false);
+
+  // Load face-api models
+  useEffect(() => {
+    const loadModels = async () => {
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+          faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+          faceapi.nets.faceRecognitionNet.loadFromUri('/models')
+        ]);
+        setModelsLoaded(true);
+      } catch (err) {
+        console.error('Error loading face models:', err);
+      }
+    };
+    loadModels();
+  }, []);
 
   // Wait before allowing capture (simulating loading readiness)
   useEffect(() => {
@@ -106,6 +126,16 @@ const Attendance = () => {
             ctx.font = `${fontSize}px Arial`;
             ctx.fillText(`Waktu: ${new Date().toLocaleString('id-ID')}`, boxX + padX, boxY + padY + fontSize + lineH);
             ctx.fillText(`GPS: ${location.text}`, boxX + padX, boxY + padY + fontSize + lineH * 2);
+
+            // Draw Face Detections if models are loaded
+            if (modelsLoaded) {
+              faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).then(detections => {
+                if (detections && detections.length > 0) {
+                  const resizedDetections = faceapi.resizeResults(detections, { width: video.videoWidth, height: video.videoHeight });
+                  faceapi.draw.drawDetections(canvas, resizedDetections);
+                }
+              }).catch(e => console.error("Face detection error:", e));
+            }
           }
         }
         // -------------------------------
