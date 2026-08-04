@@ -223,15 +223,26 @@ const Attendance = () => {
     if ((attType === 'check-in' || attType === 'check-out') && videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      // Clean capture without boxes (with Aggressive Compression)
+      // Resize to a maximum width of 640px to save massive bucket space
+      const MAX_WIDTH = 640;
+      let width = video.videoWidth;
+      let height = video.videoHeight;
+
+      if (width > MAX_WIDTH) {
+        height = Math.round(height * (MAX_WIDTH / width));
+        width = MAX_WIDTH;
+      }
+
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext('2d');
+      
+      // Draw video frame scaled down
+      ctx.drawImage(video, 0, 0, width, height);
 
-      // Draw video frame
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      // Clean capture without boxes
-      const capturedDataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      // Compress aggressively to JPEG with 0.5 quality
+      const capturedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
       photoBase64 = capturedDataUrl;
     }
 
