@@ -113,20 +113,47 @@ def create_presentation():
     p.text = "Tampil sebagai Aplikasi Native, lebih cepat & hemat kuota."
     p.level = 1
 
-    # Slide 6: Kesimpulan
+    # Slide 6: Rancangan Sistem (ERD)
     slide = prs.slides.add_slide(slide_layout)
-    slide.shapes.title.text = "Kesimpulan & Dampak Positif"
-    body = slide.placeholders[1].text_frame
-    body.text = "Return on Investment (ROI):"
+    title_shape = slide.shapes.title
+    title_shape.text = "Perancangan Sistem: ERD"
+    
+    if os.path.exists('diagrams/erd.png'):
+        slide.shapes.add_picture('diagrams/erd.png', Inches(1.5), Inches(1.5), width=Inches(7.0))
+
+    # Slide 7: Rancangan Sistem (Use Case)
+    slide = prs.slides.add_slide(slide_layout)
+    title_shape = slide.shapes.title
+    title_shape.text = "Perancangan Sistem: Use Case Diagram"
+    
+    if os.path.exists('diagrams/use_case.png'):
+        slide.shapes.add_picture('diagrams/use_case.png', Inches(2.0), Inches(1.5), width=Inches(6.0))
+
+    # Slide 8: Modul Cuti & Manajemen (Employees, Reports, Profile)
+    slide = prs.slides.add_slide(slide_layout)
+    title_shape = slide.shapes.title
+    title_shape.text = "Modul Cuti, Laporan, & Manajemen Karyawan"
+    
+    if os.path.exists('screenshots/5_employees.png'):
+        slide.shapes.add_picture('screenshots/5_employees.png', Inches(1.0), Inches(1.5), width=Inches(3.5))
+    if os.path.exists('screenshots/6_reports.png'):
+        slide.shapes.add_picture('screenshots/6_reports.png', Inches(5.0), Inches(1.5), width=Inches(3.5))
+
+    # Slide 9: Penutup & Kesimpulan
+    slide = prs.slides.add_slide(slide_layout)
+    title_shape = slide.shapes.title
+    title_shape.text = "Kesimpulan & ROI"
+    
+    body = slide.shapes.placeholders[1].text_frame
     p = body.add_paragraph()
-    p.text = "Memangkas waktu administratif hingga 80%."
-    p.level = 1
+    p.text = "Sistem telah memodernisasi cara perusahaan melacak absensi."
+    p.level = 0
     p = body.add_paragraph()
-    p.text = "Disiplin Karyawan Meningkat Drastis."
-    p.level = 1
+    p.text = "Meningkatkan kedisiplinan dan mencegah fraud dengan teknologi cerdas."
+    p.level = 0
     p = body.add_paragraph()
-    p.text = "Pengambilan keputusan berbasis data yang akurat."
-    p.level = 1
+    p.text = "Menghemat waktu ratusan jam per bulan untuk perekapan gaji."
+    p.level = 0
 
     prs.save('Presentasi_HRIS.pptx')
     print("Presentasi PPTX berhasil dibuat!")

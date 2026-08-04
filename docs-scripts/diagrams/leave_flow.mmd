@@ -1,0 +1,12 @@
+graph TD;
+    A[Pegawai Membuka Tab Cuti] --> B[Pilih Tanggal & Jenis Izin]
+    B --> C[Isi Alasan]
+    C --> D{Ada Dokumen Bukti?}
+    D -- Ya --> E[Unggah File PDF/JPG]
+    D -- Tidak --> F[Kirim Pengajuan]
+    E --> F
+    F --> G[Status: Menunggu Persetujuan]
+    G --> H[HRD Melihat di Dashboard]
+    H --> I{Disetujui?}
+    I -- Ya --> J[Status: Disetujui]
+    I -- Tidak --> K[Status: Ditolak]

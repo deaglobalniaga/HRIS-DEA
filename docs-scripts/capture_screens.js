@@ -14,21 +14,21 @@ const fs = require('fs');
   const page = await context.newPage();
 
   try {
-    // Mock APIs
+    // Mock APIs (Match any endpoint ending with these paths)
     const fakePayload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, id: 1, role: 'admin' })).toString('base64');
     const fakeToken = `header.${fakePayload}.signature`;
     
-    await page.route('**/api/hris/auth/login', route => route.fulfill({
+    await page.route('**/auth/login', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ token: fakeToken, user: { id: 1, role: 'admin', full_name: 'Robot' } })
     }));
-    await page.route('**/api/hris/auth/profile', route => route.fulfill({
+    await page.route('**/auth/profile', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ id: 1, role: 'admin', full_name: 'Robot', email: 'robot@test.com' })
     }));
-    await page.route('**/api/hris/dashboard/stats', route => route.fulfill({
+    await page.route('**/dashboard/stats', route => route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
@@ -37,7 +37,13 @@ const fs = require('fs');
         radarData: [{division: 'IT', kedisiplinan: 90}]
       })
     }));
-    await page.route('**/api/hris/attendance/today', route => route.fulfill({
+    await page.route('**/attendance/today', route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify([])
+    }));
+    await page.route('**/users*', route => route.fulfill({
+      status: 200, contentType: 'application/json', body: JSON.stringify([{id: 1, full_name: 'Karyawan 1', role: 'user', division: 'IT'}])
+    }));
+    await page.route('**/reports*', route => route.fulfill({
       status: 200, contentType: 'application/json', body: JSON.stringify([])
     }));
 
@@ -55,17 +61,49 @@ const fs = require('fs');
     await page.click('button[type="submit"]');
     
     // Wait for Dashboard
-    await page.waitForURL('**/dashboard', { timeout: 10000 });
+    await page.waitForURL('**/dashboard', { timeout: 15000 });
     await page.waitForTimeout(3000); // Wait for charts to animate/load
     await page.screenshot({ path: path.join(screenshotsDir, '2_dashboard.png') });
     console.log('Dashboard screenshot saved.');
 
     // 3. Navigate to Attendance Hub
     console.log('Navigating to Attendance Hub...');
-    await page.click('text="Pusat Kehadiran"');
+    await page.goto('http://localhost:5173/attendance-hub');
     await page.waitForTimeout(3000); // Wait for camera/map placeholder to load
     await page.screenshot({ path: path.join(screenshotsDir, '3_attendance.png') });
     console.log('Attendance screenshot saved.');
+    
+    // 4. Leave Tab
+    try {
+      console.log('Navigating to Leave Tab...');
+      await page.click('button:has-text("Cuti")'); // Or "Cuti & Izin"
+      await page.waitForTimeout(1000);
+      await page.screenshot({ path: path.join(screenshotsDir, '4_leave.png') });
+    } catch(e) { console.log('Skipping Leave Tab screenshot due to error'); }
+    
+    // 5. Employees
+    try {
+      console.log('Navigating to Employees...');
+      await page.goto('http://localhost:5173/employees');
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: path.join(screenshotsDir, '5_employees.png') });
+    } catch(e) { console.log('Skipping Employees'); }
+    
+    // 6. Reports
+    try {
+      console.log('Navigating to Reports...');
+      await page.goto('http://localhost:5173/reports');
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: path.join(screenshotsDir, '6_reports.png') });
+    } catch(e) { console.log('Skipping Reports'); }
+    
+    // 7. Profile
+    try {
+      console.log('Navigating to Profile...');
+      await page.goto('http://localhost:5173/profile');
+      await page.waitForTimeout(1500);
+      await page.screenshot({ path: path.join(screenshotsDir, '7_profile.png') });
+    } catch(e) { console.log('Skipping Profile'); }
 
   } catch (err) {
     console.error('Error during capture:', err);
