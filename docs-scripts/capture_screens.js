@@ -31,7 +31,7 @@ async function captureScreens() {
   try {
     // 1. ADMIN ROLE (DESKTOP)
     console.log('--- START ADMIN (DESKTOP) ---');
-    const adminContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    const adminContext = await browser.newContext({ viewport: { width: 1280, height: 1080 } });
     const adminPage = await adminContext.newPage();
     
     // WE ARE NOT MOCKING DATA. WE LET THE REAL API PROVIDE IT.
@@ -50,28 +50,28 @@ async function captureScreens() {
     
     await adminPage.waitForURL('**/dashboard', { timeout: 15000 });
     await adminPage.waitForTimeout(6000); // Wait longer for recharts animations to finish
-    await adminPage.screenshot({ path: path.join(screenshotsDir, '2_dashboard.png') });
-    console.log('Dashboard screenshot saved.');
+    await adminPage.screenshot({ path: path.join(screenshotsDir, '2_dashboard.png'), fullPage: true });
+    console.log('Dashboard screenshot saved (Full Page).');
 
     try {
       await adminPage.goto('http://localhost:5173/organization');
       await adminPage.waitForTimeout(4000); // Wait for table to render
-      await adminPage.screenshot({ path: path.join(screenshotsDir, '5_employees.png') });
-      console.log('Organization screenshot saved.');
+      await adminPage.screenshot({ path: path.join(screenshotsDir, '5_employees.png'), fullPage: true });
+      console.log('Organization screenshot saved (Full Page).');
     } catch(e) {}
 
     try {
       await adminPage.goto('http://localhost:5173/reports');
       await adminPage.waitForTimeout(4000);
-      await adminPage.screenshot({ path: path.join(screenshotsDir, '6_reports.png') });
-      console.log('Reports screenshot saved.');
+      await adminPage.screenshot({ path: path.join(screenshotsDir, '6_reports.png'), fullPage: true });
+      console.log('Reports screenshot saved (Full Page).');
     } catch(e) {}
 
     try {
       await adminPage.goto('http://localhost:5173/settings');
       await adminPage.waitForTimeout(4000);
-      await adminPage.screenshot({ path: path.join(screenshotsDir, '7_profile.png') });
-      console.log('Settings screenshot saved.');
+      await adminPage.screenshot({ path: path.join(screenshotsDir, '7_profile.png'), fullPage: true });
+      console.log('Settings screenshot saved (Full Page).');
     } catch(e) {}
 
     await adminContext.close();
@@ -97,14 +97,14 @@ async function captureScreens() {
     console.log('Navigating to Attendance Hub (Mobile)...');
     await userPage.goto('http://localhost:5173/attendance-hub');
     await userPage.waitForTimeout(8000); // Need more time for camera, map, and data to load fully
-    await userPage.screenshot({ path: path.join(screenshotsDir, '3_attendance.png') });
-    console.log('Attendance Mobile screenshot saved.');
+    await userPage.screenshot({ path: path.join(screenshotsDir, '3_attendance.png'), fullPage: true });
+    console.log('Attendance Mobile screenshot saved (Full Page).');
     
     try {
       await userPage.click('button:has-text("Cuti")'); 
       await userPage.waitForTimeout(4000);
-      await userPage.screenshot({ path: path.join(screenshotsDir, '4_leave.png') });
-      console.log('Leave Tab Mobile screenshot saved.');
+      await userPage.screenshot({ path: path.join(screenshotsDir, '4_leave.png'), fullPage: true });
+      console.log('Leave Tab Mobile screenshot saved (Full Page).');
     } catch(e) { console.log('Leave tab failed:', e.message); }
 
     await userContext.close();
