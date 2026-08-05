@@ -40,15 +40,15 @@ def create_document():
             ("2.4 Progressive Web App (PWA) & Use Case", "Sistem dilengkapi teknologi PWA yang mengizinkan aplikasi diinstal langsung ke Layar Beranda smartphone Android maupun iOS tanpa melalui App Store/Play Store. Sistem ini dirancang untuk dua aktor utama: Admin (HRD) dan Pegawai, masing-masing dengan batasan wewenang.\n(REFERENSI DIAGRAM: DIAGRAM_USE_CASE)")
         ]),
         ("BAB III: FITUR UTAMA & DIAGRAM ALUR", [
-            ("3.1 Modul Autentikasi dan Keamanan", "Modul ini memastikan hanya pengguna terverifikasi yang dapat masuk. Password dienkripsi menggunakan algoritma bcrypt dengan salt 10-round. Saat karyawan lupa kata sandi, sistem mengirimkan tautan token unik ke email mereka yang kadaluarsa dalam 1 jam.\n(REFERENSI DIAGRAM: DIAGRAM_AUTH)"),
-            ("3.2 Modul Pusat Kehadiran (Attendance Hub)", "Inovasi paling menonjol dari sistem ini adalah Pusat Kehadiran. Saat karyawan melakukan Check In, sistem mengaktifkan kamera depan dan meminta izin lokasi. Proses: 1) Sistem mengunci koordinat GPS karyawan saat ini; 2) Sistem mendeteksi wajah di depan kamera menggunakan model Artificial Intelligence (TinyFaceDetector); 3) Foto ditangkap, dikompresi hingga <50KB untuk menghemat storage; 4) Foto digabungkan dengan watermark Waktu dan Koordinat, lalu dikirim ke server.\n(REFERENSI DIAGRAM: DIAGRAM_ATTENDANCE)"),
-            ("3.3 Modul Cuti & Izin", "Pengajuan cuti dan izin terintegrasi dalam alur persetujuan. Karyawan memilih rentang tanggal kalender, sistem menghitung total hari kerja yang terpotong. Bukti izin (seperti surat dokter) dapat diunggah. HR atau Admin kemudian meninjau pengajuan di dashboard untuk disetujui atau ditolak, merubah status secara real-time.\n(REFERENSI DIAGRAM: DIAGRAM_LEAVE)"),
-            ("3.4 Analitik & Manajemen", "HRD tidak perlu lagi merekap data di Excel. Dashboard menyajikan: Tren Kehadiran Jangka Panjang (Hadir vs Terlambat vs Sakit/Izin), Disiplin Divisi (Bulan Ini) berupa Radar Chart, serta kemampuan mengunduh laporan PDF secara langsung per periode waktu tertentu.\n(REFERENSI DIAGRAM: SCREENSHOT_MANAGEMENT)")
+            ("3.1 Modul Autentikasi dan Keamanan", "Modul ini memastikan hanya pengguna terverifikasi yang dapat masuk. Password dienkripsi menggunakan algoritma bcrypt dengan salt 10-round. Saat karyawan lupa kata sandi, sistem mengirimkan tautan token unik ke email mereka yang kadaluarsa dalam 1 jam.\n(REFERENSI DIAGRAM: DIAGRAM_AUTH)\n(TANGKAPAN LAYAR: PREVIEW_LOGIN)"),
+            ("3.2 Modul Pusat Kehadiran (Attendance Hub)", "Inovasi paling menonjol dari sistem ini adalah Pusat Kehadiran. Saat karyawan melakukan Check In, sistem mengaktifkan kamera depan dan meminta izin lokasi. Proses: 1) Sistem mengunci koordinat GPS karyawan saat ini; 2) Sistem mendeteksi wajah di depan kamera menggunakan model Artificial Intelligence (TinyFaceDetector); 3) Foto ditangkap, dikompresi hingga <50KB untuk menghemat storage; 4) Foto digabungkan dengan watermark Waktu dan Koordinat, lalu dikirim ke server.\n(REFERENSI DIAGRAM: DIAGRAM_ATTENDANCE)\n(TANGKAPAN LAYAR: PREVIEW_ATTENDANCE)"),
+            ("3.3 Modul Cuti & Izin", "Pengajuan cuti dan izin terintegrasi dalam alur persetujuan. Karyawan memilih rentang tanggal kalender, sistem menghitung total hari kerja yang terpotong. Bukti izin (seperti surat dokter) dapat diunggah. HR atau Admin kemudian meninjau pengajuan di dashboard untuk disetujui atau ditolak, merubah status secara real-time.\n(REFERENSI DIAGRAM: DIAGRAM_LEAVE)\n(TANGKAPAN LAYAR: PREVIEW_LEAVE)"),
+            ("3.4 Analitik & Manajemen", "HRD tidak perlu lagi merekap data di Excel. Dashboard menyajikan: Tren Kehadiran Jangka Panjang (Hadir vs Terlambat vs Sakit/Izin), Disiplin Divisi (Bulan Ini) berupa Radar Chart, serta kemampuan mengunduh laporan PDF secara langsung per periode waktu tertentu.\n(TANGKAPAN LAYAR: PREVIEW_DASHBOARD)\n(REFERENSI DIAGRAM: SCREENSHOT_MANAGEMENT)")
         ]),
         ("BAB IV: PANDUAN PENGGUNA", [
             ("4.1 Instalasi di Perangkat Mobile (PWA)", "Untuk menginstal HRIS ke HP:\n1. Buka browser Safari (iOS) atau Chrome (Android) dan kunjungi URL HRIS.\n2. Klik menu 'Bagikan' (iOS) atau 'Titik Tiga' (Android).\n3. Pilih 'Tambahkan ke Layar Utama' (Add to Home Screen).\n4. Aplikasi HRIS DEA siap digunakan dari layar utama Anda layaknya aplikasi biasa."),
-            ("4.2 Melakukan Presensi", "1. Login dengan akun Karyawan.\n2. Masuk ke menu 'Pusat Kehadiran'.\n3. Berikan izin Akses Kamera dan Lokasi (Wajib).\n4. Tunggu hingga kotak biru pendeteksi wajah muncul.\n5. Klik tombol 'Check In' atau 'Check Out' berwarna hijau/merah.\n(TANGKAPAN LAYAR: PREVIEW_ATTENDANCE)"),
-            ("4.3 Mengajukan Cuti", "1. Pada menu Pusat Kehadiran, pindah ke tab 'Cuti & Izin'.\n2. Isi form rentang tanggal, jenis izin, dan alasan.\n3. Unggah file dokumen bukti jika ada.\n4. Kirim, dan tunggu persetujuan dari HRD.\n(TANGKAPAN LAYAR: PREVIEW_LEAVE)")
+            ("4.2 Melakukan Presensi", "1. Login dengan akun Karyawan.\n2. Masuk ke menu 'Pusat Kehadiran'.\n3. Berikan izin Akses Kamera dan Lokasi (Wajib).\n4. Tunggu hingga kotak biru pendeteksi wajah muncul.\n5. Klik tombol 'Check In' atau 'Check Out' berwarna hijau/merah."),
+            ("4.3 Mengajukan Cuti", "1. Pada menu Pusat Kehadiran, pindah ke tab 'Cuti & Izin'.\n2. Isi form rentang tanggal, jenis izin, dan alasan.\n3. Unggah file dokumen bukti jika ada.\n4. Kirim, dan tunggu persetujuan dari HRD.")
         ]),
         ("BAB V: KESIMPULAN", [
             ("5.1 Pencapaian Proyek", "Sistem HRIS DEA berhasil menjawab seluruh tantangan operasional perusahaan dengan mengintegrasikan deteksi biometrik (wajah), geolokasi, dan pelaporan terpadu. Penghematan biaya operasional, efisiensi waktu perekapan (dari berhari-hari menjadi hitungan detik), serta peningkatan kedisiplinan karyawan adalah Return on Investment (ROI) utama dari pengembangan web ini."),
@@ -95,20 +95,21 @@ def create_document():
                     doc.add_paragraph('Tangkapan Layar: Profil Pengguna').alignment = WD_ALIGN_PARAGRAPH.CENTER
                     doc.add_picture('screenshots/7_profile.png', width=Inches(6.0))
 
-            if "PREVIEW_ATTENDANCE" in content:
-                if os.path.exists('screenshots/1_login.png'):
-                    doc.add_paragraph('Tangkapan Layar: Halaman Login').alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    doc.add_picture('screenshots/1_login.png', width=Inches(6.0))
-                if os.path.exists('screenshots/2_dashboard.png'):
-                    doc.add_paragraph('Tangkapan Layar: Dashboard (Analytics)').alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    doc.add_picture('screenshots/2_dashboard.png', width=Inches(6.0))
-                if os.path.exists('screenshots/3_attendance.png'):
-                    doc.add_paragraph('Tangkapan Layar: Pusat Kehadiran (Attendance Hub)').alignment = WD_ALIGN_PARAGRAPH.CENTER
-                    doc.add_picture('screenshots/3_attendance.png', width=Inches(6.0))
+            if "PREVIEW_LOGIN" in content and os.path.exists('screenshots/1_login.png'):
+                doc.add_paragraph('Tangkapan Layar: Halaman Login').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_picture('screenshots/1_login.png', width=Inches(6.0))
+                
+            if "PREVIEW_ATTENDANCE" in content and os.path.exists('screenshots/3_attendance.png'):
+                doc.add_paragraph('Tangkapan Layar: Pusat Kehadiran (Attendance Hub)').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_picture('screenshots/3_attendance.png', width=Inches(6.0))
                     
             if "PREVIEW_LEAVE" in content and os.path.exists('screenshots/4_leave.png'):
                 doc.add_paragraph('Tangkapan Layar: Tab Cuti & Izin').alignment = WD_ALIGN_PARAGRAPH.CENTER
                 doc.add_picture('screenshots/4_leave.png', width=Inches(6.0))
+                
+            if "PREVIEW_DASHBOARD" in content and os.path.exists('screenshots/2_dashboard.png'):
+                doc.add_paragraph('Tangkapan Layar: Dashboard (Analytics)').alignment = WD_ALIGN_PARAGRAPH.CENTER
+                doc.add_picture('screenshots/2_dashboard.png', width=Inches(6.0))
 
     # Add space for diagrams/screenshots manually in the text
     # Removed dummy appendices text since we now insert real images inline

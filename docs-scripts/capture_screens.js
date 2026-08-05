@@ -34,35 +34,9 @@ async function captureScreens() {
     const adminContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     const adminPage = await adminContext.newPage();
     
-    // MOCK DATA TO MAKE VISUALIZATIONS LOOK FULL AND BEAUTIFUL
-    await adminPage.route('**/api/dashboard/stats', route => fulfillData(route, {
-      totalEmployees: 124, presentToday: 118, onLeave: 6, totalDivisions: 5,
-      attendanceTrends: [
-        {date: 'Senin', hadir: 110, terlambat: 5, tidak_hadir: 2},
-        {date: 'Selasa', hadir: 115, terlambat: 3, tidak_hadir: 1},
-        {date: 'Rabu', hadir: 118, terlambat: 2, tidak_hadir: 0},
-        {date: 'Kamis', hadir: 116, terlambat: 4, tidak_hadir: 1},
-        {date: 'Jumat', hadir: 118, terlambat: 1, tidak_hadir: 0},
-      ],
-      radarData: [
-        {division: 'IT', kedisiplinan: 98},
-        {division: 'HR', kedisiplinan: 95},
-        {division: 'Finance', kedisiplinan: 96},
-        {division: 'Marketing', kedisiplinan: 90},
-        {division: 'Operations', kedisiplinan: 94}
-      ]
-    }));
-    await adminPage.route('**/api/users*', route => fulfillData(route, {
-      data: [
-        {id: 1, full_name: 'Budi Santoso', email: 'budi@dea.com', role: 'user', division: 'IT', last_activity: new Date().toISOString()},
-        {id: 2, full_name: 'Siti Aminah', email: 'siti@dea.com', role: 'hr', division: 'HR', last_activity: new Date().toISOString()},
-        {id: 3, full_name: 'Agus Pratama', email: 'agus@dea.com', role: 'user', division: 'Finance', last_activity: new Date().toISOString()},
-        {id: 4, full_name: 'Rina Wijaya', email: 'rina@dea.com', role: 'user', division: 'Marketing', last_activity: new Date().toISOString()},
-      ],
-      pagination: { total: 4, page: 1, limit: 10 }
-    }));
-    await adminPage.route('**/api/reports*', route => fulfillData(route, []));
-    await adminPage.route('**/api/attendance/today', route => fulfillData(route, []));
+    // WE ARE NOT MOCKING DATA. WE LET THE REAL API PROVIDE IT.
+    // The previous mocks had wrong shapes and caused React crashes/blank pages.
+    // We just rely on the test accounts and the real backend which already has data.
 
     await adminPage.goto('http://localhost:5173/login');
     await adminPage.waitForTimeout(2000);
