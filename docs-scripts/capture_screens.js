@@ -15,28 +15,35 @@ async function captureScreens() {
 
   const browser = await chromium.launch({ headless: true });
 
+  const corsHeaders = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+  };
+
+  const fulfillRoute = (route, bodyData) => {
+    if (route.request().method() === 'OPTIONS') {
+      return route.fulfill({ status: 200, headers: corsHeaders });
+    }
+    return route.fulfill({ status: 200, headers: corsHeaders, contentType: 'application/json', body: JSON.stringify(bodyData) });
+  };
+
   try {
     // 1. ADMIN ROLE (DESKTOP)
     console.log('--- START ADMIN (DESKTOP) ---');
     const adminContext = await browser.newContext({ viewport: { width: 1280, height: 720 } });
     const adminPage = await adminContext.newPage();
     
-    await adminPage.route('**/auth/login', route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ token: createFakeToken('admin'), user: { id: 1, role: 'admin', full_name: 'Admin Boss' } })
-    }));
-    await adminPage.route('**/auth/profile', route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ id: 1, role: 'admin', full_name: 'Admin Boss', email: 'admin@test.com' })
-    }));
-    await adminPage.route('**/dashboard/stats', route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({
+    await adminPage.route('**/auth/login', route => fulfillRoute(route, { token: createFakeToken('admin'), user: { id: 1, role: 'admin', full_name: 'Admin Boss' } }));
+    await adminPage.route('**/auth/profile', route => fulfillRoute(route, { id: 1, role: 'admin', full_name: 'Admin Boss', email: 'admin@test.com' }));
+    await adminPage.route('**/dashboard/stats', route => fulfillRoute(route, {
         totalEmployees: 45, presentToday: 42, onLeave: 3, totalDivisions: 5,
         attendanceTrends: [{date: '2023-01-01', hadir: 40, terlambat: 2, tidak_hadir: 3}],
         radarData: [{division: 'IT', kedisiplinan: 95}, {division: 'HR', kedisiplinan: 88}]
-      })
     }));
-    await adminPage.route('**/attendance/today', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
-    await adminPage.route('**/users*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([{id: 1, full_name: 'Karyawan 1', role: 'user', division: 'IT'}]) }));
-    await adminPage.route('**/reports*', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
+    await adminPage.route('**/attendance/today', route => fulfillRoute(route, []));
+    await adminPage.route('**/users*', route => fulfillRoute(route, [{id: 1, full_name: 'Karyawan 1', role: 'user', division: 'IT'}]));
+    await adminPage.route('**/reports*', route => fulfillRoute(route, []));
     
     await adminPage.goto('http://localhost:5173/login');
     await adminPage.waitForTimeout(2000);
@@ -85,14 +92,10 @@ async function captureScreens() {
     });
     const userPage = await userContext.newPage();
     
-    await userPage.route('**/auth/login', route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ token: createFakeToken('user'), user: { id: 2, role: 'user', full_name: 'Karyawan Biasa' } })
-    }));
-    await userPage.route('**/auth/profile', route => route.fulfill({
-      status: 200, contentType: 'application/json', body: JSON.stringify({ id: 2, role: 'user', full_name: 'Karyawan Biasa', email: 'user@test.com' })
-    }));
-    await userPage.route('**/dashboard/stats', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({}) }));
-    await userPage.route('**/attendance/today', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) }));
+    await userPage.route('**/auth/login', route => fulfillRoute(route, { token: createFakeToken('user'), user: { id: 2, role: 'user', full_name: 'Karyawan Biasa' } }));
+    await userPage.route('**/auth/profile', route => fulfillRoute(route, { id: 2, role: 'user', full_name: 'Karyawan Biasa', email: 'user@test.com' }));
+    await userPage.route('**/dashboard/stats', route => fulfillRoute(route, {}));
+    await userPage.route('**/attendance/today', route => fulfillRoute(route, []));
 
     await userPage.goto('http://localhost:5173/login');
     await userPage.fill('input[name="identifier"]', 'user@test.com');
