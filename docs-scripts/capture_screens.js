@@ -31,7 +31,7 @@ async function captureScreens() {
   try {
     // 1. ADMIN ROLE (DESKTOP)
     console.log('--- START ADMIN (DESKTOP) ---');
-    const adminContext = await browser.newContext({ viewport: { width: 1280, height: 1080 } });
+    const adminContext = await browser.newContext({ viewport: { width: 1920, height: 1080 } });
     const adminPage = await adminContext.newPage();
     
     // WE ARE NOT MOCKING DATA. WE LET THE REAL API PROVIDE IT.
