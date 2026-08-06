@@ -155,6 +155,34 @@ exports.post_attendance = async (req, res) => {
                 }
             }
         }
+        // --- TIME BOUNDARY VALIDATION ---
+        const { data: settingsData } = await supabase.from('settings').select('setting_key, setting_value');
+        const settings = {
+            checkInStart: '06:00',
+            checkInEnd: '09:00',
+            checkOutStart: '17:00',
+            checkOutEnd: '20:00',
+        };
+        (settingsData || []).forEach(item => {
+            settings[item.setting_key] = item.setting_value;
+        });
+
+        // Get current WIB time (HH:mm)
+        const wibTimeForCheck = new Date();
+        wibTimeForCheck.setUTCHours(wibTimeForCheck.getUTCHours() + 7);
+        const currentHours = String(wibTimeForCheck.getUTCHours()).padStart(2, '0');
+        const currentMinutes = String(wibTimeForCheck.getUTCMinutes()).padStart(2, '0');
+        const currentTime = `${currentHours}:${currentMinutes}`;
+
+        if (type === 'Check In') {
+            if (currentTime < settings.checkInStart || currentTime > settings.checkInEnd) {
+                return res.status(403).json({ error: `Waktu Check In tidak valid. Check In hanya diizinkan antara jam ${settings.checkInStart} - ${settings.checkInEnd} WIB.` });
+            }
+        } else if (type === 'Check Out') {
+            if (currentTime < settings.checkOutStart || currentTime > settings.checkOutEnd) {
+                return res.status(403).json({ error: `Waktu Check Out tidak valid. Check Out hanya diizinkan antara jam ${settings.checkOutStart} - ${settings.checkOutEnd} WIB.` });
+            }
+        }
         // ------------------------------------------------------------
         
         // --- LIMIT VALIDATION (1 Check In / 1 Check Out per day) ---
