@@ -25,8 +25,14 @@ exports.get_dashboard_stats = async (req, res) => {
         }));
 
         // 3. Today's Status (Pie Chart)
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Use local timezone's start of day (WIB UTC+7)
+        const wibTime = new Date();
+        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
+        const todayStr = wibTime.toISOString().split('T')[0];
+        
+        wibTime.setUTCHours(0, 0, 0, 0);
+        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
+        const today = wibTime; // exact UTC moment of 00:00 WIB today
         
         const { data: attendance } = await supabase
             .from('attendance')
@@ -72,12 +78,15 @@ exports.get_dashboard_stats = async (req, res) => {
 
         // Process data day by day
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            d.setHours(0, 0, 0, 0);
+            // Reconstruct the start and end of the day in WIB
+            const dWib = new Date();
+            dWib.setUTCHours(dWib.getUTCHours() + 7);
+            dWib.setUTCDate(dWib.getUTCDate() - i);
+            dWib.setUTCHours(0, 0, 0, 0);
+            dWib.setUTCHours(dWib.getUTCHours() - 7);
+            const d = dWib;
             
-            const nextD = new Date(d);
-            nextD.setDate(nextD.getDate() + 1);
+            const nextD = new Date(d.getTime() + 86400000); // +24 hours
 
             const dayName = days[d.getDay()];
             
@@ -146,7 +155,6 @@ exports.get_dashboard_stats = async (req, res) => {
 
         // Timeline (Upcoming Events, Leaves, Permissions)
         const timeline = [];
-        const todayStr = new Date().toISOString().split('T')[0];
         // Company Events upcoming
         const { data: events } = await supabase.from('events').select('*').gte('event_date', todayStr).order('event_date').limit(3);
         if (events) {
@@ -319,8 +327,14 @@ exports.delete_system_notes_id = async (req, res) => {
 exports.get_employee_dashboard = async (req, res) => {
     try {
         const userId = req.userId;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        // Use local timezone's start of day (WIB UTC+7)
+        const wibTime = new Date();
+        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
+        // const todayStr = wibTime.toISOString().split('T')[0]; // For future use if needed
+        
+        wibTime.setUTCHours(0, 0, 0, 0);
+        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
+        const today = wibTime; // exact UTC moment of 00:00 WIB today
 
         // 1. Get user profile
         const { data: profile } = await supabase
@@ -365,11 +379,15 @@ exports.get_employee_dashboard = async (req, res) => {
 
         const weeklyHistory = [];
         for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setDate(d.getDate() - i);
-            d.setHours(0, 0, 0, 0);
-            const nextD = new Date(d);
-            nextD.setDate(nextD.getDate() + 1);
+            // Reconstruct the start and end of the day in WIB
+            const dWib = new Date();
+            dWib.setUTCHours(dWib.getUTCHours() + 7);
+            dWib.setUTCDate(dWib.getUTCDate() - i);
+            dWib.setUTCHours(0, 0, 0, 0);
+            dWib.setUTCHours(dWib.getUTCHours() - 7);
+            const d = dWib;
+            
+            const nextD = new Date(d.getTime() + 86400000); // +24 hours
 
             const dayAtts = (weeklyAtt || []).filter(a => {
                 const ts = new Date(a.timestamp);
