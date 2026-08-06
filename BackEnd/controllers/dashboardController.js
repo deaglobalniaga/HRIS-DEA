@@ -3,7 +3,7 @@ const supabase = require('../config/supabaseClient');
 exports.get_dashboard_stats = async (req, res) => {
     try {
         // 1. Basic Stats
-        const { data: users, error: usersErr } = await supabase.from('users').select('id, full_name, division, role, contract_type, employment_status');
+        const { data: users, error: usersErr } = await supabase.from('users').select('*');
         if (usersErr) throw usersErr;
         const employeesCount = users ? users.length : 0;
 
@@ -43,8 +43,8 @@ exports.get_dashboard_stats = async (req, res) => {
                 .from('leaves')
                 .select('user_id')
                 .eq('status', 'Approved')
-                .lte('start_date', today.toISOString())
-                .gte('end_date', today.toISOString());
+                .lte('leave_start', today.toISOString())
+                .gte('leave_end', today.toISOString());
             activeLeavesCount = activeLeaves ? new Set(activeLeaves.map(l => l.user_id)).size : 0;
         } catch(e) {}
 
@@ -116,11 +116,11 @@ exports.get_dashboard_stats = async (req, res) => {
             });
 
         // Active Leaves (Approved or Pending)
-        const { data: allLeaves } = await supabase.from('leaves').select('*').gte('end_date', today.toISOString());
+        const { data: allLeaves } = await supabase.from('leaves').select('*').gte('leave_end', today.toISOString());
         const activeLeavesList = (allLeaves || []).map(l => {
             const u = userMap[l.user_id] || {};
-            const startDate = new Date(l.start_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
-            const endDate = new Date(l.end_date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+            const startDate = new Date(l.leave_start).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
+            const endDate = new Date(l.leave_end).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' });
             return {
                 name: u.full_name || 'Unknown User',
                 role: u.role || 'user',
