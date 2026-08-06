@@ -396,7 +396,7 @@ const Employees = () => {
                                     </div>
                                     <div>
                                         <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
-                                        <select required value={selectedEmp.employment_status || ''} onChange={e => setSelectedEmp({ ...selectedEmp, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
+                                        <select value={selectedEmp.employment_status || ''} onChange={e => setSelectedEmp({ ...selectedEmp, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
                                             <option value="" disabled>Pilih Status</option>
                                             <option value="Tetap">Tetap</option>
                                             <option value="Kontrak">Kontrak</option>
@@ -407,8 +407,7 @@ const Employees = () => {
                                         <label className="block text-xs font-bold text-slate-600 mb-2">Role</label>
                                         <select value={selectedEmp.role || ''} onChange={e => setSelectedEmp({ ...selectedEmp, role: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
                                             <option value="user">User</option>
-                                            <option value="hr">HR</option>
-                                            <option value="admin">Admin</option>
+                                            <option value="admin">ADMIN HR</option>
                                         </select>
                                     </div>
                                     <div>
@@ -553,13 +552,13 @@ const Employees = () => {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Role (Hak Akses Sistem)</label>
                                             <select required value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
-                                                <option value="user">User (Karyawan Biasa)</option>
-                                                <option value="admin">Admin (HR/GA)</option>
+                                                <option value="user">User</option>
+                                                <option value="admin">ADMIN HR</option>
                                             </select>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
-                                            <select required value={empForm.employment_status} onChange={e => setEmpForm({ ...empForm, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
+                                            <select value={empForm.employment_status} onChange={e => setEmpForm({ ...empForm, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
                                                 <option value="" disabled>Pilih Status</option>
                                                 <option value="Tetap">Tetap</option>
                                                 <option value="Kontrak">Kontrak</option>
