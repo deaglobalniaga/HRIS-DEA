@@ -109,9 +109,9 @@ exports.get_dashboard_stats = async (req, res) => {
                     name: u.full_name || 'Unknown User',
                     role: u.role || 'user',
                     division: u.division || 'Unassigned',
-                    time: `${timeStr} • ${u.division || ''}`,
-                    status: a.type === 'Check In' ? 'Present' : a.type,
-                    detail: a.notes || 'Hadir'
+                    time: `${timeStr} · ${u.division || ''}`,
+                    status: a.type === 'Check In' ? 'CHECK IN' : 'CHECK OUT',
+                    detail: a.notes || (a.type === 'Check In' ? 'Masuk' : 'Pulang')
                 };
             });
 
@@ -158,9 +158,22 @@ exports.get_dashboard_stats = async (req, res) => {
             todayLeaves.forEach(l => timeline.push({ time: 'CUTI', text: `${l.users?.full_name} (${l.type})`, color: 'bg-amber-500' }));
         }
         // Permissions for today
-        const { data: todayPerms } = await supabase.from('permissions').select('*, users(full_name)').eq('status', 'Approved').eq('date', todayStr);
+        const { data: todayPerms } = await supabase.from('permissions').select('*, users(full_name, role, division)').eq('status', 'Approved').eq('date', todayStr);
         if (todayPerms) {
-            todayPerms.forEach(p => timeline.push({ time: 'IZIN', text: `${p.users?.full_name} (${p.type})`, color: 'bg-orange-500' }));
+            todayPerms.forEach(p => {
+                timeline.push({ time: 'IZIN', text: `${p.users?.full_name} (${p.type})`, color: 'bg-orange-500' });
+                
+                // Add to todayArrivals
+                const u = p.users || {};
+                todayArrivals.push({
+                    name: u.full_name || 'Unknown User',
+                    role: u.role || 'user',
+                    division: u.division || 'Unassigned',
+                    time: `Seharian · ${u.division || ''}`,
+                    status: p.type === 'Sakit' || p.type === 'Sick' ? 'SAKIT' : 'IZIN',
+                    detail: p.reason || p.type
+                });
+            });
         }
 
         // 6. Contract Stats

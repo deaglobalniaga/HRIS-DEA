@@ -48,9 +48,10 @@ const ListItem = ({ avatar, name, role, time, status, detail, hideBorder }) => (
       </div>
     </div>
     <div className="flex flex-col items-end">
-      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full mb-0.5 ${status === 'Present' || status === 'Approved' || status === 'Hadir' ? 'bg-green-100 text-green-700' :
-        status === 'Pending' ? 'bg-amber-100 text-amber-700' :
-          status === 'Late' || status === 'Terlambat' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+      <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full mb-0.5 ${status === 'Present' || status === 'Approved' || status === 'Hadir' || status === 'CHECK IN' ? 'bg-green-100 text-green-700' :
+        status === 'Pending' || status === 'SAKIT' ? 'bg-amber-100 text-amber-700' :
+          status === 'Late' || status === 'Terlambat' ? 'bg-red-100 text-red-700' :
+            status === 'CHECK OUT' || status === 'IZIN' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
         }`}>
         {status}
       </span>

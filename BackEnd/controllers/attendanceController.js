@@ -15,9 +15,13 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 exports.get_attendance_today = async (req, res) => {
     try {
-        // Use local timezone's start of day
-        const now = new Date();
-        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const wibTime = new Date();
+        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
+        const todayWibStr = wibTime.toISOString().split('T')[0];
+        
+        wibTime.setUTCHours(0, 0, 0, 0);
+        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
+        const startOfDayUTC = wibTime.toISOString();
         
         // 1. Get all active users
         let userQuery = supabase.from('users').select('id, full_name, role, division, profile_photo_url');
@@ -35,7 +39,7 @@ exports.get_attendance_today = async (req, res) => {
         const { data: attendance, error: attError } = await supabase
             .from('attendance')
             .select('user_id, timestamp, type')
-            .gte('timestamp', startOfDay.toISOString());
+            .gte('timestamp', startOfDayUTC);
             
         if (attError && attError.code !== '42P01') throw attError;
 
@@ -71,9 +75,9 @@ exports.get_attendance_today = async (req, res) => {
         (permissions || []).forEach(p => {
             const startDate = new Date(p.date);
             if (p.type === 'Sakit' || p.type === 'Sick') {
-                if (startDate.toISOString().split('T')[0] === startOfDay.toISOString().split('T')[0]) sakitIds.push(p.user_id);
+                if (p.date === todayWibStr) sakitIds.push(p.user_id);
             } else if (p.type === 'Izin' || p.type === 'Permission') {
-                if (startDate.toISOString().split('T')[0] === startOfDay.toISOString().split('T')[0]) izinIds.push(p.user_id);
+                if (p.date === todayWibStr) izinIds.push(p.user_id);
             } else if (p.type === 'Cuti') {
                 const endDate = new Date(startDate);
                 endDate.setDate(endDate.getDate() + 14);
@@ -154,13 +158,21 @@ exports.post_attendance = async (req, res) => {
         // ------------------------------------------------------------
         
         // --- LIMIT VALIDATION (1 Check In / 1 Check Out per day) ---
-        const todayStr = new Date().toISOString().split('T')[0];
+        // Use WIB bounds (UTC+7) to correctly identify today across UTC borders
+        const wibTime = new Date();
+        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
+        wibTime.setUTCHours(0, 0, 0, 0);
+        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
+        const startOfDayUTC = wibTime.toISOString();
+        const endOfDayUTC = new Date(wibTime.getTime() + 86400000 - 1).toISOString();
+
         const { data: existingLogs } = await supabase
             .from('attendance')
             .select('id')
             .eq('user_id', req.userId)
             .eq('type', type)
-            .gte('timestamp', todayStr + 'T00:00:00.000Z');
+            .gte('timestamp', startOfDayUTC)
+            .lte('timestamp', endOfDayUTC);
 
         if (existingLogs && existingLogs.length > 0) {
             return res.status(429).json({ error: `Anda sudah merekam absensi ${type} hari ini. Maksimal 1 kali ${type} per hari.` });
