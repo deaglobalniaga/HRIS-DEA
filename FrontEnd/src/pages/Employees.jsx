@@ -21,7 +21,7 @@ const Employees = () => {
     const [, setCsvFile] = useState(null);
 
     const [empForm, setEmpForm] = useState({
-        full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'Tetap', job_title: '', initial_work_days: 0
+        full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'PKWT', job_title: '', initial_work_days: 0
     });
 
     // Edit Modal State & Dropdown
@@ -58,7 +58,7 @@ const Employees = () => {
             setMessage('Karyawan berhasil ditambahkan!');
             setTimeout(() => {
                 setShowAddModal(false);
-                setEmpForm({ full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'Tetap', job_title: '', initial_work_days: 0 });
+                setEmpForm({ full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'PKWT', job_title: '', initial_work_days: 0 });
                 setMessage('');
                 fetchEmployees(); // refresh data
             }, 1500);
@@ -398,9 +398,8 @@ const Employees = () => {
                                         <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
                                         <select value={selectedEmp.employment_status || ''} onChange={e => setSelectedEmp({ ...selectedEmp, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
                                             <option value="" disabled>Pilih Status</option>
-                                            <option value="Tetap">Tetap</option>
-                                            <option value="Kontrak">Kontrak</option>
-                                            <option value="Probation">Probation</option>
+                                            <option value="PKWT">PKWT</option>
+                                            <option value="PKWTT">PKWTT</option>
                                         </select>
                                     </div>
                                     <div>
@@ -560,9 +559,8 @@ const Employees = () => {
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
                                             <select value={empForm.employment_status} onChange={e => setEmpForm({ ...empForm, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
                                                 <option value="" disabled>Pilih Status</option>
-                                                <option value="Tetap">Tetap</option>
-                                                <option value="Kontrak">Kontrak</option>
-                                                <option value="Probation">Probation</option>
+                                                <option value="PKWT">PKWT</option>
+                                                <option value="PKWTT">PKWTT</option>
                                             </select>
                                         </div>
                                         <div>
