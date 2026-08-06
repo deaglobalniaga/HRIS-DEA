@@ -177,10 +177,10 @@ exports.get_dashboard_stats = async (req, res) => {
         }
 
         // 6. Contract Stats
-        const contractCounts = { 'Tetap': 0, 'Kontrak': 0, 'Probation': 0 };
+        const contractCounts = { 'PKWT': 0, 'PKWTT': 0 };
         (users || []).forEach(u => {
             const ct = u.employment_status;
-            if (ct === 'Tetap' || ct === 'Kontrak' || ct === 'Probation') {
+            if (ct === 'PKWT' || ct === 'PKWTT') {
                 contractCounts[ct]++;
             } else if (ct) {
                 contractCounts['Lainnya'] = (contractCounts['Lainnya'] || 0) + 1;
@@ -191,7 +191,7 @@ exports.get_dashboard_stats = async (req, res) => {
         const contractStats = Object.keys(contractCounts).map(key => ({
             name: key,
             value: contractCounts[key],
-            fill: key === 'Tetap' ? '#10B981' : key === 'Kontrak' ? '#3B82F6' : key === 'Probation' ? '#F59E0B' : (key === 'Belum Diatur' ? '#E5E7EB' : '#9CA3AF')
+            fill: key === 'PKWT' ? '#3B82F6' : key === 'PKWTT' ? '#10B981' : (key === 'Belum Diatur' ? '#E5E7EB' : '#9CA3AF')
         }));
 
         // 7. Average Work Hours
