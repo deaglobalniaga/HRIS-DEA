@@ -6,7 +6,7 @@ exports.get_employees = async (req, res) => {
     try {
         const { data, error } = await supabase
             .from('users')
-            .select('id, full_name, nik_internal, role, division, profile_photo_url, last_activity, date_of_joining, base_salary')
+            .select('id, full_name, email, username, nik_internal, role, division, profile_photo_url, last_activity, date_of_joining, base_salary')
             .order('full_name', { ascending: true });
 
         if (error) throw error;
@@ -83,7 +83,7 @@ exports.set_department_head = async (req, res) => {
 
 exports.post_employees = async (req, res) => {
     try {
-        const { full_name, email, role, division, date_of_joining, nik_internal, contract_type, job_title, nik_ktp, phone_number, initial_work_days } = req.body;
+        const { full_name, email, role, division, date_of_joining, nik_internal, contract_type, employment_status, job_title, nik_ktp, phone_number, initial_work_days } = req.body;
         
         let targetEmail = email || `${nik_internal.toLowerCase()}@hris.local`;
         const authId = crypto.randomUUID();
@@ -97,11 +97,12 @@ exports.post_employees = async (req, res) => {
                 email: targetEmail,
                 password: hashedPassword,
                 full_name,
-                role,
+                role: role || 'user',
                 division,
                 date_of_joining,
                 nik_internal,
                 contract_type,
+                employment_status: employment_status || 'Tetap',
                 job_title,
                 nik_ktp,
                 phone_number,
@@ -130,8 +131,8 @@ exports.put_employees = async (req, res) => {
     try {
         const { id } = req.params;
         const { 
-            full_name, role, division, job_title, contract_type, initial_work_days, profile_photo_url,
-            email, phone_number, nik_ktp, address, emergency_contact, blood_type, npwp, marital_status, bank_name, bank_account
+            full_name, role, division, job_title, contract_type, employment_status, initial_work_days, profile_photo_url,
+            email, phone_number, nik_ktp, address, emergency_contact, blood_type, marital_status
         } = req.body;
         
         const updateData = {};
@@ -140,6 +141,7 @@ exports.put_employees = async (req, res) => {
         if (division !== undefined) updateData.division = division;
         if (job_title !== undefined) updateData.job_title = job_title;
         if (contract_type !== undefined) updateData.contract_type = contract_type;
+        if (employment_status !== undefined) updateData.employment_status = employment_status;
         if (initial_work_days !== undefined) updateData.initial_work_days = initial_work_days;
         if (profile_photo_url !== undefined) updateData.profile_photo_url = profile_photo_url;
         if (email !== undefined) updateData.email = email;
@@ -148,10 +150,7 @@ exports.put_employees = async (req, res) => {
         if (address !== undefined) updateData.address = address;
         if (emergency_contact !== undefined) updateData.emergency_contact = emergency_contact;
         if (blood_type !== undefined) updateData.blood_type = blood_type;
-        if (npwp !== undefined) updateData.npwp = npwp;
         if (marital_status !== undefined) updateData.marital_status = marital_status;
-        if (bank_name !== undefined) updateData.bank_name = bank_name;
-        if (bank_account !== undefined) updateData.bank_account = bank_account;
 
         const { data, error } = await supabase
             .from('users')
@@ -192,6 +191,7 @@ exports.post_employees_bulk = async (req, res) => {
                 date_of_joining: emp.date_of_joining,
                 nik_internal: emp.nik_internal,
                 contract_type: emp.contract_type,
+                employment_status: emp.employment_status || 'Tetap',
                 job_title: emp.job_title,
                 nik_ktp: emp.nik_ktp,
                 phone_number: emp.phone_number

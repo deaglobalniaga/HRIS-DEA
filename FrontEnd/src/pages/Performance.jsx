@@ -10,6 +10,10 @@ const Performance = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
+    
+    // For Roster Offset editing
+    const [editingRosterUser, setEditingRosterUser] = useState(null);
+    const [newCycleDay, setNewCycleDay] = useState("");
 
     useEffect(() => {
         fetchRosterStats();
@@ -59,6 +63,26 @@ const Performance = () => {
         }
     };
 
+    const submitRosterOffset = async () => {
+        if (!editingRosterUser || !newCycleDay) return;
+        const targetDay = parseInt(newCycleDay) - 1; // UI uses 1-index (Hari ke-1)
+        if (isNaN(targetDay)) return;
+        
+        const userStat = stats.find(s => s.user_id === editingRosterUser);
+        if (!userStat) return;
+
+        const diff = targetDay - userStat.current_cycle_day;
+        const newOffset = userStat.offset + diff;
+
+        try {
+            await api.put(`/hris/performance/roster/${editingRosterUser}`, { initial_work_days: newOffset });
+            setEditingRosterUser(null);
+            fetchRosterStats();
+        } catch (err) {
+            alert("Gagal menyetel siklus roster.");
+        }
+    };
+
     const getStatusColor = (status) => {
         if (status === 'Cuti Roster') return 'bg-amber-100 text-amber-700 border-amber-200';
         return 'bg-green-100 text-green-700 border-green-200';
@@ -78,9 +102,6 @@ const Performance = () => {
                 <div className="flex gap-2">
                     <button onClick={fetchRosterStats} className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-sm rounded-xl shadow-sm hover:bg-slate-50 transition">
                         <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
-                    </button>
-                    <button className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white font-bold text-sm rounded-xl shadow-md hover:bg-slate-800 transition">
-                        <Target size={16} /> Ekspor PDF
                     </button>
                 </div>
             </div>
@@ -181,9 +202,16 @@ const Performance = () => {
                                             </div>
                                         </td>
                                         <td className="p-3 text-center">
-                                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${getStatusColor(item.roster_status)}`}>
-                                                {item.roster_status}
-                                            </span>
+                                            <div className="flex flex-col items-center gap-1">
+                                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-black border ${getStatusColor(item.roster_status)}`}>
+                                                    {item.roster_status}
+                                                </span>
+                                                {(user?.role === 'admin' || user?.role === 'hr') && (
+                                                    <span onClick={() => { setEditingRosterUser(item.user_id); setNewCycleDay((item.current_cycle_day + 1).toString()); }} className="text-[9px] font-bold text-blue-500 cursor-pointer hover:underline cursor-pointer">
+                                                        (Hari ke-{item.current_cycle_day + 1}) ✎
+                                                    </span>
+                                                )}
+                                            </div>
                                         </td>
                                         <td className="p-3 text-center">
                                             <span className={`text-[10px] ${get13_1Color(item.cycle_13_1)}`}>
@@ -231,6 +259,38 @@ const Performance = () => {
                     </div>
                 )}
             </div>
+
+            {/* Edit Roster Cycle Modal */}
+            {editingRosterUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+                    <div className="bg-white rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl border border-slate-100">
+                        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-black text-slate-800 text-sm">Setel Ulang Siklus Karyawan</h3>
+                            <button onClick={() => setEditingRosterUser(null)} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={18} /></button>
+                        </div>
+                        <div className="p-4">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1.5">Saat ini berada di siklus HARI KE:</label>
+                            <input 
+                                type="number" 
+                                min="1"
+                                className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-red-900/20"
+                                value={newCycleDay}
+                                onChange={(e) => setNewCycleDay(e.target.value)}
+                                placeholder="Contoh: 1, 42, 56..."
+                            />
+                            <p className="text-[10px] text-slate-500 font-medium mt-2 leading-relaxed">
+                                <strong>Panduan:</strong><br/>
+                                Jika <strong>8/2</strong>: Hari 1-56 (Masa Kerja), Hari 57-70 (Cuti).<br/>
+                                Jika <strong>6/2</strong>: Hari 1-42 (Masa Kerja), Hari 43-56 (Cuti).
+                            </p>
+                            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-50">
+                                <button onClick={() => setEditingRosterUser(null)} className="px-4 py-2 text-xs font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-colors">Batal</button>
+                                <button onClick={submitRosterOffset} className="px-4 py-2 text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-xl transition-colors shadow-sm shadow-blue-200">Terapkan Siklus</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

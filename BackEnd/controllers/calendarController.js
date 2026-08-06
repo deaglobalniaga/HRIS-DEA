@@ -97,15 +97,27 @@ exports.post_event = async (req, res) => {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
-        const { title, description, event_date } = req.body;
+        const { title, description, event_date, event_end_date } = req.body;
         
         if (!title || !event_date) {
             return res.status(400).json({ error: 'Title and event_date are required' });
         }
 
+        const eventsToInsert = [];
+        const start = new Date(event_date);
+        const end = event_end_date ? new Date(event_end_date) : new Date(event_date);
+        
+        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+            eventsToInsert.push({
+                title,
+                description,
+                event_date: d.toISOString().split('T')[0]
+            });
+        }
+
         const { data, error } = await supabase
             .from('events')
-            .insert([{ title, description, event_date }]);
+            .insert(eventsToInsert);
 
         if (error) throw error;
         res.status(201).json({ message: 'Event created successfully', data });

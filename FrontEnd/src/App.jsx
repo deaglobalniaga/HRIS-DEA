@@ -2,6 +2,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { LanguageProvider } from './context/LanguageContext';
+import { ToastProvider } from './context/ToastContext';
+import Toast from './components/Toast';
 
 import MainLayout from './layouts/MainLayout';
 import Login from './pages/Login';
@@ -16,7 +18,6 @@ import Performance from './pages/Performance';
 import Timesheet from './pages/Timesheet';
 import Reports from './pages/Reports';
 import LandingPage from './pages/LandingPage';
-import Profile from './pages/Profile';
 import Notifications from './pages/Notifications';
 import LeaveTimeline from './pages/LeaveTimeline';
 
@@ -45,7 +46,6 @@ function AppRoutes() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="attendance-hub" element={<AttendanceHub />} />
                 <Route path="settings" element={<Settings />} />
-                <Route path="profile" element={<Profile user={user} />} />
                 <Route path="notifications" element={<Notifications />} />
 
                 {/* Sidebar Menus */}
@@ -74,9 +74,12 @@ function App() {
     <AuthProvider>
       <ThemeProvider>
         <LanguageProvider>
-          <Router>
-            <AppRoutes />
-          </Router>
+          <ToastProvider>
+            <Router>
+              <Toast />
+              <AppRoutes />
+            </Router>
+          </ToastProvider>
         </LanguageProvider>
       </ThemeProvider>
     </AuthProvider>

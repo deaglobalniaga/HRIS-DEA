@@ -3,7 +3,7 @@ const supabase = require('../config/supabaseClient');
 exports.get_dashboard_stats = async (req, res) => {
     try {
         // 1. Basic Stats
-        const { data: users, error: usersErr } = await supabase.from('users').select('id, full_name, division, role');
+        const { data: users, error: usersErr } = await supabase.from('users').select('id, full_name, division, role, contract_type, employment_status');
         if (usersErr) throw usersErr;
         const employeesCount = users ? users.length : 0;
 
@@ -141,8 +141,103 @@ exports.get_dashboard_stats = async (req, res) => {
         });
 
         // System Notes
-        const { data: systemNotes } = await supabase.from('system_notes').select('*').order('created_at', { ascending: false }).limit(3);
-        const notesList = (systemNotes || []).map(n => n.note_text);
+        const { data: systemNotes } = await supabase.from('system_notes').select('*').order('created_at', { ascending: false }).limit(5);
+        const notesList = (systemNotes || []).map(n => ({ id: n.id, text: n.note_text }));
+
+        // Timeline (Upcoming Events, Leaves, Permissions)
+        const timeline = [];
+        const todayStr = new Date().toISOString().split('T')[0];
+        // Company Events upcoming
+        const { data: events } = await supabase.from('events').select('*').gte('event_date', todayStr).order('event_date').limit(3);
+        if (events) {
+            events.forEach(e => timeline.push({ time: e.event_date.substring(5), text: e.title, color: 'bg-purple-500' }));
+        }
+        // Leaves overlapping today
+        const { data: todayLeaves } = await supabase.from('leaves').select('*, users(full_name)').eq('status', 'Approved').lte('leave_start', todayStr).gte('leave_end', todayStr);
+        if (todayLeaves) {
+            todayLeaves.forEach(l => timeline.push({ time: 'CUTI', text: `${l.users?.full_name} (${l.type})`, color: 'bg-amber-500' }));
+        }
+        // Permissions for today
+        const { data: todayPerms } = await supabase.from('permissions').select('*, users(full_name)').eq('status', 'Approved').eq('date', todayStr);
+        if (todayPerms) {
+            todayPerms.forEach(p => timeline.push({ time: 'IZIN', text: `${p.users?.full_name} (${p.type})`, color: 'bg-orange-500' }));
+        }
+
+        // 6. Contract Stats
+        const contractCounts = { 'Tetap': 0, 'Kontrak': 0, 'Probation': 0 };
+        (users || []).forEach(u => {
+            const ct = u.employment_status;
+            if (ct === 'Tetap' || ct === 'Kontrak' || ct === 'Probation') {
+                contractCounts[ct]++;
+            } else if (ct) {
+                contractCounts['Lainnya'] = (contractCounts['Lainnya'] || 0) + 1;
+            } else {
+                contractCounts['Belum Diatur'] = (contractCounts['Belum Diatur'] || 0) + 1;
+            }
+        });
+        const contractStats = Object.keys(contractCounts).map(key => ({
+            name: key,
+            value: contractCounts[key],
+            fill: key === 'Tetap' ? '#10B981' : key === 'Kontrak' ? '#3B82F6' : key === 'Probation' ? '#F59E0B' : (key === 'Belum Diatur' ? '#E5E7EB' : '#9CA3AF')
+        }));
+
+        // 7. Average Work Hours
+        const avgWorkHours = [];
+        const { data: allAttendance } = await supabase
+            .from('attendance')
+            .select('user_id, timestamp, type')
+            .gte('timestamp', sevenDaysAgo.toISOString());
+            
+        const daysLabel = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            d.setHours(0, 0, 0, 0);
+            
+            const nextD = new Date(d);
+            nextD.setDate(nextD.getDate() + 1);
+
+            const dayName = daysLabel[d.getDay()];
+            
+            // Filter attendance for this day
+            const dayAtt = (allAttendance || []).filter(a => {
+                const ts = new Date(a.timestamp);
+                return ts >= d && ts < nextD;
+            });
+            
+            // Group by user
+            const userAtt = {};
+            dayAtt.forEach(a => {
+                if (!userAtt[a.user_id]) userAtt[a.user_id] = { in: null, out: null };
+                if (a.type === 'Check In') {
+                    if (!userAtt[a.user_id].in || new Date(a.timestamp) < new Date(userAtt[a.user_id].in)) {
+                        userAtt[a.user_id].in = a.timestamp;
+                    }
+                }
+                if (a.type === 'Check Out') {
+                    if (!userAtt[a.user_id].out || new Date(a.timestamp) > new Date(userAtt[a.user_id].out)) {
+                        userAtt[a.user_id].out = a.timestamp;
+                    }
+                }
+            });
+            
+            let totalHours = 0;
+            let validUsers = 0;
+            Object.values(userAtt).forEach(times => {
+                if (times.in && times.out) {
+                    const diffMs = new Date(times.out) - new Date(times.in);
+                    let hours = diffMs / (1000 * 60 * 60);
+                    if (hours > 16) hours = 16; // Capped for sanity
+                    totalHours += hours;
+                    validUsers++;
+                }
+            });
+            
+            avgWorkHours.push({
+                date: dayName,
+                hours: validUsers > 0 ? parseFloat((totalHours / validUsers).toFixed(1)) : 0
+            });
+        }
 
         // Return aggregated data
         res.json({
@@ -156,7 +251,10 @@ exports.get_dashboard_stats = async (req, res) => {
             todayArrivals,
             activeLeavesList,
             pendingTasks,
-            notesList
+            notesList,
+            timeline,
+            contractStats,
+            avgWorkHours
         });
     } catch (err) {
         res.status(500).json({ error: err.message });

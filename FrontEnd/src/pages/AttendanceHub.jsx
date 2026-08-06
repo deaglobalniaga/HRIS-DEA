@@ -17,10 +17,7 @@ const AttendanceHub = () => {
 
   return (
     <div className="flex flex-col w-full h-full bg-slate-50">
-      <div className="mb-6 px-1 flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
-        <div>
-        </div>
-
+      <div className="mb-6 px-1 flex flex-col xl:flex-row justify-start items-start xl:items-center gap-4">
         {/* Tab Navigation */}
         <div className="flex flex-wrap gap-2 bg-white rounded-xl shadow-sm border border-slate-200 p-1 w-full xl:w-auto">
           <button

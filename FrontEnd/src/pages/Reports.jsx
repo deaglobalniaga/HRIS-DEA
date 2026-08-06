@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FileText, Download, Calendar, Users, Filter, ChevronDown, Printer, FileSpreadsheet, TrendingUp, Clock, User, X } from 'lucide-react';
+import { FileText, Download, Calendar, Users, Filter, ChevronDown, Printer, FileSpreadsheet, TrendingUp, Clock, User, X, Trash2, AlertCircle } from 'lucide-react';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
 
@@ -12,6 +12,11 @@ const Reports = () => {
   const [logData, setLogData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState(null);
+  
+  // Clear Old Data Modal State
+  const [showClearModal, setShowClearModal] = useState(false);
+  const [clearYearCutoff, setClearYearCutoff] = useState(new Date().getFullYear() - 2);
+  const [isClearing, setIsClearing] = useState(false);
   
   // Recap States
   const [month, setMonth] = useState(new Date().getMonth() + 1);
@@ -45,6 +50,23 @@ const Reports = () => {
       console.error('Failed to fetch logs', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClearOldData = async () => {
+    if (!window.confirm(`PERINGATAN: Anda akan menghapus SEMUA data kehadiran, izin, dan jadwal sebelum tahun ${clearYearCutoff}. Data yang dihapus TIDAK DAPAT dikembalikan. Lanjutkan?`)) return;
+    
+    setIsClearing(true);
+    try {
+      await api.delete(`/hris/reports/cleanup?year=${clearYearCutoff}`);
+      alert(`Berhasil menghapus data sebelum tahun ${clearYearCutoff}.`);
+      setShowClearModal(false);
+      fetchReport();
+    } catch (err) {
+      console.error('Failed to clear old data', err);
+      alert('Gagal menghapus data lama.');
+    } finally {
+      setIsClearing(false);
     }
   };
 
@@ -97,10 +119,38 @@ const Reports = () => {
         .font-bold { font-weight: bold; }
         .summary { display: flex; gap: 20px; margin-bottom: 16px; }
         .summary-item { padding: 8px 12px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; }
+        
+        /* Kop Surat Styles */
+        .kop-surat { display: flex; align-items: center; border-bottom: 3px solid #000; padding-bottom: 10px; margin-bottom: 20px; }
+        .logo-container { display: flex; align-items: center; padding-right: 20px; border-right: 2px solid #000; margin-right: 20px; }
+        .logo-text { display: flex; flex-direction: column; }
+        .logo-pt { margin: 0; font-size: 16px; color: #cc0000; font-weight: 900; letter-spacing: 1px; font-family: 'Arial Black', sans-serif; }
+        .logo-gn { margin: 0; font-size: 14px; color: #000; font-weight: 900; letter-spacing: 1px; font-family: 'Arial Black', sans-serif; }
+        .kop-text h1 { margin: 0; font-size: 14px; color: #000; font-weight: bold; }
+        .kop-text p { margin: 4px 0 0 0; color: #000; font-size: 12px; }
+        .report-title { text-align: center; font-size: 14px; margin-bottom: 20px; color: #000; font-weight: bold; }
       </style></head><body>
-      <h1>Laporan Rekap Kehadiran Karyawan</h1>
-      <h2>${monthNames[month - 1]} ${year} — Total Hari Kerja: ${reportData?.totalWorkDays || 0}</h2>
+        <div class="kop-surat">
+            <div class="logo-container">
+                <img src="${window.location.origin}/dea.png" alt="PT DEA Global Niaga" style="height: 65px; margin-right: 15px; object-fit: contain;" />
+                <div class="logo-text">
+                    <h2 class="logo-pt">PT DEA</h2>
+                    <h2 class="logo-gn">GLOBAL NIAGA</h2>
+                </div>
+            </div>
+            <div class="kop-text">
+                <h1>PT DEA GLOBAL NIAGA</h1>
+                <p>Human Resources Information System<br/>Laporan Resmi</p>
+            </div>
+        </div>
+      <div class="report-title">LAPORAN REKAP KEHADIRAN KARYAWAN<br/><br/>Periode: ${monthNames[month - 1]} ${year} &nbsp; | &nbsp; Total Hari Kerja: ${reportData?.totalWorkDays || 0}</div>
       ${printContent.outerHTML}
+      <div style="margin-top: 50px; width: 100%; display: flex; justify-content: flex-end;">
+          <div style="text-align: center; font-size: 12px;">
+              <p style="margin-bottom: 60px;">Kalimantan Selatan, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+              <p><strong>HR Department</strong></p>
+          </div>
+      </div>
       </body></html>
     `);
     win.document.close();
@@ -164,6 +214,9 @@ const Reports = () => {
           </button>
           <button onClick={exportToPDF} className="flex items-center gap-2 bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors">
             <Printer size={14} /> Export PDF
+          </button>
+          <button onClick={() => setShowClearModal(true)} className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm transition-colors">
+            <Trash2 size={14} /> Hapus Data Lama
           </button>
         </div>
       </div>
@@ -390,6 +443,60 @@ const Reports = () => {
             <X size={24} />
           </button>
           <img src={selectedPhoto} alt="Zoomed" className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl animate-in zoom-in-95" onClick={e => e.stopPropagation()} />
+        </div>
+      )}
+
+      {/* Clear Old Data Modal */}
+      {showClearModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-gray-900">Hapus Data Lama</h2>
+                  <p className="text-xs font-bold text-slate-400 mt-0.5">Pembersihan database sistem</p>
+                </div>
+              </div>
+              <button onClick={() => setShowClearModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-500 hover:bg-red-100 hover:text-red-900 transition">
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              <div className="bg-red-50 border border-red-100 text-red-800 text-xs font-bold p-4 rounded-xl mb-6">
+                Peringatan: Tindakan ini akan menghapus semua riwayat kehadiran, pengajuan cuti, agenda, dan log foto secara PERMANEN yang dibuat sebelum tahun batas yang dipilih.
+              </div>
+              
+              <label className="block text-xs font-bold text-slate-600 mb-2">Hapus data sebelum tahun:</label>
+              <select 
+                value={clearYearCutoff} 
+                onChange={(e) => setClearYearCutoff(parseInt(e.target.value))}
+                className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition mb-6"
+              >
+                {[2024, 2025, 2026, 2027, 2028, 2029].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+
+              <div className="flex gap-3">
+                <button 
+                  onClick={() => setShowClearModal(false)}
+                  className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition"
+                  disabled={isClearing}
+                >
+                  Batal
+                </button>
+                <button 
+                  onClick={handleClearOldData}
+                  className="flex-1 px-4 py-3 rounded-xl text-sm font-bold text-white bg-red-600 hover:bg-red-700 transition flex items-center justify-center gap-2"
+                  disabled={isClearing}
+                >
+                  {isClearing ? 'Menghapus...' : 'Konfirmasi Hapus'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

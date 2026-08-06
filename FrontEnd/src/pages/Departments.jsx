@@ -61,9 +61,7 @@ const Departments = () => {
 
   return (
     <div className="flex flex-col w-full h-full pb-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8">
-        <div>
-        </div>
+      <div className="flex flex-col md:flex-row md:items-center justify-end mb-8">
         <div className="mt-4 md:mt-0">
           <button 
             onClick={() => alert("Divisi dibentuk secara dinamis berdasarkan data karyawan. Untuk menambah divisi baru, silakan tambah atau edit divisi pada profil karyawan di tab 'Karyawan', dan divisi akan otomatis muncul di sini.")}

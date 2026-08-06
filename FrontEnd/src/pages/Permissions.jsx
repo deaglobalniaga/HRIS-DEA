@@ -133,9 +133,7 @@ const Permissions = () => {
 
   return (
     <div className="w-full">
-      <div className="mb-8 flex justify-between items-end">
-        <div>
-        </div>
+      <div className="mb-8 flex justify-end items-end">
         <button
           onClick={() => setShowAddModal(true)}
           className="bg-red-900 hover:bg-red-800 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-colors text-sm flex items-center">

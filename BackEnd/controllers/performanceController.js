@@ -115,19 +115,24 @@ exports.delete_performance_id = async (req, res) => {
 exports.put_user_roster = async (req, res) => {
     try {
         const { id } = req.params;
-        const { contract_type } = req.body;
+        const { contract_type, initial_work_days } = req.body;
         
-        if (!['6/2', '8/2'].includes(contract_type)) {
-            return res.status(400).json({ error: 'Invalid roster type' });
+        let updateData = {};
+        if (contract_type) {
+            if (!['6/2', '8/2'].includes(contract_type)) return res.status(400).json({ error: 'Invalid roster type' });
+            updateData.contract_type = contract_type;
+        }
+        if (initial_work_days !== undefined) {
+            updateData.initial_work_days = parseInt(initial_work_days) || 0;
         }
 
         const { data, error } = await supabase
             .from('users')
-            .update({ contract_type })
+            .update(updateData)
             .eq('id', id);
 
         if (error) throw error;
-        res.json({ message: 'Roster type updated successfully', data });
+        res.json({ message: 'Roster updated successfully', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -142,7 +147,7 @@ exports.get_roster_stats = async (req, res) => {
         // 1. Get Users
         const { data: users, error: userError } = await supabase
             .from('users')
-            .select('id, full_name, role, division, date_of_joining, profile_photo_url, contract_type');
+            .select('id, full_name, role, division, date_of_joining, profile_photo_url, contract_type, initial_work_days');
         if (userError) throw userError;
 
         // 2. Get this month's attendance (Check In only to count days)
@@ -178,7 +183,9 @@ exports.get_roster_stats = async (req, res) => {
         const stats = users.map(u => {
             const doj = u.date_of_joining ? new Date(u.date_of_joining) : new Date('2024-01-01');
             const diffTime = Math.abs(today - doj);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const actualDiffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            // Apply manual offset from HR
+            const diffDays = actualDiffDays + (u.initial_work_days || 0);
             
             // Roster Rules: Admin explicitly sets 6/2 or 8/2 in contract_type
             let isSixTwo = (u.contract_type === '6/2');
@@ -186,7 +193,9 @@ exports.get_roster_stats = async (req, res) => {
             let workDays = isSixTwo ? 42 : 56;
             let offDays = 14;
             
-            let cycleDay = diffDays % cycleDays;
+            // Handle negative diffDays (if offset makes it negative)
+            let cycleDay = ((diffDays % cycleDays) + cycleDays) % cycleDays;
+            
             let rosterStatus = cycleDay >= workDays ? 'Cuti Roster' : 'Masa Kerja';
             let daysToNextPhase = cycleDay >= workDays ? (cycleDays - cycleDay) : (workDays - cycleDay);
             
@@ -207,7 +216,11 @@ exports.get_roster_stats = async (req, res) => {
                 roster_type: isSixTwo ? '6/2 (PJO/Khusus)' : '8/2 (Staff)',
                 roster_status: rosterStatus,
                 days_to_change: daysToNextPhase,
-                cycle_13_1: compliance13_1
+                cycle_13_1: compliance13_1,
+                current_cycle_day: cycleDay,
+                cycle_total_days: cycleDays,
+                work_days_total: workDays,
+                offset: u.initial_work_days || 0
             };
         });
 

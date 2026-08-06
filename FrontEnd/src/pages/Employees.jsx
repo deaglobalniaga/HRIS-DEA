@@ -21,7 +21,7 @@ const Employees = () => {
     const [, setCsvFile] = useState(null);
 
     const [empForm, setEmpForm] = useState({
-        full_name: '', email: '', nik_internal: '', division: '', role: '', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '', job_title: '', initial_work_days: 0
+        full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'Tetap', job_title: '', initial_work_days: 0
     });
 
     // Edit Modal State & Dropdown
@@ -58,7 +58,7 @@ const Employees = () => {
             setMessage('Karyawan berhasil ditambahkan!');
             setTimeout(() => {
                 setShowAddModal(false);
-                setEmpForm({ full_name: '', email: '', nik_internal: '', division: '', role: '', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '', job_title: '' });
+                setEmpForm({ full_name: '', email: '', nik_internal: '', division: '', role: 'user', date_of_joining: '', nik_ktp: '', phone_number: '', contract_type: '8/2', employment_status: 'Tetap', job_title: '', initial_work_days: 0 });
                 setMessage('');
                 fetchEmployees(); // refresh data
             }, 1500);
@@ -81,6 +81,7 @@ const Employees = () => {
                 division: selectedEmp.division,
                 job_title: selectedEmp.job_title,
                 contract_type: selectedEmp.contract_type,
+                employment_status: selectedEmp.employment_status,
                 initial_work_days: selectedEmp.initial_work_days,
                 email: selectedEmp.email,
                 phone_number: selectedEmp.phone_number,
@@ -88,12 +89,9 @@ const Employees = () => {
                 address: selectedEmp.address,
                 emergency_contact: selectedEmp.emergency_contact,
                 blood_type: selectedEmp.blood_type,
-                npwp: selectedEmp.npwp,
-                marital_status: selectedEmp.marital_status,
-                bank_name: selectedEmp.bank_name,
-                bank_account: selectedEmp.bank_account
+                marital_status: selectedEmp.marital_status
             };
-            
+
             if (editPhotoBase64) {
                 updatePayload.profile_photo_url = editPhotoBase64;
             }
@@ -169,6 +167,18 @@ const Employees = () => {
         }
     };
 
+    const handleDeleteEmployee = async (id) => {
+        if (window.confirm('Apakah Anda yakin ingin menghapus karyawan ini? Data ini tidak dapat dikembalikan.')) {
+            try {
+                await api.delete(`/auth/users/${id}`);
+                fetchEmployees();
+            } catch (err) {
+                console.error("Gagal menghapus karyawan", err);
+                alert("Gagal menghapus karyawan. Pastikan Anda memiliki hak akses Admin.");
+            }
+        }
+    };
+
     const filteredEmployees = employees.filter(emp =>
         emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         emp.role.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -184,9 +194,7 @@ const Employees = () => {
 
     return (
         <div className="w-full flex flex-col gap-6 relative">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <div>
-                </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-end gap-4">
                 <div className="flex items-center gap-3">
                     <button
                         onClick={() => setShowBulkModal(true)}
@@ -279,7 +287,7 @@ const Employees = () => {
                                                     <button onClick={() => { setActiveDropdown(null); setSelectedEmp(emp); setEditPhotoPreview(emp.profile_photo_url || null); setEditPhotoBase64(''); setShowEditModal(true); }} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
                                                         <Edit size={14} className="text-blue-500" /> Edit Karyawan
                                                     </button>
-                                                    <button onClick={() => { setActiveDropdown(null); alert('Hapus belum diimplementasikan'); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                                    <button onClick={() => { setActiveDropdown(null); handleDeleteEmployee(emp.id); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
                                                         <Trash2 size={14} /> Hapus Karyawan
                                                     </button>
                                                 </div>
@@ -291,7 +299,7 @@ const Employees = () => {
                         </tbody>
                     </table>
                 </div>
-                
+
                 {/* Pagination Controls */}
                 {!loading && filteredEmployees.length > itemsPerPage && (
                     <div className="p-4 border-t border-slate-100 bg-white flex items-center justify-between">
@@ -299,7 +307,7 @@ const Employees = () => {
                             Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, filteredEmployees.length)} dari {filteredEmployees.length} Karyawan
                         </span>
                         <div className="flex gap-2">
-                            <button 
+                            <button
                                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                                 disabled={currentPage === 1}
                                 className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded hover:bg-slate-50 disabled:opacity-50"
@@ -309,7 +317,7 @@ const Employees = () => {
                             <span className="px-3 py-1.5 text-xs font-bold text-slate-800">
                                 {currentPage} / {totalPages}
                             </span>
-                            <button 
+                            <button
                                 onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
                                 disabled={currentPage === totalPages}
                                 className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded hover:bg-slate-50 disabled:opacity-50"
@@ -342,7 +350,7 @@ const Employees = () => {
                                         <AlertCircle size={18} /> {message}
                                     </div>
                                 )}
-                                
+
                                 <div className="flex flex-col items-center mb-6">
                                     <label className="relative cursor-pointer group">
                                         <div className="w-24 h-24 rounded-full bg-slate-200 border-4 border-white shadow-md overflow-hidden flex items-center justify-center relative">
@@ -355,16 +363,16 @@ const Employees = () => {
                                                 <Upload className="text-white" size={24} />
                                             </div>
                                         </div>
-                                        <input 
-                                            type="file" 
-                                            accept="image/*" 
-                                            className="hidden" 
-                                            onChange={handleEditPhotoChange} 
+                                        <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={handleEditPhotoChange}
                                         />
                                     </label>
                                     <span className="text-[10px] text-slate-400 mt-2 font-bold uppercase tracking-wider">Ubah Foto Profil (Max 2MB)</span>
                                 </div>
-                                
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-600 mb-2">Nama Lengkap</label>
@@ -387,11 +395,20 @@ const Employees = () => {
                                         <input type="text" value={selectedEmp.job_title || ''} onChange={e => setSelectedEmp({ ...selectedEmp, job_title: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Contoh: Manager" />
                                     </div>
                                     <div>
+                                        <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
+                                        <select required value={selectedEmp.employment_status || ''} onChange={e => setSelectedEmp({ ...selectedEmp, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
+                                            <option value="" disabled>Pilih Status</option>
+                                            <option value="Tetap">Tetap</option>
+                                            <option value="Kontrak">Kontrak</option>
+                                            <option value="Probation">Probation</option>
+                                        </select>
+                                    </div>
+                                    <div>
                                         <label className="block text-xs font-bold text-slate-600 mb-2">Role</label>
-                                        <select required value={selectedEmp.role || ''} onChange={e => setSelectedEmp({ ...selectedEmp, role: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
-                                            <option value="user">User (Karyawan Biasa)</option>
-                                            <option value="admin">Admin (HR/GA)</option>
-                                            <option value="pjo">PJO (Manager)</option>
+                                        <select value={selectedEmp.role || ''} onChange={e => setSelectedEmp({ ...selectedEmp, role: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
+                                            <option value="user">User</option>
+                                            <option value="hr">HR</option>
+                                            <option value="admin">Admin</option>
                                         </select>
                                     </div>
                                     <div>
@@ -424,20 +441,22 @@ const Employees = () => {
 
                                 {/* Additional Personal Data */}
                                 <div className="space-y-4 pt-4 border-t border-slate-100 mt-4">
-                                    <h3 className="text-sm font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-2">Informasi Tambahan</h3>
+                                    <h3 className="text-sm font-black text-slate-800 pb-2 border-b border-slate-100 flex items-center gap-2">
+                                        <Briefcase size={16} className="text-red-900" /> Profil Pribadi & Kontak
+                                    </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="md:col-span-2">
-                                            <label className="block text-xs font-bold text-slate-600 mb-2">Alamat Domisili</label>
-                                            <textarea value={selectedEmp.address || ''} onChange={e => setSelectedEmp({ ...selectedEmp, address: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Alamat lengkap..." rows={2}></textarea>
+                                            <label className="block text-xs font-bold text-slate-600 mb-2">Alamat Lengkap</label>
+                                            <textarea rows="2" value={selectedEmp.address || ''} onChange={e => setSelectedEmp({ ...selectedEmp, address: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Alamat domisili..."></textarea>
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Kontak Darurat</label>
-                                            <input type="text" value={selectedEmp.emergency_contact || ''} onChange={e => setSelectedEmp({ ...selectedEmp, emergency_contact: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Nama / Hubungan - 08..." />
+                                            <input type="text" value={selectedEmp.emergency_contact || ''} onChange={e => setSelectedEmp({ ...selectedEmp, emergency_contact: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Nama & No HP" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Golongan Darah</label>
                                             <select value={selectedEmp.blood_type || ''} onChange={e => setSelectedEmp({ ...selectedEmp, blood_type: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
-                                                <option value="">Pilih</option>
+                                                <option value="" disabled>Pilih Golongan Darah</option>
                                                 <option value="A">A</option>
                                                 <option value="B">B</option>
                                                 <option value="AB">AB</option>
@@ -447,23 +466,11 @@ const Employees = () => {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Status Pernikahan</label>
                                             <select value={selectedEmp.marital_status || ''} onChange={e => setSelectedEmp({ ...selectedEmp, marital_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
-                                                <option value="">Pilih</option>
-                                                <option value="Lajang">Lajang</option>
+                                                <option value="" disabled>Pilih Status</option>
+                                                <option value="Belum Menikah">Belum Menikah</option>
                                                 <option value="Menikah">Menikah</option>
                                                 <option value="Cerai">Cerai</option>
                                             </select>
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-600 mb-2">NPWP</label>
-                                            <input type="text" value={selectedEmp.npwp || ''} onChange={e => setSelectedEmp({ ...selectedEmp, npwp: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="Nomor NPWP" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-600 mb-2">Nama Bank</label>
-                                            <input type="text" value={selectedEmp.bank_name || ''} onChange={e => setSelectedEmp({ ...selectedEmp, bank_name: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="BCA / Mandiri / BNI" />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-bold text-slate-600 mb-2">Nomor Rekening</label>
-                                            <input type="text" value={selectedEmp.bank_account || ''} onChange={e => setSelectedEmp({ ...selectedEmp, bank_account: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="No Rekening" />
                                         </div>
                                     </div>
                                 </div>
@@ -546,9 +553,17 @@ const Employees = () => {
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Role (Hak Akses Sistem)</label>
                                             <select required value={empForm.role} onChange={e => setEmpForm({ ...empForm, role: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
-                                                <option value="" disabled>Pilih Role</option>
                                                 <option value="user">User (Karyawan Biasa)</option>
                                                 <option value="admin">Admin (HR/GA)</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-600 mb-2">Status Karyawan</label>
+                                            <select required value={empForm.employment_status} onChange={e => setEmpForm({ ...empForm, employment_status: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition">
+                                                <option value="" disabled>Pilih Status</option>
+                                                <option value="Tetap">Tetap</option>
+                                                <option value="Kontrak">Kontrak</option>
+                                                <option value="Probation">Probation</option>
                                             </select>
                                         </div>
                                         <div>
@@ -572,7 +587,7 @@ const Employees = () => {
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-600 mb-2">Penyesuaian Siklus Off (Hari)</label>
-                                            <input type="number" required value={empForm.initial_work_days} onChange={e => setEmpForm({ ...empForm, initial_work_days: parseInt(e.target.value)||0 })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="0" />
+                                            <input type="number" required value={empForm.initial_work_days} onChange={e => setEmpForm({ ...empForm, initial_work_days: parseInt(e.target.value) || 0 })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-red-900 focus:ring-2 focus:ring-red-900/10 transition" placeholder="0" />
                                             <p className="text-[9px] text-slate-400 font-bold mt-1">Gunakan angka negatif untuk mengurangi hari (misal -2), atau positif untuk menambah hari.</p>
                                         </div>
                                     </div>

@@ -15,7 +15,7 @@ const LeaveTimeline = () => {
   const [showAddAgendaModal, setShowAddAgendaModal] = useState(false);
   
   // Forms
-  const [agendaForm, setAgendaForm] = useState({ title: '', date: '', time: '', location: '', description: '' });
+  const [agendaForm, setAgendaForm] = useState({ title: '', date: '', end_date: '', time: '', location: '', description: '' });
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState('');
 
@@ -41,8 +41,9 @@ const LeaveTimeline = () => {
       try {
           await api.post('/hris/calendar/events', {
               title: agendaForm.title,
-              description: agendaForm.description,
-              event_date: agendaForm.date
+              description: `${agendaForm.time} | ${agendaForm.location} - ${agendaForm.description}`,
+              event_date: agendaForm.date,
+              event_end_date: agendaForm.end_date || agendaForm.date
           });
           // Refresh calendar
           const res = await api.get(`/hris/calendar/events?month=${currentMonth + 1}&year=${currentYear}`);
@@ -50,7 +51,7 @@ const LeaveTimeline = () => {
           setMessage('Agenda berhasil ditambahkan!');
           setTimeout(() => {
               setShowAddAgendaModal(false);
-              setAgendaForm({ title: '', date: '', time: '', location: '', description: '' });
+              setAgendaForm({ title: '', date: '', end_date: '', time: '', location: '', description: '' });
               setMessage('');
           }, 1500);
       } catch (err) {
@@ -280,7 +281,7 @@ const LeaveTimeline = () => {
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div>
-                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tanggal Pelaksanaan</label>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tanggal Mulai</label>
                                 <input 
                                     type="date" 
                                     required
@@ -289,6 +290,17 @@ const LeaveTimeline = () => {
                                     className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition"
                                 />
                             </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Sampai Tanggal (Opsional)</label>
+                                <input 
+                                    type="date" 
+                                    value={agendaForm.end_date}
+                                    onChange={e => setAgendaForm({...agendaForm, end_date: e.target.value})}
+                                    className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition"
+                                />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Waktu (Jam)</label>
                                 <input 
@@ -299,17 +311,17 @@ const LeaveTimeline = () => {
                                     className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition"
                                 />
                             </div>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Lokasi / Tautan Pertemuan</label>
-                            <input 
-                                type="text" 
-                                required
-                                value={agendaForm.location}
-                                onChange={e => setAgendaForm({...agendaForm, location: e.target.value})}
-                                placeholder="Ruang Meeting A / Link Zoom"
-                                className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition"
-                            />
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Lokasi / Link Pertemuan</label>
+                                <input 
+                                    type="text" 
+                                    required
+                                    value={agendaForm.location}
+                                    onChange={e => setAgendaForm({...agendaForm, location: e.target.value})}
+                                    placeholder="Ruang Meeting / Zoom"
+                                    className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/10 transition"
+                                />
+                            </div>
                         </div>
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Deskripsi Agenda</label>

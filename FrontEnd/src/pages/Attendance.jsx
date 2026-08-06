@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Camera, MapPin, CheckCircle, Fingerprint, AlertCircle, RefreshCw, XCircle, Clock } from 'lucide-react';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 import { MapContainer, TileLayer, Marker, Circle } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
@@ -16,12 +17,12 @@ L.Icon.Default.mergeOptions({
 });
 const Attendance = () => {
   const { user } = useAuth();
+  const { addToast } = useToast();
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const overlayCanvasRef = useRef(null);
   const [streamActive, setStreamActive] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [statusMsg, setStatusMsg] = useState({ text: '', type: '' });
 
   // Attendance state
   const [attType, setAttType] = useState('check-in'); // 'check-in', 'check-out', 'sick', 'leave'
@@ -33,8 +34,6 @@ const Attendance = () => {
   // Right panel state (daily list)
   const [roster, setRoster] = useState({ present: [], missing: [], sakit: [], izin: [], cuti: [], off: [] });
   const [fetchingRecords, setFetchingRecords] = useState(true);
-  const [activeRosterTab, setActiveRosterTab] = useState('Belum Absen');
-  const ROSTER_TABS = ['Belum Absen', 'Sudah Absen', 'Tidak Hadir'];
 
   const [modelsLoaded, setModelsLoaded] = useState(false);
 
@@ -57,8 +56,8 @@ const Attendance = () => {
 
   // Wait before allowing capture (simulating loading readiness)
   useEffect(() => {
-    setStatusMsg({ text: 'Kamera siap digunakan!', type: 'success' });
-  }, []);
+    // Intentionally empty, relying on camera detection UI instead of toast
+  }, [addToast]);
 
   // Initialize camera
   const startCamera = async () => {
@@ -71,7 +70,7 @@ const Attendance = () => {
       }
     } catch (err) {
       console.error("Camera error:", err);
-      setStatusMsg({ text: 'Akses kamera ditolak atau tidak ditemukan.', type: 'error' });
+      addToast('Akses kamera ditolak atau tidak ditemukan.', 'error');
     }
   };
 
@@ -143,7 +142,7 @@ const Attendance = () => {
     }, 500); // scan every 500ms
 
     return () => clearInterval(detectionInterval.current);
-  }, [streamActive, location.text]);
+  }, [streamActive, location.text, modelsLoaded]);
 
   // Fetch location
   const fetchLocation = useCallback(() => {
@@ -159,7 +158,6 @@ const Attendance = () => {
             const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`);
             const data = await res.json();
             if (data && data.display_name) {
-              // Use a shorter version of the address if possible, or just the full name
               address = data.display_name;
             }
           } catch (e) {
@@ -175,12 +173,13 @@ const Attendance = () => {
         (error) => {
           console.error(error);
           setLocation({ lat: null, lng: null, text: 'Gagal mendeteksi lokasi GPS.' });
+          addToast('Gagal mendeteksi lokasi GPS.', 'error');
         }
       );
     } else {
       setLocation({ lat: null, lng: null, text: 'GPS tidak didukung oleh browser Anda.' });
     }
-  }, []);
+  }, [addToast]);
 
   // Fetch real daily records from backend
   const fetchDailyRecords = async () => {
@@ -213,18 +212,14 @@ const Attendance = () => {
 
   const handleSubmit = async () => {
     if (!location.lat && !location.lng) {
-      setStatusMsg({ text: 'Mohon tunggu sampai lokasi GPS terdeteksi!', type: 'error' });
+      addToast('Mohon tunggu sampai lokasi GPS terdeteksi!', 'error');
       return;
     }
-
-
 
     let photoBase64 = null;
     if ((attType === 'check-in' || attType === 'check-out') && videoRef.current && canvasRef.current) {
       const video = videoRef.current;
       const canvas = canvasRef.current;
-      // Clean capture without boxes (with Aggressive Compression)
-      // Resize to a maximum width of 640px to save massive bucket space
       const MAX_WIDTH = 640;
       let width = video.videoWidth;
       let height = video.videoHeight;
@@ -237,17 +232,13 @@ const Attendance = () => {
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext('2d');
-      
-      // Draw video frame scaled down
       ctx.drawImage(video, 0, 0, width, height);
 
-      // Compress aggressively to JPEG with 0.5 quality
       const capturedDataUrl = canvas.toDataURL('image/jpeg', 0.5);
       photoBase64 = capturedDataUrl;
     }
 
     setLoading(true);
-    setStatusMsg({ text: 'Mengirim data dan foto...', type: 'info' });
 
     try {
       let endpoint = '/hris/attendance';
@@ -272,12 +263,14 @@ const Attendance = () => {
         };
       }
 
-      await api.post(endpoint, payload);
-      setStatusMsg({ text: `Berhasil mencatat ${attType} pada sistem!`, type: 'success' });
-      fetchDailyRecords(); // Refresh list
+      const res = await api.post(endpoint, payload);
+      if (res.data) {
+        addToast(`Berhasil mencatat ${attType} pada sistem!`, 'success');
+        fetchDailyRecords();
+      }
     } catch (err) {
       const serverMsg = err.response?.data?.error || 'Terjadi kesalahan sistem saat mengirim data';
-      setStatusMsg({ text: serverMsg, type: 'error' });
+      addToast(serverMsg, 'error');
     } finally {
       setLoading(false);
     }
@@ -285,7 +278,7 @@ const Attendance = () => {
 
   return (
     <div className="flex flex-col w-full h-full pb-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
+      <div className="hidden md:flex flex-col md:flex-row md:items-center justify-between mb-4">
         <div>
           <h1 className="text-xl font-black text-slate-800 tracking-tight">Presensi AI & GPS</h1>
           <p className="text-xs text-slate-500 mt-1 font-medium">Sistem presensi dengan Ai face detection & Geolocation.</p>
@@ -294,34 +287,34 @@ const Attendance = () => {
 
       <div className="flex flex-col lg:flex-row gap-4">
 
-        {/* Left Side: Attendance Form — full width for users, fixed width for admin */}
-        <div className={`bg-white p-3 sm:p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col h-fit relative pb-32 lg:pb-5 ${(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'hr')
+        <div className={`bg-white p-3 sm:p-5 rounded-3xl shadow-sm border border-slate-200 flex flex-col h-fit relative pb-40 lg:pb-5 ${(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'hr')
           ? 'w-full lg:w-[400px] xl:w-[450px] shrink-0'
           : 'w-full max-w-2xl mx-auto'
           }`}>
-          <h2 className="text-sm sm:text-base font-bold text-slate-800 mb-3">Pilih Tipe Absensi</h2>
-
-          <div className="grid grid-cols-4 gap-1.5 sm:gap-2 mb-4">
+          <div className="grid grid-cols-2 gap-2 mb-3">
             {[
               { id: 'check-in', label: 'Check In', icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-50', active: 'ring-2 ring-green-500 bg-green-50' },
               { id: 'check-out', label: 'Check Out', icon: RefreshCw, color: 'text-amber-600', bg: 'bg-amber-50', active: 'ring-2 ring-amber-500 bg-amber-50' },
-              { id: 'sick', label: 'Sakit', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50', active: 'ring-2 ring-red-500 bg-red-50' },
-              { id: 'leave', label: 'Izin', icon: Clock, color: 'text-blue-600', bg: 'bg-blue-50', active: 'ring-2 ring-blue-500 bg-blue-50' },
             ].map(type => (
               <button
                 key={type.id}
                 onClick={() => setAttType(type.id)}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border border-slate-100 transition-all ${attType === type.id ? type.active : 'hover:bg-slate-50 opacity-60 hover:opacity-100'
-                  }`}
+                className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all border ${
+                  attType === type.id
+                    ? `${type.active} border-transparent shadow-sm scale-[1.02]`
+                    : 'border-slate-200 bg-white hover:bg-slate-50'
+                }`}
               >
-                <type.icon size={20} className={`${type.color} mb-1.5`} />
-                <span className="text-xs font-bold text-slate-700">{type.label}</span>
+                <type.icon size={20} className={`${attType === type.id ? type.color : 'text-slate-400'} mb-1`} />
+                <span className={`text-[11px] font-bold ${attType === type.id ? type.color : 'text-slate-500'}`}>
+                  {type.label}
+                </span>
               </button>
             ))}
           </div>
 
           {(attType === 'check-in' || attType === 'check-out') && (
-            <div className="w-full h-[300px] sm:h-[400px] bg-slate-900 rounded-xl overflow-hidden relative mb-4 flex items-center justify-center border-4 border-slate-800 shadow-inner">
+            <div className="w-full h-[200px] sm:h-[300px] bg-slate-900 rounded-xl overflow-hidden relative mb-4 flex items-center justify-center border-4 border-slate-800 shadow-inner">
               <video
                 ref={videoRef}
                 autoPlay
@@ -335,14 +328,10 @@ const Attendance = () => {
                   <p className="text-sm font-bold">Kamera dinonaktifkan</p>
                 </div>
               )}
-              {/* Live Overlay Canvas */}
               <canvas
                 ref={overlayCanvasRef}
                 className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-20 ${!streamActive ? 'hidden' : ''}`}
               />
-
-
-              {/* Hidden canvas for snapshot */}
               <canvas ref={canvasRef} className="hidden" />
             </div>
           )}
@@ -373,17 +362,6 @@ const Attendance = () => {
             )}
           </div>
 
-          {statusMsg.text && (
-            <div className={`p-3 rounded-xl mb-4 text-xs font-bold flex items-center gap-2 ${statusMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-100' :
-              statusMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' :
-                'bg-blue-50 text-blue-700 border border-blue-100'
-              }`}>
-              {statusMsg.type === 'error' ? <XCircle size={16} /> : statusMsg.type === 'success' ? <CheckCircle size={16} /> : <RefreshCw size={16} className="animate-spin" />}
-              {statusMsg.text}
-            </div>
-          )}
-
-          {/* Submit Button Floating on Mobile */}
           <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-xl border-t border-slate-200 z-50 lg:relative lg:p-0 lg:bg-transparent lg:border-none lg:mt-4">
             <button
               onClick={handleSubmit}
@@ -397,18 +375,14 @@ const Attendance = () => {
                 <> <RefreshCw size={22} className="animate-spin" /> Memproses... </>
               ) : (
                 <> <Fingerprint size={24} /> {
-                  attType === 'check-in' ? 'Kirim Check In Sekarang'
-                    : attType === 'check-out' ? 'Kirim Check Out Sekarang'
-                      : attType === 'sick' ? 'Kirim Laporan Sakit' : 'Kirim Laporan Izin'
+                  attType === 'check-in' ? 'Kirim Check In Sekarang' : 'Kirim Check Out Sekarang'
                 } </>
               )}
             </button>
-            {/* Safe area spacing for mobile swipe indicator */}
             <div className="h-6 lg:hidden w-full"></div>
           </div>
         </div>
 
-        {/* Right Side: Daily Roster (Only for Admin/HR) */}
         {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'hr') && (
           <div className="w-full xl:w-2/3 bg-transparent flex flex-col h-auto lg:h-[calc(100vh-180px)] lg:max-h-[600px]">
             <div className="flex justify-between items-center mb-4">

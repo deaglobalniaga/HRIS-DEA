@@ -3,14 +3,15 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Mail, Lock, Check } from 'lucide-react';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
 
 const Login = () => {
     const [credentials, setCredentials] = useState({ identifier: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [, setFocusedField] = useState(null);
-    const [errorMsg, setErrorMsg] = useState('');
     const navigate = useNavigate();
     const { login } = useAuth();
+    const { addToast } = useToast();
 
     const handleChange = (e) => {
         setCredentials({ ...credentials, [e.target.name]: e.target.value });
@@ -19,13 +20,14 @@ const Login = () => {
     const handleLogin = async (e) => {
         e.preventDefault();
         setLoading(true);
-        setErrorMsg('');
         try {
             const res = await api.post('/auth/login', credentials);
             login(res.data.token, res.data.user);
+            addToast('Login Berhasil!', 'success');
             navigate('/dashboard');
         } catch (error) {
-            setErrorMsg(error.response?.data?.error || error.response?.data?.message || error.message || 'Gagal login, periksa kembali email & password Anda.');
+            const msg = error.response?.data?.error || error.response?.data?.message || error.message || 'Gagal login, periksa kembali email & password Anda.';
+            addToast(msg, 'error');
         } finally {
             setLoading(false);
         }
@@ -53,12 +55,6 @@ const Login = () => {
                         <p className="text-gray-500 text-[10px] mt-1 font-bold uppercase tracking-wider">DEA GLOBAL NIAGA HRIS</p>
                     </div>
 
-                    {errorMsg && (
-                        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-100 text-red-600 text-[11px] font-bold text-center flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top-2">
-                            <span className="shrink-0">⚠️</span> {errorMsg}
-                        </div>
-                    )}
-
                     <form onSubmit={handleLogin} className="space-y-3.5">
                         <div className="group relative">
                             <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">Email, Username, atau NIK</label>
@@ -85,7 +81,7 @@ const Login = () => {
                                     type="password" 
                                     name="password" 
                                     required 
-                                    minLength="8"
+                                    minLength="6"
                                     onChange={handleChange} 
                                     className="w-full pl-8 pr-4 py-2.5 text-sm bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" 
                                     placeholder="••••••••" 

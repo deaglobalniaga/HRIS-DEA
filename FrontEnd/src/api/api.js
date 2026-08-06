@@ -17,7 +17,10 @@ export const setAuthToken = (token) => {
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.response && error.response.status === 401) {
+        // Don't auto-logout or redirect if the 401 is from the login attempt itself
+        const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
+        
+        if (error.response && error.response.status === 401 && !isLoginRequest) {
             localStorage.removeItem('token');
             localStorage.removeItem('user_data');
             window.location.href = '/';

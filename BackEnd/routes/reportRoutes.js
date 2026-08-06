@@ -12,4 +12,7 @@ router.get('/reports/attendance-personal', verifyToken, controller.get_attendanc
 // GET raw attendance logs with photos
 router.get('/reports/attendance-log', verifyToken, controller.get_attendance_log);
 
+// DELETE clear old data
+router.delete('/reports/cleanup', verifyToken, controller.cleanup_old_data);
+
 module.exports = router;

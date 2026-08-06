@@ -114,7 +114,7 @@ const Navbar = ({ toggleSidebar }) => {
   else if (location.pathname.includes('/inbox')) pageTitle = 'Kotak Masuk';
   else if (location.pathname.includes('/calendar')) pageTitle = 'Kalender & Agenda';
   else if (location.pathname.includes('/settings')) pageTitle = 'Pengaturan';
-  else if (location.pathname.includes('/performance')) pageTitle = 'Kinerja & KPI';
+  else if (location.pathname.includes('/performance')) pageTitle = 'Agenda Kerja';
   else if (location.pathname.includes('/reports')) pageTitle = 'Laporan HR';
   else if (location.pathname.includes('/payroll')) pageTitle = 'Penggajian';
 
@@ -130,7 +130,7 @@ const Navbar = ({ toggleSidebar }) => {
           <h2 className="text-xl font-black text-gray-900 tracking-tight">{pageTitle}</h2>
         </div>
         <div className="text-xs font-bold text-slate-400 mt-0.5 lg:ml-0 ml-10">
-          HRIS
+          HRIS / {pageTitle}
         </div>
       </div>
 

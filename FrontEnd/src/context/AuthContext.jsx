@@ -3,12 +3,18 @@ import api, { setAuthToken } from '../api/api';
 
 const AuthContext = createContext();
 
+// Initialize token synchronously to prevent race conditions on page reload
+const initialToken = localStorage.getItem('token');
+if (initialToken) {
+    setAuthToken(initialToken);
+}
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         const savedUser = localStorage.getItem('user_data');
         return savedUser ? JSON.parse(savedUser) : null;
     });
-    const [token, setToken] = useState(localStorage.getItem('token'));
+    const [token, setToken] = useState(initialToken);
     const [loading, setLoading] = useState(() => {
         const savedToken = localStorage.getItem('token');
         const savedUser = localStorage.getItem('user_data');
@@ -60,6 +66,7 @@ export const AuthProvider = ({ children }) => {
     const login = (newToken, userData) => {
         setToken(newToken);
         setUser(userData);
+        setAuthToken(newToken); // Fix race condition with navigate()
         localStorage.setItem('token', newToken);
         localStorage.setItem('user_data', JSON.stringify(userData));
     };

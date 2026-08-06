@@ -8,9 +8,7 @@ const Organization = () => {
 
   return (
     <div className="flex flex-col w-full h-full bg-slate-50">
-      <div className="mb-6 px-1 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <div>
-        </div>
+      <div className="mb-6 px-1 flex flex-col md:flex-row justify-start items-start md:items-center gap-4">
         
         {/* Tab Navigation */}
         <div className="flex bg-white rounded-xl shadow-sm border border-slate-200 p-1">
@@ -35,8 +33,8 @@ const Organization = () => {
 
       {/* Tab Content */}
       <div className="flex-1 w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {activeTab === 'employees' && <div className="w-full h-full -mt-6"><Employees /></div>}
-        {activeTab === 'departments' && <div className="w-full h-full -mt-6"><Departments /></div>}
+        {activeTab === 'employees' && <div className="w-full h-full"><Employees /></div>}
+        {activeTab === 'departments' && <div className="w-full h-full"><Departments /></div>}
       </div>
     </div>
   );

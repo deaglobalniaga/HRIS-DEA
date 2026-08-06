@@ -24,9 +24,15 @@ const Timesheet = () => {
     const fetchTimesheet = async () => {
         setLoading(true);
         try {
-            // Reusing payroll endpoint but now it returns timesheet data
-            const res = await api.get(`/hris/payroll/${currentYear}/${currentMonth}`);
-            setTimesheetData(res.data);
+            // Reusing reports endpoint for timesheet data
+            const res = await api.get(`/hris/reports/attendance-monthly?month=${currentMonth}&year=${currentYear}`);
+            const mappedData = (res.data.data || []).map(item => ({
+                ...item,
+                name: item.full_name,
+                present_days: item.hadir || 0,
+                total_hours: (item.hadir || 0) * 8
+            }));
+            setTimesheetData(mappedData);
             
             // Fetch global target hours
             try {
@@ -73,6 +79,74 @@ const Timesheet = () => {
     const totalPresentDays = timesheetData.reduce((acc, curr) => acc + (curr.present_days || 0), 0);
     const averageHours = totalPresentDays > 0 ? (totalCumulativeHours / totalPresentDays).toFixed(1) : 0;
 
+    const handlePrint = () => {
+        const printContent = document.getElementById('print-table');
+        if (!printContent) {
+            alert('Data tabel tidak ditemukan untuk dicetak.');
+            return;
+        }
+        
+        const win = window.open('', '', 'height=700,width=900');
+        if (!win) {
+            alert('Tolong izinkan pop-up browser untuk mencetak laporan.');
+            return;
+        }
+
+        win.document.write(`
+            <html><head><title>Laporan Jam Kerja Karyawan</title>
+            <style>
+                @media print {
+                    @page { size: landscape; margin: 10mm; }
+                }
+                body { font-family: 'Arial', sans-serif; padding: 20px; color: #000; }
+                .kop-surat { display: flex; align-items: center; border-bottom: 2px solid #000; padding-bottom: 15px; margin-bottom: 20px; }
+                .logo-container { display: flex; align-items: center; gap: 10px; width: 300px; }
+                .logo-icon { color: red; font-size: 44px; font-weight: 900; line-height: 1; letter-spacing: -4px; margin-right: 5px; }
+                .logo-text { display: flex; flex-direction: column; }
+                .logo-pt { font-size: 22px; font-weight: 900; margin: 0; color: #000; letter-spacing: 0.5px; }
+                .logo-gn { font-size: 20px; font-weight: 300; margin: 0; color: #000; letter-spacing: 1px; }
+                
+                .kop-text { text-align: center; flex: 1; margin-left: -150px; }
+                .kop-text h1 { margin: 0; font-size: 14px; color: #000; font-weight: bold; }
+                .kop-text p { margin: 4px 0 0 0; color: #000; font-size: 12px; }
+                
+                .report-title { text-align: center; font-size: 14px; margin-bottom: 20px; color: #000; font-weight: bold; }
+                
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px; }
+                th, td { border: 1px solid #000; padding: 8px; text-align: left; }
+                th { font-weight: bold; color: #000; text-transform: uppercase; text-align: center; }
+                
+                /* Hide the "Detail Riwayat" column for printing */
+                th:last-child, td:last-child { display: none; }
+            </style></head><body>
+                  <div class="kop-surat">
+                      <div class="logo-container">
+                          <img src="${window.location.origin}/dea.png" alt="PT DEA Global Niaga" style="height: 65px; margin-right: 15px; object-fit: contain;" />
+                          <div class="logo-text">
+                              <h2 class="logo-pt">PT DEA</h2>
+                              <h2 class="logo-gn">GLOBAL NIAGA</h2>
+                          </div>
+                      </div>
+                      <div class="kop-text">
+                          <h1>PT DEA GLOBAL NIAGA</h1>
+                          <p>Human Resources Information System<br/>Laporan Resmi</p>
+                      </div>
+                  </div>
+            <div class="report-title">LAPORAN JAM KERJA KARYAWAN<br/><br/>Periode: ${months[currentMonth - 1]} ${currentYear}</div>
+            ${printContent.outerHTML}
+            <div style="margin-top: 50px; width: 100%; display: flex; justify-content: flex-end;">
+                <div style="text-align: center; font-size: 12px;">
+                    <p style="margin-bottom: 60px;">Kalimantan Selatan, ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                    <p><strong>HR Department</strong></p>
+                </div>
+            </div>
+            </body></html>
+        `);
+        win.document.close();
+        setTimeout(() => win.print(), 500);
+    };
+
+
     return (
         <div className="w-full flex flex-col gap-6 relative">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -95,7 +169,9 @@ const Timesheet = () => {
                             <option key={y} value={y}>{y}</option>
                         ))}
                     </select>
-                    <button className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl shadow-md hover:bg-slate-800 transition">
+                    <button 
+                        onClick={handlePrint}
+                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-900 text-white font-bold rounded-xl shadow-md hover:bg-slate-800 transition">
                         <Download size={18} /> Export Laporan
                     </button>
                 </div>
@@ -190,7 +266,7 @@ const Timesheet = () => {
                 </div>
                 
                 <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
+                    <table id="print-table" className="w-full text-left border-collapse">
                         <thead>
                             <tr className="bg-slate-50 border-b border-slate-100 text-[11px] uppercase tracking-wider text-slate-500">
                                 <th className="p-4 font-black">Karyawan</th>
@@ -207,19 +283,31 @@ const Timesheet = () => {
                                 </tr>
                             ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan="5" className="p-8 text-center text-slate-400 font-bold">Tidak ada data jam kerja di bulan ini.</td>
+                                    <td colSpan="5" className="p-12 text-center">
+                                        <div className="flex flex-col items-center justify-center gap-2">
+                                            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mb-2">
+                                                <Clock size={24} className="text-slate-400" />
+                                            </div>
+                                            <h4 className="text-sm font-black text-slate-800">Belum Ada Data Jam Kerja</h4>
+                                            <p className="text-[11px] font-bold text-slate-500 max-w-md">
+                                                Halaman ini berfungsi untuk mengakumulasi total jam kerja harian karyawan (Timesheet) 
+                                                berdasarkan presensi masuk dan pulang. Saat ini masih kosong karena belum ada rekaman 
+                                                jam kerja yang valid di bulan ini.
+                                            </p>
+                                        </div>
+                                    </td>
                                 </tr>
                             ) : (
                                 currentData.map((item) => (
-                                    <React.Fragment key={item.user_id}>
+                                    <React.Fragment key={item.id}>
                                         <tr className="hover:bg-slate-50 transition-colors">
                                             <td className="p-4">
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shrink-0 border border-slate-200">
-                                                        <img src={item.photo || `https://ui-avatars.com/api/?name=${encodeURIComponent(item.name)}&background=random`} alt={item.name} />
+                                                        <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(item.full_name)}&background=random`} alt={item.full_name} />
                                                     </div>
                                                     <div>
-                                                        <h4 className="text-sm font-bold text-gray-900">{item.name}</h4>
+                                                        <h4 className="text-sm font-bold text-gray-900">{item.full_name}</h4>
                                                     </div>
                                                 </div>
                                             </td>
@@ -243,9 +331,9 @@ const Timesheet = () => {
                                             </td>
                                             <td className="p-3 text-center">
                                                 <button 
-                                                    onClick={() => toggleExpand(item.user_id)}
+                                                    onClick={() => toggleExpand(item.id)}
                                                     className="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-200 rounded-lg transition-colors inline-flex items-center gap-1 font-bold text-[10px]">
-                                                    {expandedUser === item.user_id ? 'Tutup' : 'Lihat'} <ChevronDown size={14} className={`transform transition-transform ${expandedUser === item.user_id ? 'rotate-180' : ''}`} />
+                                                    {expandedUser === item.id ? 'Tutup' : 'Lihat'} <ChevronDown size={14} className={`transform transition-transform ${expandedUser === item.id ? 'rotate-180' : ''}`} />
                                                 </button>
                                             </td>
                                         </tr>

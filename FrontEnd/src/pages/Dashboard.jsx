@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-  LineChart, Line, PieChart, Pie, Cell,
+  LineChart, Line, PieChart, Pie, Cell, Legend,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   BarChart, Bar, AreaChart, Area, Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis
 } from 'recharts';
@@ -8,7 +8,7 @@ import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
   UserCheck, UserX, AlertCircle, CheckCircle, Search,
   LogIn, LogOut as LogOutIcon, Calendar, MapPin, ChevronRight, ArrowRight, RefreshCw,
-  TrendingUp, PieChart as PieChartIcon, CalendarDays
+  TrendingUp, PieChart as PieChartIcon, CalendarDays, X
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
@@ -64,12 +64,15 @@ const ListItem = ({ avatar, name, role, time, status, detail, hideBorder }) => (
 // ========================================
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [stats, setStats] = useState({
     totalEmployees: 0, attendanceRate: 0, leaveRequests: 0,
     divisionStats: [], todayStatus: [], weeklyAttendance: [], notesList: []
   });
   const [advStats, setAdvStats] = useState({ trend: [], heatmap: [], division: [] });
   const [timeframe, setTimeframe] = useState(6);
+  const [isAddingNote, setIsAddingNote] = useState(false);
+  const [newNoteText, setNewNoteText] = useState("");
 
 
   const fetchStats = async () => {
@@ -88,7 +91,29 @@ const AdminDashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchStats(); }, [timeframe]);
 
+  const submitNewNote = async () => {
+    if (!newNoteText.trim()) return;
+    try {
+      await api.post('/hris/dashboard/system-notes', { note_text: newNoteText });
+      setNewNoteText("");
+      setIsAddingNote(false);
+      fetchStats();
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menambahkan catatan.");
+    }
+  };
 
+  const handleDeleteNote = async (id) => {
+    if (!window.confirm("Hapus catatan ini?")) return;
+    try {
+      await api.delete(`/hris/dashboard/system-notes/${id}`);
+      fetchStats();
+    } catch (err) {
+      console.error(err);
+      alert("Gagal menghapus catatan.");
+    }
+  };
 
   const pieColors = ['#10B981', '#F59E0B', '#EF4444'];
 
@@ -138,7 +163,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Row 2 */}
-        <div className="md:col-span-2 lg:col-span-2 xl:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col">
+        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col">
           <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-50">
             <h3 className="text-xs font-black text-slate-800">Kehadiran Hari Ini ({stats.todayArrivals?.length || 0})</h3>
             <span onClick={() => navigate('/attendance-hub')} className="text-[9px] font-bold text-blue-600 cursor-pointer hover:underline">Lihat semua &rarr;</span>
@@ -154,11 +179,11 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="md:col-span-2 lg:col-span-2 xl:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col">
-          <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-50">
-            <h3 className="text-xs font-black text-slate-800">Cuti & Izin Aktif ({stats.activeLeavesList?.length || 0})</h3>
-            <span onClick={() => navigate('/attendance-hub')} className="text-[9px] font-bold text-blue-600 cursor-pointer hover:underline">Lihat semua &rarr;</span>
-          </div>
+        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col">
+            <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-50">
+              <h3 className="text-xs font-black text-slate-800">Cuti & Izin ({stats.activeLeavesList?.length || 0})</h3>
+              <span onClick={() => navigate('/attendance-hub', { state: { tab: 'permissions' } })} className="text-[9px] font-bold text-blue-600 cursor-pointer hover:underline">Lihat semua &rarr;</span>
+            </div>
           <div className="flex-1 overflow-y-auto pr-1">
             {stats.activeLeavesList?.length > 0 ? (
               stats.activeLeavesList.map((lv, i) => (
@@ -173,20 +198,64 @@ const AdminDashboard = () => {
         <div className="md:col-span-2 lg:col-span-2 xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col relative">
           <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-50">
             <h3 className="text-xs font-black text-slate-800">Pengingat HR</h3>
+            {(user?.role === 'admin' || user?.role === 'hr') && (
+              <button onClick={() => setIsAddingNote(!isAddingNote)} className="text-[10px] font-bold text-blue-600 hover:bg-blue-50 px-2 py-0.5 rounded transition-colors">{isAddingNote ? 'Batal' : '+ Tambah'}</button>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2.5">
+            {isAddingNote && (
+              <div className="flex flex-col gap-1.5 mb-2 bg-blue-50/50 p-2 rounded-lg border border-blue-100">
+                <input 
+                  type="text" 
+                  value={newNoteText}
+                  onChange={(e) => setNewNoteText(e.target.value)}
+                  placeholder="Ketik catatan di sini..."
+                  className="text-xs p-1.5 rounded border border-blue-200 outline-none focus:ring-2 focus:ring-blue-400"
+                  autoFocus
+                  onKeyDown={(e) => e.key === 'Enter' && submitNewNote()}
+                />
+                <div className="flex justify-end">
+                  <button onClick={submitNewNote} className="text-[9px] font-bold bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700">Simpan</button>
+                </div>
+              </div>
+            )}
             {stats.notesList?.length > 0 ? (
               stats.notesList.map((rem, i) => (
-                <div key={i} className="flex gap-2.5 items-start">
+                <div key={i} className="flex gap-2.5 items-start group">
                   <div className={`w-2.5 h-2.5 rounded-full border-2 mt-0.5 shrink-0 border-blue-400`}></div>
-                  <div className="flex flex-col flex-1 leading-tight">
-                    <span className="text-xs text-slate-700 font-medium">{rem}</span>
+                  <div className="flex flex-col flex-1 leading-tight relative">
+                    <span className="text-xs text-slate-700 font-medium pr-4">{rem.text}</span>
+                    {(user?.role === 'admin' || user?.role === 'hr') && (
+                      <button onClick={() => handleDeleteNote(rem.id)} className="absolute right-0 top-0 text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))
             ) : (
-              <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400">Tidak ada catatan sistem</div>
+              <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400">Tidak ada pengingat</div>
             )}
+          </div>
+        </div>
+
+        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-64 flex flex-col relative">
+          <div className="flex justify-between items-center mb-2 pb-2 border-b border-slate-50">
+            <h3 className="text-xs font-black text-slate-800">Jalan Pintas</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto pr-1 flex flex-col gap-2">
+            <button onClick={() => navigate('/organization')} className="w-full text-left bg-slate-50 hover:bg-blue-50 border border-slate-100 text-slate-700 hover:text-blue-700 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2">
+              <Users size={14} className="text-blue-500" /> Data Organisasi
+            </button>
+            <button onClick={() => navigate('/attendance-hub')} className="w-full text-left bg-slate-50 hover:bg-green-50 border border-slate-100 text-slate-700 hover:text-green-700 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2">
+              <UserCheck size={14} className="text-green-500" /> Kehadiran Hub
+            </button>
+            <button onClick={() => navigate('/calendar')} className="w-full text-left bg-slate-50 hover:bg-amber-50 border border-slate-100 text-slate-700 hover:text-amber-700 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2">
+              <CalendarRange size={14} className="text-amber-500" /> Agenda Perusahaan
+            </button>
+            <button onClick={() => navigate('/leave-timeline')} className="w-full text-left bg-slate-50 hover:bg-purple-50 border border-slate-100 text-slate-700 hover:text-purple-700 px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2">
+              <CalendarDays size={14} className="text-purple-500" /> Timeline Cuti
+            </button>
           </div>
         </div>
 
@@ -227,7 +296,7 @@ const AdminDashboard = () => {
                 </LineChart>
               </ResponsiveContainer>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-400">Memuat grafik...</div>
+              <div className="w-full h-full flex items-center justify-center text-[10px] font-bold text-slate-400">Tidak ada data</div>
             )}
           </div>
         </div>
@@ -267,84 +336,80 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Row 4 */}
-        <div className="md:col-span-2 lg:col-span-2 xl:col-span-2 bg-slate-900 rounded-xl shadow-sm border border-slate-800 p-3 h-56 text-white flex flex-col relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -translate-y-1/2 translate-x-1/4"></div>
-          <h3 className="text-xs font-black text-white mb-3 z-10">Aksi Cepat</h3>
-          <div className="flex flex-col gap-2 z-10">
-            <button onClick={() => navigate('/attendance')} className="bg-slate-800 hover:bg-slate-700 text-left px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2 border border-slate-700/50">
-              <UserCheck size={14} className="text-green-400" /> Proses Absensi Harian
-            </button>
-            <button onClick={() => navigate('/permissions')} className="bg-slate-800 hover:bg-slate-700 text-left px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2 border border-slate-700/50">
-              <CalendarRange size={14} className="text-amber-400" /> Setujui Cuti & Izin
-            </button>
-            <button onClick={() => navigate('/employees')} className="bg-slate-800 hover:bg-slate-700 text-left px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2 border border-slate-700/50">
-              <Users size={14} className="text-blue-400" /> Tambah Karyawan Baru
-            </button>
-            <button onClick={() => navigate('/timesheet')} className="bg-slate-800 hover:bg-slate-700 text-left px-3 py-2 rounded-lg text-[10px] font-bold transition-colors flex items-center gap-2 border border-slate-700/50">
-              <FileText size={14} className="text-purple-400" /> Laporan Jam Kerja
-            </button>
-          </div>
-        </div>
-
-        <div className="md:col-span-2 lg:col-span-3 xl:col-span-3 bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-56 flex flex-col">
-          <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-50">
-            <h3 className="text-xs font-black text-slate-800">Timeline Hari Ini</h3>
-            <span onClick={() => navigate('/attendance-hub')} className="text-[9px] font-bold text-blue-600 cursor-pointer hover:underline">Lihat jadwal &rarr;</span>
-          </div>
-          <div className="relative pl-3 border-l-2 border-slate-100 flex-1 flex flex-col gap-3 pt-1">
-            {stats.timeline && stats.timeline.length > 0 ? stats.timeline.map((evt, i) => (
-              <div key={i} className="relative">
-                <div className={`absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full ring-4 ring-white ${evt.color || 'bg-blue-500'}`}></div>
-                <div className="flex items-start gap-3">
-                  <span className="text-[9px] font-black text-slate-500 w-12 pt-0.5">{evt.time}</span>
-                  <div className="flex flex-col">
-                    <span className="text-[11px] font-bold text-slate-800 leading-tight">{evt.text}</span>
+        {/* Row 4: 3 Visualization Containers */}
+        <div className="col-span-full lg:col-span-12 xl:col-span-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          
+          {/* Container 1: Timeline & Agenda */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-56 flex flex-col">
+            <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-50">
+              <h3 className="text-xs font-black text-slate-800">Timeline & Agenda</h3>
+              <span onClick={() => navigate('/calendar')} className="text-[9px] font-bold text-blue-600 cursor-pointer hover:underline">Lihat &rarr;</span>
+            </div>
+            <div className="relative pl-3 border-l-2 border-slate-100 flex-1 flex flex-col gap-3 pt-1 overflow-y-auto pr-1 custom-scrollbar">
+              {stats.timeline && stats.timeline.length > 0 ? stats.timeline.slice(0, 4).map((evt, i) => (
+                <div key={i} className="relative">
+                  <div className={`absolute -left-[17px] top-1 w-2.5 h-2.5 rounded-full ring-4 ring-white ${evt.color || 'bg-blue-500'}`}></div>
+                  <div className="flex items-start gap-3">
+                    <span className="text-[9px] font-black text-slate-500 w-12 pt-0.5">{evt.time}</span>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-bold text-slate-800 leading-tight line-clamp-2">{evt.text}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )) : (
-              <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400">Tidak ada agenda hari ini</div>
-            )}
-          </div>
-        </div>
-
-        <div className="md:col-span-2 lg:col-span-3 xl:col-span-3 grid grid-rows-2 gap-3 h-56">
-          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 flex flex-col overflow-hidden">
-            <div className="flex justify-between items-center mb-2 pb-1 border-b border-slate-50">
-              <h3 className="text-xs font-black text-slate-800">Tugas Anda ({stats.pendingTasks?.length || 0})</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto flex flex-col gap-2">
-              {stats.pendingTasks?.length > 0 ? (
-                stats.pendingTasks.map((t, i) => (
-                  <div key={i} className="flex justify-between items-start gap-2">
-                    <div className="flex items-start gap-2">
-                      <input type="checkbox" className="mt-0.5 rounded border-slate-300" />
-                      <span className="text-[10px] font-bold text-slate-700 leading-tight">{t.task}</span>
-                    </div>
-                    <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-wider shrink-0 ${t.color}`}>{t.prio}</span>
-                  </div>
-                ))
-              ) : (
-                <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400">Semua tugas selesai</div>
+              )) : (
+                <div className="flex items-center justify-center h-full text-[10px] font-bold text-slate-400">Tidak ada agenda mendatang</div>
               )}
             </div>
           </div>
-          <div className="bg-[#FFF8E7] rounded-xl shadow-sm border border-[#FBE3A1] p-3 flex flex-col">
-            <div className="flex justify-between items-center mb-2">
-              <h3 className="text-xs font-black text-amber-900">Catatan Sistem</h3>
+
+          {/* Container 2: Status Kontrak */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-56 flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xs font-black text-slate-800">Status Kontrak</h3>
             </div>
-            <ul className="text-[10px] font-medium text-amber-800 space-y-1.5 pl-4 list-disc marker:text-amber-400">
-              {stats.systemNotes && stats.systemNotes.length > 0 ? (
-                stats.systemNotes.map((note, i) => <li key={i}>{note}</li>)
-              ) : (
-                <li className="list-none -ml-4 text-amber-700/70 italic text-center py-2">Sistem berjalan tanpa kendala.</li>
-              )}
-            </ul>
+            <div className="flex-1 w-full flex items-center justify-center -ml-4">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={stats.contractStats || []} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={60} paddingAngle={2}>
+                    {(stats.contractStats || []).map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.fill} />
+                    ))}
+                  </Pie>
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' }} />
+                  <Legend layout="vertical" verticalAlign="middle" align="right" wrapperStyle={{ fontSize: '9px', fontWeight: 'bold' }} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
           </div>
+
+          {/* Container 3: Rata-rata Jam Kerja */}
+          <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-3 h-56 flex flex-col">
+            <div className="flex justify-between items-center mb-1">
+              <h3 className="text-xs font-black text-slate-800">Rata-Rata Jam Kerja (7 Hari)</h3>
+            </div>
+            <div className="flex-1 w-full mt-2">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={stats.avgWorkHours || []} margin={{ top: 10, right: 0, left: -25, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="colorHours" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.8} />
+                      <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} dy={5} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: '#64748b' }} />
+                  <Tooltip contentStyle={{ borderRadius: '8px', fontSize: '10px', fontWeight: 'bold' }} />
+                  <Area type="monotone" dataKey="hours" name="Jam Kerja" stroke="#7c3aed" strokeWidth={2} fillOpacity={1} fill="url(#colorHours)" />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
         </div>
 
-        {/* ADVANCED ANALYTICS SECTION */}
+
+
         {/* ADVANCED ANALYTICS SECTION */}
         <div className="col-span-full mt-4 flex justify-start items-center mb-2">
           <h2 className="text-lg font-black text-slate-900 flex items-center gap-2"><Activity size={20} className="text-red-900" /> Analytics Lanjutan</h2>

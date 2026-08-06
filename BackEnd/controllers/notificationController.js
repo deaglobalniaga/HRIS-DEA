@@ -42,6 +42,15 @@ const notifyAdmins = async (title, message, type = 'info', link = null) => {
 exports.get_notifications = async (req, res) => {
     try {
         const userId = req.userId;
+        
+        // Auto cleanup notifications older than 30 days
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
+        await supabase
+            .from('notifications')
+            .delete()
+            .lt('created_at', oneMonthAgo.toISOString());
+
         const { data, error } = await supabase
             .from('notifications')
             .select('*')

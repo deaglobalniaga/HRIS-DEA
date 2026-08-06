@@ -213,3 +213,32 @@ exports.get_attendance_log = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+// DELETE /reports/cleanup - Hapus data lama (Admin only)
+exports.cleanup_old_data = async (req, res) => {
+    try {
+        const { year } = req.query;
+        if (!year) return res.status(400).json({ error: 'Year parameter is required' });
+
+        // Ensure admin or HR
+        const { data: user } = await supabase.from('users').select('role').eq('id', req.userId).single();
+        if (!user || (!user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hr'))) {
+            return res.status(403).json({ error: 'Unauthorized access' });
+        }
+
+        const cutoffDate = new Date(`${year}-01-01T00:00:00Z`).toISOString();
+
+        // Delete old attendance logs
+        await supabase.from('attendance').delete().lt('timestamp', cutoffDate);
+        // Delete old permissions
+        await supabase.from('permissions').delete().lt('date', cutoffDate.split('T')[0]);
+        // Delete old leaves
+        await supabase.from('leaves').delete().lt('leave_end', cutoffDate);
+        // Delete old performance goals
+        await supabase.from('performance_goals').delete().lt('created_at', cutoffDate);
+
+        res.json({ message: `Successfully cleared data before ${year}` });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
