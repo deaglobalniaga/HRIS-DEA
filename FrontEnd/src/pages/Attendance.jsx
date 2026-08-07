@@ -27,6 +27,7 @@ const Attendance = () => {
   // Attendance state
   const [attType, setAttType] = useState('check-in'); // 'check-in', 'check-out', 'sick', 'leave'
   const [location, setLocation] = useState({ lat: null, lng: null, text: 'Mendeteksi lokasi...' });
+  const [officeLoc, setOfficeLoc] = useState(null);
 
   // Timer state
   const detectionInterval = useRef(null);
@@ -194,9 +195,21 @@ const Attendance = () => {
     }
   };
 
+  const fetchOfficeLocation = async () => {
+    try {
+      const res = await api.get('/hris/settings');
+      if (res.data && res.data.office_location) {
+        setOfficeLoc(res.data.office_location);
+      }
+    } catch (err) {
+      console.error("Failed to fetch office location", err);
+    }
+  };
+
   useEffect(() => {
     fetchLocation();
     fetchDailyRecords();
+    fetchOfficeLocation();
 
     if (attType === 'check-in' || attType === 'check-out') {
       startCamera();
@@ -350,12 +363,14 @@ const Attendance = () => {
 
             {location.lat && location.lng && (
               <div className="w-full h-48 rounded-lg overflow-hidden border border-slate-200 relative z-0">
-                <MapContainer key={`${location.lat}-${location.lng}`} center={[location.lat, location.lng]} zoom={18} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false}>
+                <MapContainer key={`${location.lat}-${location.lng}`} center={[location.lat, location.lng]} zoom={16} style={{ height: '100%', width: '100%' }} zoomControl={false} dragging={false} scrollWheelZoom={false}>
                   <TileLayer
                     url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
                     attribution="Tiles &copy; Esri"
                   />
-                  <Circle center={[location.lat, location.lng]} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3 }} radius={20} />
+                  {officeLoc && (
+                    <Circle center={[officeLoc.lat, officeLoc.lng]} pathOptions={{ color: '#ef4444', fillColor: '#ef4444', fillOpacity: 0.3 }} radius={officeLoc.radius || 50} />
+                  )}
                   <Marker position={[location.lat, location.lng]} />
                 </MapContainer>
               </div>
