@@ -25,14 +25,14 @@ exports.get_dashboard_stats = async (req, res) => {
         }));
 
         // 3. Today's Status (Pie Chart)
-        // Use local timezone's start of day (WIB UTC+7)
-        const wibTime = new Date();
-        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
-        const todayStr = wibTime.toISOString().split('T')[0];
+        // Use local timezone's start of day (WITA UTC+8)
+        const witaTime = new Date();
+        witaTime.setUTCHours(witaTime.getUTCHours() + 8);
+        const todayStr = witaTime.toISOString().split('T')[0];
         
-        wibTime.setUTCHours(0, 0, 0, 0);
-        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
-        const today = wibTime; // exact UTC moment of 00:00 WIB today
+        witaTime.setUTCHours(0, 0, 0, 0);
+        witaTime.setUTCHours(witaTime.getUTCHours() - 8);
+        const today = witaTime; // exact UTC moment of 00:00 WITA today
         
         const { data: attendance } = await supabase
             .from('attendance')
@@ -78,13 +78,13 @@ exports.get_dashboard_stats = async (req, res) => {
 
         // Process data day by day
         for (let i = 6; i >= 0; i--) {
-            // Reconstruct the start and end of the day in WIB
-            const dWib = new Date();
-            dWib.setUTCHours(dWib.getUTCHours() + 7);
-            dWib.setUTCDate(dWib.getUTCDate() - i);
-            dWib.setUTCHours(0, 0, 0, 0);
-            dWib.setUTCHours(dWib.getUTCHours() - 7);
-            const d = dWib;
+            // Reconstruct the start and end of the day in WITA
+            const dWita = new Date();
+            dWita.setUTCHours(dWita.getUTCHours() + 8);
+            dWita.setUTCDate(dWita.getUTCDate() - i);
+            dWita.setUTCHours(0, 0, 0, 0);
+            dWita.setUTCHours(dWita.getUTCHours() - 8);
+            const d = dWita;
             
             const nextD = new Date(d.getTime() + 86400000); // +24 hours
 
@@ -113,7 +113,7 @@ exports.get_dashboard_stats = async (req, res) => {
             .filter(a => new Date(a.timestamp) >= today)
             .map(a => {
                 const u = userMap[a.user_id] || {};
-                const timeStr = new Date(a.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
+                const timeStr = new Date(a.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hour12: false });
                 return {
                     name: u.full_name || 'Unknown User',
                     role: u.role || 'user',
@@ -327,14 +327,14 @@ exports.delete_system_notes_id = async (req, res) => {
 exports.get_employee_dashboard = async (req, res) => {
     try {
         const userId = req.userId;
-        // Use local timezone's start of day (WIB UTC+7)
-        const wibTime = new Date();
-        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
-        // const todayStr = wibTime.toISOString().split('T')[0]; // For future use if needed
+        // Use local timezone's start of day (WITA UTC+8)
+        const witaTime = new Date();
+        witaTime.setUTCHours(witaTime.getUTCHours() + 8);
+        // const todayStr = witaTime.toISOString().split('T')[0]; // For future use if needed
         
-        wibTime.setUTCHours(0, 0, 0, 0);
-        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
-        const today = wibTime; // exact UTC moment of 00:00 WIB today
+        witaTime.setUTCHours(0, 0, 0, 0);
+        witaTime.setUTCHours(witaTime.getUTCHours() - 8);
+        const today = witaTime; // exact UTC moment of 00:00 WITA today
 
         // 1. Get user profile
         const { data: profile } = await supabase
@@ -379,13 +379,13 @@ exports.get_employee_dashboard = async (req, res) => {
 
         const weeklyHistory = [];
         for (let i = 6; i >= 0; i--) {
-            // Reconstruct the start and end of the day in WIB
-            const dWib = new Date();
-            dWib.setUTCHours(dWib.getUTCHours() + 7);
-            dWib.setUTCDate(dWib.getUTCDate() - i);
-            dWib.setUTCHours(0, 0, 0, 0);
-            dWib.setUTCHours(dWib.getUTCHours() - 7);
-            const d = dWib;
+            // Reconstruct the start and end of the day in WITA
+            const dWita = new Date();
+            dWita.setUTCHours(dWita.getUTCHours() + 8);
+            dWita.setUTCDate(dWita.getUTCDate() - i);
+            dWita.setUTCHours(0, 0, 0, 0);
+            dWita.setUTCHours(dWita.getUTCHours() - 8);
+            const d = dWita;
             
             const nextD = new Date(d.getTime() + 86400000); // +24 hours
 
@@ -401,8 +401,8 @@ exports.get_employee_dashboard = async (req, res) => {
                 day: days[d.getDay()],
                 date: d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
                 status: checkIn ? 'Hadir' : (d < today ? 'Tidak Hadir' : '-'),
-                checkIn: checkIn ? new Date(checkIn.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
-                checkOut: checkOut ? new Date(checkOut.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
+                checkIn: checkIn ? new Date(checkIn.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
+                checkOut: checkOut ? new Date(checkOut.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
                 checkInPhoto: checkIn?.photo_url || null,
                 checkOutPhoto: checkOut?.photo_url || null,
             });

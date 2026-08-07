@@ -15,13 +15,13 @@ function getDistance(lat1, lon1, lat2, lon2) {
 
 exports.get_attendance_today = async (req, res) => {
     try {
-        const wibTime = new Date();
-        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
-        const todayWibStr = wibTime.toISOString().split('T')[0];
+        const witaTime = new Date();
+        witaTime.setUTCHours(witaTime.getUTCHours() + 8);
+        const todayWitaStr = witaTime.toISOString().split('T')[0];
         
-        wibTime.setUTCHours(0, 0, 0, 0);
-        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
-        const startOfDayUTC = wibTime.toISOString();
+        witaTime.setUTCHours(0, 0, 0, 0);
+        witaTime.setUTCHours(witaTime.getUTCHours() - 8);
+        const startOfDayUTC = witaTime.toISOString();
         
         // 1. Get all active users
         let userQuery = supabase.from('users').select('id, full_name, role, division, profile_photo_url');
@@ -173,32 +173,32 @@ exports.post_attendance = async (req, res) => {
             settings[item.setting_key] = item.setting_value;
         });
 
-        // Get current WIB time (HH:mm)
-        const wibTimeForCheck = new Date();
-        wibTimeForCheck.setUTCHours(wibTimeForCheck.getUTCHours() + 7);
-        const currentHours = String(wibTimeForCheck.getUTCHours()).padStart(2, '0');
-        const currentMinutes = String(wibTimeForCheck.getUTCMinutes()).padStart(2, '0');
+        // Get current WITA time (HH:mm)
+        const witaTimeForCheck = new Date();
+        witaTimeForCheck.setUTCHours(witaTimeForCheck.getUTCHours() + 8);
+        const currentHours = String(witaTimeForCheck.getUTCHours()).padStart(2, '0');
+        const currentMinutes = String(witaTimeForCheck.getUTCMinutes()).padStart(2, '0');
         const currentTime = `${currentHours}:${currentMinutes}`;
 
         if (type === 'Check In') {
             if (currentTime < settings.checkInStart || currentTime > settings.checkInEnd) {
-                return res.status(403).json({ error: `Waktu Check In tidak valid. Check In hanya diizinkan antara jam ${settings.checkInStart} - ${settings.checkInEnd} WIB.` });
+                return res.status(403).json({ error: `Waktu Check In tidak valid. Check In hanya diizinkan antara jam ${settings.checkInStart} - ${settings.checkInEnd} WITA.` });
             }
         } else if (type === 'Check Out') {
             if (currentTime < settings.checkOutStart || currentTime > settings.checkOutEnd) {
-                return res.status(403).json({ error: `Waktu Check Out tidak valid. Check Out hanya diizinkan antara jam ${settings.checkOutStart} - ${settings.checkOutEnd} WIB.` });
+                return res.status(403).json({ error: `Waktu Check Out tidak valid. Check Out hanya diizinkan antara jam ${settings.checkOutStart} - ${settings.checkOutEnd} WITA.` });
             }
         }
         // ------------------------------------------------------------
         
         // --- LIMIT VALIDATION (1 Check In / 1 Check Out per day) ---
-        // Use WIB bounds (UTC+7) to correctly identify today across UTC borders
-        const wibTime = new Date();
-        wibTime.setUTCHours(wibTime.getUTCHours() + 7);
-        wibTime.setUTCHours(0, 0, 0, 0);
-        wibTime.setUTCHours(wibTime.getUTCHours() - 7);
-        const startOfDayUTC = wibTime.toISOString();
-        const endOfDayUTC = new Date(wibTime.getTime() + 86400000 - 1).toISOString();
+        // Use WITA bounds (UTC+8) to correctly identify today across UTC borders
+        const witaTime = new Date();
+        witaTime.setUTCHours(witaTime.getUTCHours() + 8);
+        witaTime.setUTCHours(0, 0, 0, 0);
+        witaTime.setUTCHours(witaTime.getUTCHours() - 8);
+        const startOfDayUTC = witaTime.toISOString();
+        const endOfDayUTC = new Date(witaTime.getTime() + 86400000 - 1).toISOString();
 
         const { data: existingLogs } = await supabase
             .from('attendance')
