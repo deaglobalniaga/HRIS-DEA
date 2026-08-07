@@ -113,7 +113,7 @@ exports.get_dashboard_stats = async (req, res) => {
             .filter(a => new Date(a.timestamp) >= today)
             .map(a => {
                 const u = userMap[a.user_id] || {};
-                const timeStr = new Date(a.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                const timeStr = new Date(a.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false });
                 return {
                     name: u.full_name || 'Unknown User',
                     role: u.role || 'user',
@@ -401,8 +401,8 @@ exports.get_employee_dashboard = async (req, res) => {
                 day: days[d.getDay()],
                 date: d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short' }),
                 status: checkIn ? 'Hadir' : (d < today ? 'Tidak Hadir' : '-'),
-                checkIn: checkIn ? new Date(checkIn.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
-                checkOut: checkOut ? new Date(checkOut.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
+                checkIn: checkIn ? new Date(checkIn.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
+                checkOut: checkOut ? new Date(checkOut.timestamp).toLocaleTimeString('en-US', { timeZone: 'Asia/Jakarta', hour: '2-digit', minute: '2-digit', hour12: false }) : null,
                 checkInPhoto: checkIn?.photo_url || null,
                 checkOutPhoto: checkOut?.photo_url || null,
             });

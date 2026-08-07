@@ -138,11 +138,27 @@ const Employees = () => {
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                complete: (results) => {
+                complete: function (results) {
                     setBulkData(results.data);
                 }
             });
         }
+    };
+
+    const downloadTemplate = () => {
+        const headers = ["full_name", "email", "nik_internal", "division", "role", "date_of_joining", "nik_ktp", "phone_number", "contract_type", "employment_status", "job_title", "initial_work_days"];
+        const csvContent = headers.join(",") + "\n" + 
+            "John Doe,john@example.com,NIK-001,IT,user,2026-08-01,320123456789,08123456789,8/2,PKWT,Developer,0";
+        
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", "template_karyawan.csv");
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     };
 
     const handleBulkSubmit = async () => {
@@ -626,6 +642,13 @@ const Employees = () => {
                                     <h3 className="font-bold text-slate-700 mb-2">Pilih File CSV</h3>
                                     <input type="file" accept=".csv" onChange={handleFileUpload} className="block w-full max-w-xs text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100" />
                                 </div>
+                                
+                                <div className="text-center">
+                                    <button onClick={downloadTemplate} className="text-sm font-bold text-blue-600 hover:text-blue-700 hover:underline">
+                                        Unduh Template CSV
+                                    </button>
+                                </div>
+
                                 {bulkData.length > 0 && (
                                     <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                                         <h4 className="font-bold text-slate-700 mb-2">Preview Data ({bulkData.length} baris)</h4>

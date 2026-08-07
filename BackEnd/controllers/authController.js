@@ -303,7 +303,9 @@ exports.forgotPassword = async (req, res) => {
 
         // Generate a 15-minute reset token
         const resetToken = jwt.sign({ id: user.id, intent: 'reset_password' }, process.env.JWT_SECRET, { expiresIn: '15m' });
-        const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+        
+        const frontendUrl = process.env.FRONTEND_URL || 'https://hris-dea.vercel.app';
+        const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
         // Send Email using our existing mailer (mock/ethereal)
         const htmlContent = `

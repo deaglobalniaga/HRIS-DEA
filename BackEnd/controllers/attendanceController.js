@@ -143,15 +143,21 @@ exports.post_attendance = async (req, res) => {
     try {
         const { type, ipAddress, lat, lng, timestamp, hasPhoto, photoBase64 } = req.body;
         
+        // --- PHOTO VALIDATION ---
+        if (!hasPhoto || !photoBase64) {
+            return res.status(400).json({ error: 'Wajah tidak terdeteksi. Anda wajib melampirkan foto selfie saat absen.' });
+        }
+
         // --- LOCATION VALIDATION (Only for Check In / Check Out) ---
         if ((type === 'Check In' || type === 'Check Out') && lat && lng) {
             const { data: settingData } = await supabase.from('settings').select('setting_value').eq('setting_key', 'office_location').single();
             if (settingData && settingData.setting_value) {
                 const office = settingData.setting_value;
-                const distance = getDistance(parseFloat(lat), parseFloat(lng), office.lat, office.lng);
+                const radius = parseFloat(office.radius) || 50;
+                const distance = getDistance(parseFloat(lat), parseFloat(lng), parseFloat(office.lat), parseFloat(office.lng));
                 
-                if (distance > office.radius) {
-                    return res.status(403).json({ error: `Anda berada terlalu jauh dari kantor (${Math.round(distance)} meter). Jarak maksimal adalah ${office.radius} meter.` });
+                if (distance > radius) {
+                    return res.status(403).json({ error: `Anda berada terlalu jauh dari kantor (${Math.round(distance)} meter). Jarak maksimal adalah ${radius} meter.` });
                 }
             }
         }
