@@ -1,15 +1,16 @@
-const supabase = require('../config/supabaseClient');
+const User = require('../models/User');
+const Notification = require('../models/Notification');
 
 // Helper: Create a notification
 const createNotification = async (userId, title, message, type = 'info', link = null) => {
     try {
-        await supabase.from('notifications').insert([{
-            user_id: userId,
+        await Notification.create({
+            user: userId,
             title,
             message,
             type,
             link
-        }]);
+        });
     } catch (err) {
         console.error('Failed to create notification:', err.message);
     }
@@ -18,20 +19,19 @@ const createNotification = async (userId, title, message, type = 'info', link = 
 // Helper: Notify all admins/HR
 const notifyAdmins = async (title, message, type = 'info', link = null) => {
     try {
-        const { data: admins } = await supabase
-            .from('users')
-            .select('id, role')
-            .or('role.ilike.%admin%,role.ilike.%hr%');
+        const admins = await User.find({
+            role: { $in: ['admin', 'hr', 'superadmin'] }
+        });
 
         if (admins && admins.length > 0) {
             const notifications = admins.map(a => ({
-                user_id: a.id,
+                user: a._id,
                 title,
                 message,
                 type,
                 link
             }));
-            await supabase.from('notifications').insert(notifications);
+            await Notification.insertMany(notifications);
         }
     } catch (err) {
         console.error('Failed to notify admins:', err.message);
@@ -46,24 +46,18 @@ exports.get_notifications = async (req, res) => {
         // Auto cleanup notifications older than 30 days
         const oneMonthAgo = new Date();
         oneMonthAgo.setDate(oneMonthAgo.getDate() - 30);
-        await supabase
-            .from('notifications')
-            .delete()
-            .lt('created_at', oneMonthAgo.toISOString());
+        await Notification.deleteMany({
+            createdAt: { $lt: oneMonthAgo }
+        });
 
-        const { data, error } = await supabase
-            .from('notifications')
-            .select('*')
-            .eq('user_id', userId)
-            .order('created_at', { ascending: false })
+        const data = await Notification.find({ user: userId })
+            .sort({ createdAt: -1 })
             .limit(50);
 
-        if (error) throw error;
-        
         // Count unread
-        const unreadCount = (data || []).filter(n => !n.is_read).length;
+        const unreadCount = data.filter(n => !n.is_read).length;
         
-        res.json({ notifications: data || [], unreadCount });
+        res.json({ notifications: data, unreadCount });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -73,13 +67,10 @@ exports.get_notifications = async (req, res) => {
 exports.mark_read = async (req, res) => {
     try {
         const { id } = req.params;
-        const { error } = await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('id', id)
-            .eq('user_id', req.userId);
-
-        if (error) throw error;
+        await Notification.findOneAndUpdate(
+            { _id: id, user: req.userId },
+            { is_read: true }
+        );
         res.json({ message: 'Notification marked as read' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -89,13 +80,10 @@ exports.mark_read = async (req, res) => {
 // PUT /notifications/read-all — Mark all notifications as read
 exports.mark_all_read = async (req, res) => {
     try {
-        const { error } = await supabase
-            .from('notifications')
-            .update({ is_read: true })
-            .eq('user_id', req.userId)
-            .eq('is_read', false);
-
-        if (error) throw error;
+        await Notification.updateMany(
+            { user: req.userId, is_read: false },
+            { is_read: true }
+        );
         res.json({ message: 'All notifications marked as read' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -105,12 +93,7 @@ exports.mark_all_read = async (req, res) => {
 // DELETE /notifications/clear-all — Delete all user notifications
 exports.delete_all = async (req, res) => {
     try {
-        const { error } = await supabase
-            .from('notifications')
-            .delete()
-            .eq('user_id', req.userId);
-
-        if (error) throw error;
+        await Notification.deleteMany({ user: req.userId });
         res.json({ message: 'All notifications deleted' });
     } catch (err) {
         res.status(500).json({ error: err.message });

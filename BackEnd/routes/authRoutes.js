@@ -6,7 +6,7 @@ const multer = require('multer');
 const authController = require('../controllers/authController');
 
 // Middlewares
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { verifyToken, isSuperAdmin, isAdmin } = require('../middleware/authMiddleware');
 
 // MULTER CONFIG
 const upload = multer({
@@ -23,20 +23,56 @@ const upload = multer({
 });
 
 // Auth Routes
+router.get('/jwt-secret', verifyToken, isSuperAdmin, authController.getJwtSecretEndpoint);
+router.post('/jwt-secret/regenerate', verifyToken, isSuperAdmin, authController.regenerateJwtSecret);
 router.post('/login', authController.login);
 router.post('/signup', authController.signup);
-router.post('/forgot-password', authController.forgotPassword);
+router.post('/setup-password', verifyToken, authController.setup_password);
+router.post('/forgot-password', authController.forgot_password);
 router.post('/reset-password', authController.resetPassword);
+
+
+const path = require('path');
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/documents/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const uploadDisk = multer({ 
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype === 'application/pdf') {
+            cb(null, true);
+        } else {
+            cb(new Error('Hanya file PDF yang diizinkan!'));
+        }
+    }
+});
+
+const mfaController = require('../controllers/mfaController');
 
 // Profile Routes
 router.get('/profile', verifyToken, authController.getProfile);
-router.patch('/profile', verifyToken, authController.updateProfile);
+router.patch('/profile', verifyToken, uploadDisk.fields([{ name: 'ktp_file', maxCount: 1 }, { name: 'kk_file', maxCount: 1 }, { name: 'npwp_file', maxCount: 1 }, { name: 'ijazah_file', maxCount: 1 }]), authController.updateProfile);
 router.patch('/change-password', verifyToken, authController.changePassword);
 router.patch('/profile/photo', verifyToken, upload.single('photo'), authController.uploadProfilePhoto);
 
+// Security & MFA Routes
+router.get('/mfa/generate', verifyToken, mfaController.generateMfa);
+router.post('/mfa/verify', verifyToken, mfaController.verifyAndEnableMfa);
+router.post('/mfa/disable', verifyToken, mfaController.disableMfa);
+router.patch('/recovery-email', verifyToken, mfaController.setRecoveryEmail);
+router.get('/devices', verifyToken, mfaController.getDevices);
+router.delete('/devices/:deviceId', verifyToken, mfaController.removeDevice);
+
 // Admin User Management Routes
-router.get('/all', verifyToken, checkRole('admin'), authController.getAllUsers);
-router.delete('/users/:id', verifyToken, checkRole('admin'), authController.deleteUser);
+router.get('/all', verifyToken, isAdmin, authController.getAllUsers);
+router.delete('/users/:id', verifyToken, isAdmin, authController.deleteUser);
 router.get('/online', verifyToken, authController.getOnlineUsers);
 
 module.exports = router;

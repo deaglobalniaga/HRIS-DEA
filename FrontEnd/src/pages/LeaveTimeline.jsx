@@ -109,6 +109,7 @@ const LeaveTimeline = () => {
   // Format helpers
   const getEventBadge = (item) => {
       if (item.type === 'leave') return <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-black uppercase tracking-wider">Cuti</span>;
+      if (item.type === 'roster_leave') return <span className="px-2 py-0.5 bg-yellow-400 text-red-900 rounded text-[10px] font-black uppercase tracking-wider">ROSTER OFF</span>;
       if (item.type === 'permission') {
           if (item.subType === 'Sakit') return <span className="px-2 py-0.5 bg-red-100 text-red-700 rounded text-[10px] font-black uppercase tracking-wider">Sakit</span>;
           return <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[10px] font-black uppercase tracking-wider">{item.subType}</span>;
@@ -194,7 +195,8 @@ const LeaveTimeline = () => {
                             const isSelected = selectedDate === day;
                             
                             let bgClass = "bg-white hover:border-red-900";
-                            if (empOnLeave.some(e => e.type === 'leave')) bgClass = "bg-blue-50 border-blue-200";
+                            if (empOnLeave.some(e => e.type === 'roster_leave')) bgClass = "bg-yellow-100 border-yellow-400 border-2 font-bold shadow-md ring-1 ring-yellow-400";
+                            else if (empOnLeave.some(e => e.type === 'leave')) bgClass = "bg-blue-50 border-blue-200";
                             else if (empOnLeave.some(e => e.type === 'permission')) bgClass = "bg-red-50 border-red-200";
                             else if (empOnLeave.some(e => e.type === 'event')) bgClass = "bg-emerald-50 border-emerald-200";
 

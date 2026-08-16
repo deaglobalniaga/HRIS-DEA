@@ -1,4 +1,6 @@
-const supabase = require('../config/supabaseClient');
+const User = require('../models/User');
+const LeaveRequest = require('../models/LeaveRequest');
+const CompanyEvent = require('../models/CompanyEvent');
 
 // GET /calendar/events - Get calendar data for a specific month (includes leaves, permissions, and company events)
 exports.get_calendar_events = async (req, res) => {
@@ -7,80 +9,134 @@ exports.get_calendar_events = async (req, res) => {
         const targetMonth = parseInt(month) || new Date().getMonth() + 1;
         const targetYear = parseInt(year) || new Date().getFullYear();
 
-        const startDate = new Date(targetYear, targetMonth - 1, 1).toISOString().split('T')[0];
-        // Last day of the month
-        const endDate = new Date(targetYear, targetMonth, 0).toISOString().split('T')[0];
+        const startDate = new Date(targetYear, targetMonth - 1, 1);
+        const endDate = new Date(targetYear, targetMonth, 0);
 
-        // 1. Get approved leaves
-        const { data: leaves, error: leavesErr } = await supabase
-            .from('leaves')
-            .select('*, users(full_name)')
-            .eq('status', 'Approved')
-            .or(`leave_start.lte.${endDate},leave_end.gte.${startDate}`);
-            
-        if (leavesErr) throw leavesErr;
+        // 1. Get approved leaves and permissions (all in LeaveRequest)
+        const leavesAndPerms = await LeaveRequest.find({
+            status: 'Approved',
+            $or: [
+                { start_date: { $lte: endDate }, end_date: { $gte: startDate } }
+            ]
+        }).populate('user', 'nama full_name');
 
-        // 2. Get approved permissions
-        const { data: permissions, error: permsErr } = await supabase
-            .from('permissions')
-            .select('*, users(full_name)')
-            .eq('status', 'Approved')
-            .gte('date', startDate)
-            .lte('date', endDate);
-
-        if (permsErr) throw permsErr;
-
-        // 3. Get company events
-        const { data: events, error: eventsErr } = await supabase
-            .from('events')
-            .select('*')
-            .gte('event_date', startDate)
-            .lte('event_date', endDate);
-            
-        if (eventsErr) throw eventsErr;
+        // 2. Get company events
+        const events = await CompanyEvent.find({
+            event_date: { $gte: startDate, $lte: endDate }
+        });
 
         // Format data for the frontend calendar
         const calendarData = [];
 
-        // Format Leaves
-        (leaves || []).forEach(leave => {
-            calendarData.push({
-                id: `leave_${leave.id}`,
-                type: 'leave',
-                title: `${leave.users?.full_name || 'Karyawan'} - Cuti`,
-                start: leave.leave_start,
-                end: leave.leave_end,
-                allDay: true,
-                description: leave.reason
-            });
-        });
-
-        // Format Permissions
-        (permissions || []).forEach(perm => {
-            calendarData.push({
-                id: `perm_${perm.id}`,
-                type: 'permission',
-                subType: perm.type, // 'Sakit', 'Izin', dll
-                title: `${perm.users?.full_name || 'Karyawan'} - ${perm.type}`,
-                start: perm.date,
-                end: perm.date,
-                allDay: true,
-                description: perm.reason
-            });
+        leavesAndPerms.forEach(reqObj => {
+            const isLeave = (reqObj.leave_type || '').toLowerCase().includes('cuti');
+            const userName = reqObj.user ? (reqObj.user.nama || reqObj.user.full_name) : 'Karyawan';
+            
+            if (isLeave) {
+                calendarData.push({
+                    id: `leave_${reqObj._id}`,
+                    type: 'leave',
+                    title: `${userName} - Cuti`,
+                    start: reqObj.start_date,
+                    end: reqObj.end_date,
+                    allDay: true,
+                    description: reqObj.reason
+                });
+            } else {
+                calendarData.push({
+                    id: `perm_${reqObj._id}`,
+                    type: 'permission',
+                    subType: reqObj.leave_type,
+                    title: `${userName} - ${reqObj.leave_type}`,
+                    start: reqObj.start_date,
+                    end: reqObj.end_date,
+                    allDay: true,
+                    description: reqObj.reason
+                });
+            }
         });
 
         // Format Events
-        (events || []).forEach(event => {
+        events.forEach(event => {
             calendarData.push({
-                id: `event_${event.id}`,
+                id: `event_${event._id}`,
                 type: 'event',
                 title: event.title,
                 start: event.event_date,
                 end: event.event_date,
                 allDay: true,
                 description: event.description,
-                dbId: event.id
+                dbId: event._id.toString()
             });
+        });
+
+        // 3. Calculate Roster Leave Blocks
+        const EmploymentRecord = require('../models/EmploymentRecord');
+        const rosterRecords = await EmploymentRecord.find({
+            roster_type: { $in: ['8/2', '6/2'] },
+            roster_start_date: { $ne: null }
+        }).populate('user', 'nama full_name');
+
+        rosterRecords.forEach(record => {
+            if (!record.user) return;
+            const userName = record.user.nama || record.user.full_name;
+            const match = record.roster_type.match(/^(\d+)\/(\d+)$/);
+            if (!match) return;
+
+            const workWeeks = parseInt(match[1]);
+            const leaveWeeks = parseInt(match[2]);
+            const cycleDays = (workWeeks + leaveWeeks) * 7;
+            const workDays = workWeeks * 7;
+
+            // Find overlapping leave blocks within the month
+            let blockStart = null;
+            let currentBlockEnd = null;
+
+            for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                const diffTime = d - new Date(record.roster_start_date);
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                // If roster hasn't started yet, skip
+                if (diffDays < 0) continue;
+
+                const cyclePos = diffDays % cycleDays;
+                
+                if (cyclePos >= workDays) {
+                    // It's a leave day
+                    if (!blockStart) {
+                        blockStart = new Date(d);
+                    }
+                    currentBlockEnd = new Date(d);
+                } else {
+                    // It's a work day
+                    if (blockStart) {
+                        calendarData.push({
+                            id: `roster_${record._id}_${blockStart.getTime()}`,
+                            type: 'roster_leave',
+                            title: `${userName} - Roster Off (${record.roster_type})`,
+                            start: blockStart,
+                            end: currentBlockEnd,
+                            allDay: true,
+                            description: `Jadwal cuti otomatis untuk roster ${record.roster_type}`
+                        });
+                        blockStart = null;
+                        currentBlockEnd = null;
+                    }
+                }
+            }
+
+            // Close trailing block if month ends while on leave
+            if (blockStart) {
+                calendarData.push({
+                    id: `roster_${record._id}_${blockStart.getTime()}`,
+                    type: 'roster_leave',
+                    title: `${userName} - Roster Off (${record.roster_type})`,
+                    start: blockStart,
+                    end: currentBlockEnd,
+                    allDay: true,
+                    description: `Jadwal cuti otomatis untuk roster ${record.roster_type}`
+                });
+            }
         });
 
         res.json(calendarData);
@@ -93,7 +149,7 @@ exports.get_calendar_events = async (req, res) => {
 exports.post_event = async (req, res) => {
     try {
         const role = (req.userRole || '').toLowerCase();
-        if (!role.includes('admin') && !role.includes('hr')) {
+        if (!role.includes('admin') && !role.includes('hr') && role !== 'superadmin') {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
@@ -111,15 +167,12 @@ exports.post_event = async (req, res) => {
             eventsToInsert.push({
                 title,
                 description,
-                event_date: d.toISOString().split('T')[0]
+                event_date: new Date(d)
             });
         }
 
-        const { data, error } = await supabase
-            .from('events')
-            .insert(eventsToInsert);
+        const data = await CompanyEvent.insertMany(eventsToInsert);
 
-        if (error) throw error;
         res.status(201).json({ message: 'Event created successfully', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -130,18 +183,14 @@ exports.post_event = async (req, res) => {
 exports.delete_event = async (req, res) => {
     try {
         const role = (req.userRole || '').toLowerCase();
-        if (!role.includes('admin') && !role.includes('hr')) {
+        if (!role.includes('admin') && !role.includes('hr') && role !== 'superadmin') {
             return res.status(403).json({ error: 'Unauthorized' });
         }
 
         const { id } = req.params;
 
-        const { error } = await supabase
-            .from('events')
-            .delete()
-            .eq('id', id);
+        await CompanyEvent.findByIdAndDelete(id);
 
-        if (error) throw error;
         res.json({ message: 'Event deleted successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });

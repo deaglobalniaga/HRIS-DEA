@@ -1,4 +1,7 @@
-const supabase = require('../config/supabaseClient');
+const User = require('../models/User');
+const Attendance = require('../models/Attendance');
+const LeaveRequest = require('../models/LeaveRequest');
+const KPIAppraisal = require('../models/KPIAppraisal');
 
 // GET /reports/attendance-monthly — Rekap kehadiran bulanan seluruh karyawan
 exports.get_attendance_monthly = async (req, res) => {
@@ -11,30 +14,20 @@ exports.get_attendance_monthly = async (req, res) => {
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
         // Get all users
-        const { data: users } = await supabase
-            .from('users')
-            .select('id, full_name, nik_internal, division, role')
-            .order('full_name', { ascending: true });
+        const users = await User.find().populate('department').sort({ nama: 1 });
 
         // Get attendance in date range
-        const { data: attendance } = await supabase
-            .from('attendance')
-            .select('user_id, type, timestamp')
-            .gte('timestamp', startDate.toISOString())
-            .lte('timestamp', endDate.toISOString());
+        const attendance = await Attendance.find({
+            tanggal: { $gte: startDate, $lte: endDate }
+        });
 
-        // Get leaves in date range
-        const { data: leaves } = await supabase
-            .from('leaves')
-            .select('user_id, status, leave_start, leave_end')
-            .or(`leave_start.lte.${endDate.toISOString()},leave_end.gte.${startDate.toISOString()}`);
-
-        // Get permissions in date range
-        const { data: permissions } = await supabase
-            .from('permissions')
-            .select('user_id, type, status, date')
-            .gte('date', startDate.toISOString().split('T')[0])
-            .lte('date', endDate.toISOString().split('T')[0]);
+        // Get leaves in date range (including permissions)
+        const leaves = await LeaveRequest.find({
+            status: 'Approved',
+            $or: [
+                { start_date: { $lte: endDate }, end_date: { $gte: startDate } }
+            ]
+        });
 
         // Calculate total work days (exclude weekends)
         let totalWorkDays = 0;
@@ -43,25 +36,25 @@ exports.get_attendance_monthly = async (req, res) => {
         }
 
         // Build report per user
-        const report = (users || []).map(user => {
+        const report = users.map(user => {
             // Count unique check-in days
-            const userAtt = (attendance || []).filter(a => a.user_id === user.id && a.type === 'Check In');
-            const uniqueCheckInDays = new Set(userAtt.map(a => new Date(a.timestamp).toDateString())).size;
+            const userAtt = attendance.filter(a => a.user.toString() === user._id.toString() && a.check_in);
+            const uniqueCheckInDays = new Set(userAtt.map(a => new Date(a.tanggal).toDateString())).size;
 
             // Count approved leaves
-            const userLeaves = (leaves || []).filter(l => l.user_id === user.id && l.status === 'Approved');
+            const userLeaves = leaves.filter(l => l.user.toString() === user._id.toString() && l.leave_type === 'Cuti');
             let leaveDays = 0;
             userLeaves.forEach(l => {
-                const ls = new Date(Math.max(new Date(l.leave_start), startDate));
-                const le = new Date(Math.min(new Date(l.leave_end), endDate));
+                const ls = new Date(Math.max(new Date(l.start_date), startDate));
+                const le = new Date(Math.min(new Date(l.end_date), endDate));
                 const diff = Math.ceil((le - ls) / (1000 * 60 * 60 * 24)) + 1;
                 leaveDays += Math.max(0, diff);
             });
 
             // Count approved permissions (sick/izin)
-            const userPerms = (permissions || []).filter(p => p.user_id === user.id && p.status === 'Approved');
-            const sickDays = userPerms.filter(p => p.type === 'Sakit').length;
-            const izinDays = userPerms.filter(p => p.type !== 'Sakit').length;
+            const userPerms = leaves.filter(l => l.user.toString() === user._id.toString() && l.leave_type !== 'Cuti');
+            const sickDays = userPerms.filter(p => (p.leave_type || '').toLowerCase().includes('sakit')).length;
+            const izinDays = userPerms.filter(p => (p.leave_type || '').toLowerCase().includes('izin')).length;
 
             const absentDays = Math.max(0, totalWorkDays - uniqueCheckInDays - leaveDays - sickDays - izinDays);
 
@@ -69,7 +62,7 @@ exports.get_attendance_monthly = async (req, res) => {
             let lateDays = 0;
             const checkInsByDay = {};
             userAtt.forEach(a => {
-                const ts = new Date(a.timestamp);
+                const ts = new Date(a.check_in);
                 const dayKey = ts.toDateString();
                 if (!checkInsByDay[dayKey]) {
                     checkInsByDay[dayKey] = ts;
@@ -80,10 +73,10 @@ exports.get_attendance_monthly = async (req, res) => {
             });
 
             return {
-                id: user.id,
-                full_name: user.full_name,
-                nik_internal: user.nik_internal,
-                division: user.division || '-',
+                id: user._id.toString(),
+                full_name: user.nama || user.full_name,
+                nik_internal: user.nik_internal || user.nik || '-',
+                division: user.department?.name || '-',
                 role: user.role,
                 hadir: uniqueCheckInDays,
                 cuti: leaveDays,
@@ -99,7 +92,7 @@ exports.get_attendance_monthly = async (req, res) => {
             month: targetMonth,
             year: targetYear,
             totalWorkDays,
-            totalEmployees: (users || []).length,
+            totalEmployees: users.length,
             report
         });
     } catch (err) {
@@ -119,20 +112,13 @@ exports.get_attendance_personal = async (req, res) => {
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
 
         // Get user profile
-        const { data: user } = await supabase
-            .from('users')
-            .select('id, full_name, nik_internal, division, role, job_title')
-            .eq('id', userId)
-            .single();
+        const user = await User.findById(userId).populate('department');
 
         // Get daily attendance detail
-        const { data: attendance } = await supabase
-            .from('attendance')
-            .select('type, timestamp, photo_url')
-            .eq('user_id', userId)
-            .gte('timestamp', startDate.toISOString())
-            .lte('timestamp', endDate.toISOString())
-            .order('timestamp', { ascending: true });
+        const attendance = await Attendance.find({
+            user: userId,
+            tanggal: { $gte: startDate, $lte: endDate }
+        }).sort({ tanggal: 1 });
 
         // Build daily detail
         const dailyDetail = [];
@@ -141,28 +127,37 @@ exports.get_attendance_personal = async (req, res) => {
             const nextDay = new Date(d);
             nextDay.setDate(nextDay.getDate() + 1);
 
-            const dayAtt = (attendance || []).filter(a => {
-                const ts = new Date(a.timestamp);
+            const dayAtt = attendance.filter(a => {
+                const ts = new Date(a.tanggal);
                 return ts >= d && ts < nextDay;
             });
 
-            const checkIn = dayAtt.find(a => a.type === 'Check In');
-            const checkOut = dayAtt.find(a => a.type === 'Check Out');
-
+            const attRecord = dayAtt[0]; // Assuming 1 record per day per user
+            const checkIn = attRecord?.check_in;
+            const checkOut = attRecord?.check_out;
+            const photoUrl = attRecord?.photo_url || null; // Add if schema has photo
+            
             const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
             dailyDetail.push({
                 date: new Date(d).toISOString().split('T')[0],
                 day: d.toLocaleDateString('id-ID', { weekday: 'short' }),
-                checkIn: checkIn ? new Date(checkIn.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
-                checkOut: checkOut ? new Date(checkOut.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
+                checkIn: checkIn ? new Date(checkIn).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
+                checkOut: checkOut ? new Date(checkOut).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
                 status: isWeekend ? 'Libur' : (checkIn ? 'Hadir' : (d < new Date() ? 'Tidak Hadir' : '-')),
-                photoUrl: checkIn?.photo_url || null
+                photoUrl: photoUrl
             });
         }
 
         res.json({
-            user: user || {},
+            user: user ? {
+                id: user._id,
+                full_name: user.nama || user.full_name,
+                nik_internal: user.nik_internal || user.nik,
+                division: user.department?.name,
+                role: user.role,
+                job_title: user.job_title
+            } : {},
             month: targetMonth,
             year: targetYear,
             dailyDetail
@@ -192,21 +187,47 @@ exports.get_attendance_log = async (req, res) => {
         }
 
         // Ambil data attendance beserta relasi user
-        const { data: logs, error } = await supabase
-            .from('attendance')
-            .select(`
-                id,
-                type,
-                timestamp,
-                photo_url,
-                user_id,
-                users ( id, full_name, division )
-            `)
-            .gte('timestamp', startDate.toISOString())
-            .lte('timestamp', endDate.toISOString())
-            .order('timestamp', { ascending: false });
+        const attendance = await Attendance.find({
+            tanggal: { $gte: startDate, $lte: endDate }
+        }).populate({
+            path: 'user',
+            populate: { path: 'department' }
+        }).sort({ tanggal: -1 });
 
-        if (error) throw error;
+        const logs = [];
+        attendance.forEach(a => {
+            if (a.check_in) {
+                logs.push({
+                    id: a._id.toString() + '_in',
+                    type: 'Check In',
+                    timestamp: a.check_in,
+                    photo_url: a.photo_url || null,
+                    user_id: a.user?._id,
+                    users: {
+                        id: a.user?._id,
+                        full_name: a.user?.nama || a.user?.full_name,
+                        division: a.user?.department?.name || 'Unassigned'
+                    }
+                });
+            }
+            if (a.check_out) {
+                logs.push({
+                    id: a._id.toString() + '_out',
+                    type: 'Check Out',
+                    timestamp: a.check_out,
+                    photo_url: a.photo_url || null,
+                    user_id: a.user?._id,
+                    users: {
+                        id: a.user?._id,
+                        full_name: a.user?.nama || a.user?.full_name,
+                        division: a.user?.department?.name || 'Unassigned'
+                    }
+                });
+            }
+        });
+        
+        // sort logs by timestamp desc
+        logs.sort((x, y) => new Date(y.timestamp) - new Date(x.timestamp));
 
         res.json({ logs });
     } catch (err) {
@@ -221,21 +242,19 @@ exports.cleanup_old_data = async (req, res) => {
         if (!year) return res.status(400).json({ error: 'Year parameter is required' });
 
         // Ensure admin or HR
-        const { data: user } = await supabase.from('users').select('role').eq('id', req.userId).single();
-        if (!user || (!user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hr'))) {
+        const user = await User.findById(req.userId);
+        if (!user || (!user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hr') && user.role !== 'superadmin')) {
             return res.status(403).json({ error: 'Unauthorized access' });
         }
 
-        const cutoffDate = new Date(`${year}-01-01T00:00:00Z`).toISOString();
+        const cutoffDate = new Date(`${year}-01-01T00:00:00Z`);
 
         // Delete old attendance logs
-        await supabase.from('attendance').delete().lt('timestamp', cutoffDate);
-        // Delete old permissions
-        await supabase.from('permissions').delete().lt('date', cutoffDate.split('T')[0]);
-        // Delete old leaves
-        await supabase.from('leaves').delete().lt('leave_end', cutoffDate);
-        // Delete old performance goals
-        await supabase.from('performance_goals').delete().lt('created_at', cutoffDate);
+        await Attendance.deleteMany({ tanggal: { $lt: cutoffDate } });
+        // Delete old leaves and permissions
+        await LeaveRequest.deleteMany({ start_date: { $lt: cutoffDate } });
+        // Delete old performance goals (KPIAppraisal)
+        await KPIAppraisal.deleteMany({ evaluation_date: { $lt: cutoffDate } });
 
         res.json({ message: `Successfully cleared data before ${year}` });
     } catch (err) {

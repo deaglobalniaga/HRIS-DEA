@@ -1,35 +1,29 @@
-const supabase = require('../config/supabaseClient');
+const User = require('../models/User');
+const Attendance = require('../models/Attendance');
+const LeaveRequest = require('../models/LeaveRequest');
 
 exports.get_trend = async (req, res) => {
     try {
         const adminRoles = ['admin', 'hr', 'pjo'];
-        if (!adminRoles.includes((req.userRole || '').toLowerCase())) {
+        if (!adminRoles.includes((req.userRole || '').toLowerCase()) && req.userRole !== 'superadmin') {
             return res.status(403).json({ error: 'Access denied' });
         }
 
         const { months = 6 } = req.query;
-        
-        // Calculate the date X months ago
         const dateLimit = new Date();
         dateLimit.setMonth(dateLimit.getMonth() - parseInt(months));
-        const dateLimitStr = dateLimit.toISOString(); // Use full timestamp string for comparison
 
         // Fetch attendance records from the last X months
-        const { data: attendanceData, error: attendanceError } = await supabase
-            .from('attendance')
-            .select('timestamp, status, type')
-            .eq('type', 'Check In')
-            .gte('timestamp', dateLimitStr)
-            .order('timestamp', { ascending: true });
-
-        if (attendanceError) throw attendanceError;
+        const attendanceData = await Attendance.find({
+            tanggal: { $gte: dateLimit },
+            check_in: { $ne: null }
+        }).select('tanggal status');
         
         // Also we need permission data for Sick / Permission trends
-        const { data: permissionData } = await supabase
-            .from('permissions')
-            .select('date, type')
-            .in('status', ['Approved'])
-            .gte('date', dateLimitStr.split('T')[0]);
+        const leaveData = await LeaveRequest.find({
+            start_date: { $gte: dateLimit },
+            status: 'Approved'
+        });
 
         // Group by month
         const monthlyData = {};
@@ -43,29 +37,29 @@ exports.get_trend = async (req, res) => {
             monthlyData[mKey] = { name: mKey, hadir: 0, terlambat: 0, izin: 0, sakit: 0, alpha: 0 };
         }
 
-        (attendanceData || []).forEach(record => {
-            if (!record.timestamp) return;
-            const dateObj = new Date(record.timestamp);
+        attendanceData.forEach(record => {
+            if (!record.tanggal) return;
+            const dateObj = new Date(record.tanggal);
             const monthKey = `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
 
             if (!monthlyData[monthKey]) return; // Skip if older
 
             const status = (record.status || '').toLowerCase();
-            monthlyData[monthKey].hadir += 1; // Since they checked in, they are hadir
+            monthlyData[monthKey].hadir += 1;
             
             if (status.includes('late') || status.includes('terlambat')) {
                 monthlyData[monthKey].terlambat += 1;
             }
         });
         
-        (permissionData || []).forEach(record => {
-            if (!record.date) return;
-            const dateObj = new Date(record.date);
+        leaveData.forEach(record => {
+            if (!record.start_date) return;
+            const dateObj = new Date(record.start_date);
             const monthKey = `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
             
             if (!monthlyData[monthKey]) return;
             
-            const type = (record.type || '').toLowerCase();
+            const type = (record.leave_type || '').toLowerCase();
             if (type.includes('izin') || type.includes('permission')) {
                 monthlyData[monthKey].izin += 1;
             } else if (type.includes('sakit') || type.includes('sick')) {
@@ -83,34 +77,26 @@ exports.get_trend = async (req, res) => {
 exports.get_heatmap = async (req, res) => {
     try {
         const adminRoles = ['admin', 'hr', 'pjo'];
-        if (!adminRoles.includes((req.userRole || '').toLowerCase())) {
+        if (!adminRoles.includes((req.userRole || '').toLowerCase()) && req.userRole !== 'superadmin') {
             return res.status(403).json({ error: 'Access denied' });
         }
 
-        // Just fetch the last 30 days of attendance
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - 30);
-        const dateLimitStr = dateLimit.toISOString();
 
-        const { data, error } = await supabase
-            .from('attendance')
-            .select('timestamp, status, type')
-            .eq('type', 'Check In')
-            .gte('timestamp', dateLimitStr);
-
-        if (error) throw error;
+        const attendanceData = await Attendance.find({
+            tanggal: { $gte: dateLimit },
+            check_in: { $ne: null }
+        }).select('tanggal status');
         
-        // Also get permissions for absences
-        const { data: permissions } = await supabase
-            .from('permissions')
-            .select('date, type')
-            .in('status', ['Approved'])
-            .gte('date', dateLimitStr.split('T')[0]);
+        const leaveData = await LeaveRequest.find({
+            start_date: { $gte: dateLimit },
+            status: 'Approved'
+        });
 
         // Count frequencies per date
         const heatmapData = {};
         
-        // Initialize 30 days
         for(let i=30; i>=0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
@@ -118,9 +104,9 @@ exports.get_heatmap = async (req, res) => {
             heatmapData[dStr] = { date: dStr, count: 0, late: 0, absent: 0 };
         }
 
-        (data || []).forEach(record => {
-            if (!record.timestamp) return;
-            const dStr = record.timestamp.split('T')[0];
+        attendanceData.forEach(record => {
+            if (!record.tanggal) return;
+            const dStr = new Date(record.tanggal).toISOString().split('T')[0];
             if (!heatmapData[dStr]) {
                 heatmapData[dStr] = { date: dStr, count: 0, late: 0, absent: 0 };
             }
@@ -132,9 +118,9 @@ exports.get_heatmap = async (req, res) => {
             }
         });
         
-        (permissions || []).forEach(record => {
-            if (!record.date) return;
-            const dStr = record.date.split('T')[0];
+        leaveData.forEach(record => {
+            if (!record.start_date) return;
+            const dStr = new Date(record.start_date).toISOString().split('T')[0];
             if (heatmapData[dStr]) {
                 heatmapData[dStr].absent += 1;
             }
@@ -150,38 +136,37 @@ exports.get_heatmap = async (req, res) => {
 exports.get_division_stats = async (req, res) => {
     try {
         const adminRoles = ['admin', 'hr', 'pjo'];
-        if (!adminRoles.includes((req.userRole || '').toLowerCase())) {
+        if (!adminRoles.includes((req.userRole || '').toLowerCase()) && req.userRole !== 'superadmin') {
             return res.status(403).json({ error: 'Access denied' });
         }
 
         const startOfMonth = new Date();
         startOfMonth.setDate(1);
         startOfMonth.setHours(0,0,0,0);
-        const startStr = startOfMonth.toISOString();
 
-        const { data, error } = await supabase
-            .from('attendance')
-            .select('status, type, users!attendance_user_id_fkey(division)')
-            .eq('type', 'Check In')
-            .gte('timestamp', startStr);
-
-        if (error) throw error;
+        const attendanceData = await Attendance.find({
+            tanggal: { $gte: startOfMonth },
+            check_in: { $ne: null }
+        }).populate({
+            path: 'user',
+            populate: { path: 'department' }
+        });
 
         const divStats = {};
-        (data || []).forEach(record => {
-            const div = record.users?.division || 'Unassigned';
+        attendanceData.forEach(record => {
+            if (!record.user) return;
+            const div = (record.user.department && record.user.department.name) ? record.user.department.name : 'Unassigned';
             if (!divStats[div]) {
                 divStats[div] = { subject: div, A: 0, B: 0, fullMark: 100 };
             }
             
-            divStats[div].A += 1; // Hadir
+            divStats[div].A += 1;
             const status = (record.status || '').toLowerCase();
             if (status.includes('late') || status.includes('terlambat')) {
-                divStats[div].B += 1; // Penalty for being late
+                divStats[div].B += 1;
             }
         });
 
-        // Normalize data for radar chart (max 100 scale)
         const result = Object.values(divStats).map(stat => {
             const total = stat.A + stat.B;
             if (total === 0) return stat;

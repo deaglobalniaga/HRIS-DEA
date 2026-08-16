@@ -4,12 +4,29 @@ import { useAuth } from '../../context/AuthContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 
-const MENUS = [
-  { title: 'Dashboard', path: '/dashboard', icon: Layout },
-  { title: 'Direktori Karyawan', path: '/employees', icon: Users },
-  { title: 'Agenda Kerja', path: '/performance', icon: Briefcase },
-  { title: 'Kalender & Cuti', path: '/calendar', icon: Layout },
-];
+const getAllMenus = (role) => {
+    const menus = [
+        { title: 'Dashboard', path: '/dashboard', icon: Layout },
+        { title: 'Direktori Karyawan', path: '/employees', icon: Users },
+        { title: 'Agenda Kerja', path: '/performance', icon: Briefcase },
+        { title: 'Kalender & Jadwal', path: '/calendar', icon: Layout },
+        { title: 'Presensi & Kehadiran', path: '/attendance', icon: Users },
+        { title: 'Cuti & Izin', path: '/permissions', icon: Briefcase },
+        { title: 'Jam Kerja (Timesheet)', path: '/timesheet', icon: Layout },
+        { title: 'Kotak Masuk Notifikasi', path: '/notifications', icon: Bell },
+        { title: 'Pengaturan Akun & Sistem', path: '/settings', icon: User }
+    ];
+
+    if (role === 'admin' || role === 'superadmin') {
+        menus.push(
+            { title: 'Laporan HR', path: '/reports', icon: Briefcase },
+            { title: 'Departemen & Divisi', path: '/departments', icon: Users },
+            { title: 'Struktur Organisasi', path: '/organization', icon: Layout }
+        );
+    }
+    
+    return menus;
+};
 
 const Navbar = ({ toggleSidebar }) => {
   const { user } = useAuth();
@@ -51,12 +68,14 @@ const Navbar = ({ toggleSidebar }) => {
               setIsSearching(true);
               try {
                   const res = await api.get('/hris/employees');
-                  const filteredEmployees = res.data.filter(e => 
-                      e.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                      e.role.toLowerCase().includes(searchQuery.toLowerCase())
-                  );
+                  const filteredEmployees = res.data.filter(e => {
+                      const name = e.nama || e.full_name || '';
+                      return name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                             (e.role && e.role.toLowerCase().includes(searchQuery.toLowerCase()));
+                  });
                   
-                  const filteredMenus = MENUS.filter(m => 
+                  const userMenus = getAllMenus(user?.role);
+                  const filteredMenus = userMenus.filter(m => 
                       m.title.toLowerCase().includes(searchQuery.toLowerCase())
                   );
                   
@@ -188,15 +207,15 @@ const Navbar = ({ toggleSidebar }) => {
                                               className="flex items-center p-3 mx-1 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors"
                                           >
                                               {emp.profile_photo_url ? (
-                                                  <img src={emp.profile_photo_url} alt={emp.full_name} className="w-10 h-10 rounded-full object-cover shrink-0" />
+                                                  <img src={emp.profile_photo_url} alt={emp.nama || emp.full_name} className="w-10 h-10 rounded-full object-cover shrink-0" />
                                               ) : (
                                                   <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 shrink-0">
-                                                      {emp.full_name.charAt(0)}
+                                                      {(emp.nama || emp.full_name).charAt(0)}
                                                   </div>
                                               )}
                                               <div className="ml-3 min-w-0">
-                                                  <h4 className="text-sm font-bold text-gray-900 truncate">{emp.full_name}</h4>
-                                                  <p className="text-[10px] font-bold text-slate-400 uppercase truncate">{emp.role} • {emp.division || 'HRIS'}</p>
+                                                  <h4 className="text-sm font-bold text-gray-900 truncate">{emp.nama || emp.full_name}</h4>
+                                                  <p className="text-[10px] font-bold text-slate-400 uppercase truncate">{emp.role} • {emp.department || emp.division || 'HRIS'}</p>
                                               </div>
                                           </div>
                                       ))}
@@ -286,13 +305,13 @@ const Navbar = ({ toggleSidebar }) => {
             {user?.profile_photo_url ? (
               <img src={user.profile_photo_url} alt="Profile" className="w-full h-full object-cover" />
             ) : (
-              user?.full_name ? user.full_name.charAt(0) : 'D'
+              (user?.nama || user?.full_name) ? (user?.nama || user?.full_name).charAt(0) : 'D'
             )}
           </div>
-          <div className="hidden lg:flex flex-col">
-            <span className="text-sm font-black text-gray-900 leading-tight">{user?.full_name || 'Guest'}</span>
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">{user?.role || 'Admin'}</span>
-          </div>
+            <div className="flex flex-col items-start hidden sm:flex mr-2 min-w-0">
+                <span className="text-sm font-black text-gray-900 leading-tight truncate max-w-[120px] block">{user?.nama || user?.full_name || 'Guest'}</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-0.5 block">{user?.role || 'USER'}</span>
+            </div>
         </Link>
         
       </div>

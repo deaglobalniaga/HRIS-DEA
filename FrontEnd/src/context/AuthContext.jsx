@@ -55,6 +55,7 @@ export const AuthProvider = ({ children }) => {
         try {
             const res = await api.get('/auth/profile');
             setUser(res.data);
+            localStorage.setItem('user_data', JSON.stringify(res.data));
         } catch (err) {
             console.error(err);
             logout();

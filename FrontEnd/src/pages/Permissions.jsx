@@ -2,6 +2,7 @@ import { FileText, Plus, Check, X, AlertCircle, UploadCloud, Eye } from 'lucide-
 import { useState, useEffect } from 'react';
 import api from '../api/api';
 import { useAuth } from '../context/AuthContext';
+import PdfViewerModal from '../components/PdfViewerModal';
 
 const Permissions = () => {
   const { user } = useAuth();
@@ -145,7 +146,7 @@ const Permissions = () => {
 
         {/* Tabs */}
         <div className="flex space-x-2 mb-6 border-b border-slate-100 pb-4 overflow-x-auto scrollbar-hide">
-          {['Semua', 'Cuti', 'Sakit', 'Izin'].map(tab => (
+          {['Semua', ...((user?.role?.toLowerCase() === 'superadmin' || (user?.role?.toLowerCase() === 'admin' && (user?.department === 'HRGA' || user?.division === 'HRGA'))) ? ['Cuti'] : []), 'Sakit', 'Izin'].map(tab => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -241,12 +242,14 @@ const Permissions = () => {
               )}
 
               <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Jenis Pengajuan</label>
-              <div className="grid grid-cols-3 gap-3 mb-4">
-                <label className="cursor-pointer">
-                  <input type="radio" name="permType" className="peer sr-only" checked={permForm.type === 'Cuti'} onChange={() => setPermForm({ ...permForm, type: 'Cuti' })} />
-                  <div className="text-center py-2 rounded-xl border border-slate-200 peer-checked:border-red-900 peer-checked:bg-red-50 peer-checked:text-red-900 font-bold text-xs transition text-slate-500">Cuti</div>
-                </label>
-                <label className="cursor-pointer">
+              <div className="grid grid-cols-3 gap-3">
+                {((user?.role?.toLowerCase() === 'superadmin' || (user?.role?.toLowerCase() === 'admin' && (user?.department === 'HRGA' || user?.division === 'HRGA')))) && (
+                  <label className="relative cursor-pointer">
+                    <input type="radio" name="permType" className="peer sr-only" checked={permForm.type === 'Cuti'} onChange={() => setPermForm({ ...permForm, type: 'Cuti' })} />
+                    <div className="text-center py-2 rounded-xl border border-slate-200 peer-checked:border-red-900 peer-checked:bg-red-50 peer-checked:text-red-900 font-bold text-xs transition text-slate-500">Cuti</div>
+                  </label>
+                )}
+                <label className="relative cursor-pointer">
                   <input type="radio" name="permType" className="peer sr-only" checked={permForm.type === 'Sakit'} onChange={() => setPermForm({ ...permForm, type: 'Sakit' })} />
                   <div className="text-center py-2 rounded-xl border border-slate-200 peer-checked:border-red-900 peer-checked:bg-red-50 peer-checked:text-red-900 font-bold text-xs transition text-slate-500">Sakit</div>
                 </label>
@@ -345,34 +348,11 @@ const Permissions = () => {
 
       {/* PDF Viewer Modal */}
       {showPdfModal && (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[100] flex items-center justify-center p-4 lg:p-10">
-          <div className="bg-white rounded-3xl w-full max-w-4xl h-full max-h-screen overflow-hidden shadow-2xl flex flex-col animate-in fade-in zoom-in-95">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h2 className="text-lg font-black text-gray-900">Peninjauan Dokumen</h2>
-              <button onClick={() => setShowPdfModal(false)} className="text-slate-400 hover:text-red-500 transition p-2 bg-white rounded-xl shadow-sm">
-                <X size={20} strokeWidth={3} />
-              </button>
-            </div>
-            <div className="flex-1 bg-slate-100 p-2 lg:p-4">
-              {selectedPdfUrl ? (
-                <object
-                  data={selectedPdfUrl}
-                  type="application/pdf"
-                  className="w-full h-full rounded-2xl border-0 shadow-sm"
-                >
-                  <div className="flex flex-col items-center justify-center h-full text-slate-500">
-                    <p>Browser Anda tidak mendukung preview PDF langsung.</p>
-                    <a href={selectedPdfUrl} download="dokumen.pdf" className="mt-2 text-red-900 font-bold underline">Download PDF</a>
-                  </div>
-                </object>
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-slate-400 font-bold">
-                  Dokumen tidak ditemukan
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <PdfViewerModal 
+          url={selectedPdfUrl} 
+          onClose={() => setShowPdfModal(false)} 
+          fileName="Dokumen Pendukung.pdf"
+        />
       )}
 
     </div>

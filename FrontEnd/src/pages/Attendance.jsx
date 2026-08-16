@@ -398,7 +398,7 @@ const Attendance = () => {
           </div>
         </div>
 
-        {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'hr') && (
+        {(user?.role?.toLowerCase() === 'admin' || user?.role?.toLowerCase() === 'hr' || user?.role?.toLowerCase() === 'superadmin') && (
           <div className="w-full xl:w-2/3 bg-transparent flex flex-col h-auto lg:h-[calc(100vh-180px)] lg:max-h-[600px]">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-black text-slate-800 text-lg">Daftar Kehadiran Harian</h3>

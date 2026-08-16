@@ -1,23 +1,23 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { User, Lock, Type, Mail, Check, X, CreditCard, Building, Briefcase } from 'lucide-react';
+import { User, Lock, Type, Mail, Check, X, CreditCard, Building, Briefcase, Eye, EyeOff } from 'lucide-react';
 import api from '../api/api';
 
 const Signup = () => {
     const [formData, setFormData] = useState({
+        nama: '',
         username: '',
         password: '',
         email: '',
-        division: '',
-        secret_key: '',
-        first_name: '',
-        last_name: '',
-        date_of_birth: '',
-        date_of_joining: '',
-        address: ''
+        department: '',
+        tanggal_lahir: '',
+        join_date: '',
+        alamat: '',
+        nik: ''
     });
     const [loading, setLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
+    const [showPassword, setShowPassword] = useState(false);
     const [usernameValid, setUsernameValid] = useState({ length: false, noSpace: false, alphanumeric: false });
     const [passwordValid, setPasswordValid] = useState({ length: false, upper: false, lower: false, number: false });
     const [emailValid, setEmailValid] = useState({ format: false });
@@ -80,9 +80,9 @@ const Signup = () => {
     };
 
     return (
-        <div className="h-screen w-full relative overflow-hidden flex items-center justify-center bg-black">
+        <div className="min-h-screen w-full relative flex items-center justify-center bg-black py-10">
             {/* Full-Screen Spline Background */}
-            <div className="absolute inset-0 z-0">
+            <div className="absolute inset-0 z-0 overflow-hidden">
                 <iframe
                     src='https://my.spline.design/nexbotrobotcharacterconcept-Od5WflpjroNUX6I1cGMg9fvj/'
                     frameBorder='0'
@@ -107,21 +107,17 @@ const Signup = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleSignup} className="grid grid-cols-1 md:grid-cols-6 gap-x-3 gap-y-2.5">
-                        <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">First Name</label>
-                            <input type="text" name="first_name" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
+                    <form onSubmit={handleSignup} className="grid grid-cols-1 md:grid-cols-6 gap-x-3 gap-y-3">
+                        <div className="col-span-6 group">
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Nama Lengkap</label>
+                            <input type="text" name="nama" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="Nama Lengkap Anda" />
                         </div>
-                        <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Last Name</label>
-                            <input type="text" name="last_name" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
-                        </div>
-
+                        
                         <div className="col-span-3 group relative">
                             <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Email</label>
                             <div className="relative">
                                 <Mail size={14} color="black" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black z-10 pointer-events-none" />
-                                <input type="email" name="email" required onChange={handleChange} onFocus={() => setFocusedField('email')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="arya@example.com" />
+                                <input type="email" name="email" required onChange={handleChange} onFocus={() => setFocusedField('email')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="user@example.com" />
                             </div>
                             {focusedField === 'email' && (
                                 <div className="absolute top-full left-0 mt-1 w-full p-2 bg-white rounded-lg shadow-xl border border-slate-100 z-50 text-[10px] space-y-1 animate-in fade-in zoom-in duration-200">
@@ -136,7 +132,7 @@ const Signup = () => {
                             <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Username</label>
                             <div className="relative">
                                 <Type size={14} color="black" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black z-10 pointer-events-none" />
-                                <input type="text" name="username" required onChange={handleChange} onFocus={() => setFocusedField('username')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="aryatony" />
+                                <input type="text" name="username" required onChange={handleChange} onFocus={() => setFocusedField('username')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="username" />
                             </div>
                             {focusedField === 'username' && (
                                 <div className="absolute top-full left-0 mt-1 w-full p-2 bg-white rounded-lg shadow-xl border border-slate-100 z-50 text-[10px] space-y-1 animate-in fade-in zoom-in duration-200">
@@ -154,22 +150,22 @@ const Signup = () => {
                         </div>
 
                         <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">NIK Internal</label>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">NIK Karyawan</label>
                             <div className="relative">
                                 <CreditCard size={14} color="black" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black z-10 pointer-events-none" />
-                                <input type="text" name="nik_internal" required onChange={handleChange} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="INT-2026-001" />
+                                <input type="text" name="nik" required onChange={handleChange} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="NIK Anda" />
                             </div>
                         </div>
 
                         <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Divisi</label>
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Department</label>
                             <div className="relative">
                                 <Briefcase color="black" className="absolute left-2.5 top-2 text-black z-10 pointer-events-none" size={14} />
                                 <select 
-                                    name="division"
+                                    name="department"
                                     className="w-full pl-8 pr-3 py-1.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 bg-white"
-                                    value={formData.division} onChange={handleChange}>
-                                    <option value="">Pilih Divisi...</option>
+                                    value={formData.department} onChange={handleChange}>
+                                    <option value="">Pilih Department...</option>
                                     <option value="Maintenance">Maintenance</option>
                                     <option value="Project">Project</option>
                                     <option value="HRGA">HRGA</option>
@@ -179,27 +175,27 @@ const Signup = () => {
                         </div>
 
                         <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Date of Birth</label>
-                            <input type="date" name="date_of_birth" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Tanggal Lahir</label>
+                            <input type="date" name="tanggal_lahir" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
                         </div>
                         <div className="col-span-3 group">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Date of Joining</label>
-                            <input type="date" name="date_of_joining" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Join Date</label>
+                            <input type="date" name="join_date" required onChange={handleChange} className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" />
                         </div>
-
-                        <div className="col-span-6 group relative">
-                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Secret Key (Khusus Admin)</label>
-                            <div className="relative">
-                                <Lock size={14} color="black" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black z-10 pointer-events-none" />
-                                <input type="password" name="secret_key" onChange={handleChange} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="Leave empty for regular user" />
-                            </div>
+                        
+                        <div className="col-span-6 group">
+                            <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Alamat</label>
+                            <textarea name="alamat" onChange={handleChange} rows="2" className="w-full px-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="Alamat Domisili"></textarea>
                         </div>
 
                         <div className="col-span-6 group relative">
                             <label className="block text-[10px] font-bold text-slate-500 mb-0.5 uppercase">Password</label>
                             <div className="relative">
                                 <Lock size={14} color="black" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black z-10 pointer-events-none" />
-                                <input type="password" name="password" required onChange={handleChange} onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-3 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="••••••••" />
+                                <input type={showPassword ? "text" : "password"} name="password" required onChange={handleChange} onFocus={() => setFocusedField('password')} onBlur={() => setFocusedField(null)} className="w-full pl-8 pr-10 py-1.5 text-xs bg-white/50 border border-slate-200/50 rounded-xl focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none transition-all font-medium backdrop-blur-sm" placeholder="••••••••" />
+                                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
+                                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
+                                </button>
                             </div>
                             {focusedField === 'password' && (
                                 <div className="absolute bottom-full left-0 mb-1 w-full p-2 bg-white rounded-lg shadow-xl border border-slate-100 z-50 text-[10px] space-y-1 animate-in fade-in zoom-in duration-200">

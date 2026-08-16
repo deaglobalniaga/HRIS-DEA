@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { verifyToken, isAdmin } = require('../middleware/authMiddleware');
-const supabase = require('../config/supabaseClient');
+const Setting = require('../models/Setting');
 
 // Default settings if table is empty
 const defaultSettings = {
@@ -29,9 +29,7 @@ const arrayToObject = (arr) => {
 // GET settings (public to all authenticated users)
 router.get('/', verifyToken, async (req, res) => {
     try {
-        const { data, error } = await supabase.from('settings').select('setting_key, setting_value');
-        if (error) throw error;
-        
+        const data = await Setting.find({});
         const settings = arrayToObject(data);
         res.status(200).json(settings);
     } catch (error) {
@@ -49,29 +47,30 @@ router.patch('/', verifyToken, isAdmin, async (req, res) => {
         if (keys.length === 0) return res.status(400).json({ error: 'No data to update' });
 
         // Upsert each key into the settings table
-        const upsertData = keys.map(k => ({
-            setting_key: k,
-            setting_value: updates[k]
-        }));
+        const promises = keys.map(k => {
+            return Setting.findOneAndUpdate(
+                { setting_key: k },
+                { setting_value: updates[k] },
+                { upsert: true, new: true }
+            );
+        });
 
-        const { error } = await supabase.from('settings').upsert(upsertData, { onConflict: 'setting_key' });
-        
-        if (error) throw error;
+        await Promise.all(promises);
 
         // Also update the office_location jsonb object if lat, lng, or radius are updated
         if (keys.includes('officeLat') || keys.includes('officeLng') || keys.includes('officeRadius')) {
-            // Get current settings first
-            const { data: currData } = await supabase.from('settings').select('setting_key, setting_value');
+            const currData = await Setting.find({});
             const curr = arrayToObject(currData);
             
             const lat = updates.officeLat !== undefined ? updates.officeLat : curr.officeLat;
             const lng = updates.officeLng !== undefined ? updates.officeLng : curr.officeLng;
             const rad = updates.officeRadius !== undefined ? updates.officeRadius : curr.officeRadius;
             
-            await supabase.from('settings').upsert({
-                setting_key: 'office_location',
-                setting_value: { lat, lng, radius: rad }
-            }, { onConflict: 'setting_key' });
+            await Setting.findOneAndUpdate(
+                { setting_key: 'office_location' },
+                { setting_value: { lat, lng, radius: rad } },
+                { upsert: true, new: true }
+            );
         }
 
         res.status(200).json({ message: 'Settings updated successfully' });
