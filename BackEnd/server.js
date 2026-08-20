@@ -113,8 +113,10 @@ app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/settings', require('./routes/settingsRoutes'));
 app.use('/api/push', require('./routes/pushRoutes'));
 
-// Initialize Cron Jobs
-require('./utils/cronJobs');
+// Initialize Cron Jobs (Only in traditional server mode, not in Vercel Serverless)
+if (!process.env.VERCEL) {
+    require('./utils/cronJobs');
+}
 
 app.get('/', (req, res) => {
     res.json({
@@ -135,8 +137,10 @@ app.use((err, req, res, next) => {
     res.status(500).json({ error: 'Terjadi kesalahan pada server. Permintaan telah diamankan.' });
 });
 
-app.listen(PORT, () => {
-    console.log(`🛡️ HRIS PT DEA GLOBAL NIAGA Server running on port ${PORT} with Enterprise Cybersecurity Shield`);
-});
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`🛡️ HRIS PT DEA GLOBAL NIAGA Server running on port ${PORT} with Enterprise Cybersecurity Shield`);
+    });
+}
 
 module.exports = app;
