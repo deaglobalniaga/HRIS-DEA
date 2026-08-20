@@ -10,7 +10,6 @@
             "destination": "/index.html"
         }
     ],
-    "installCommand": "npm install && cd api && npm install --omit=dev && cd ..",
-    "buildCommand": "cd FrontEnd && npm install && npm run build",
+    "buildCommand": "npm install && cd FrontEnd && npm install && npm run build",
     "outputDirectory": "FrontEnd/dist"
 }
