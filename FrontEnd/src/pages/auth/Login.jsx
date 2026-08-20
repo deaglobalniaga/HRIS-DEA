@@ -55,7 +55,7 @@ const Login = () => {
     useEffect(() => {
         const loadMaxAttempts = async () => {
             try {
-                const res = await api.get('/settings');
+                const res = await api.get('/settings/public');
                 if (res.data && res.data.max_login_attempts) {
                     setMaxAttempts(Number(res.data.max_login_attempts));
                 }
@@ -158,7 +158,10 @@ const Login = () => {
                 setRequireMfa(true);
                 addToast('MFA Diperlukan. Silakan masukkan kode Authenticator Anda.', 'error');
             } else {
-                handleFailedAttempt();
+                // Only count as failed attempt on 400 or 401 (Wrong credentials), NOT on 500 server error
+                if (error.response?.status === 400 || error.response?.status === 401) {
+                    handleFailedAttempt();
+                }
                 const msg = error.response?.data?.error || error.response?.data?.message || error.message || 'Gagal login, periksa kembali email & password Anda.';
                 addToast(msg, 'error');
             }
@@ -227,6 +230,22 @@ const Login = () => {
                             <p className="text-[10px] text-slate-600 font-medium">
                                 Batas percobaan salah ({failedAttempts}x). Harap tunggu hingga timer selesai.
                             </p>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    localStorage.removeItem('hris_failed_attempts');
+                                    localStorage.removeItem('hris_lockout_level');
+                                    localStorage.removeItem('hris_lockout_until');
+                                    setFailedAttempts(0);
+                                    setLockoutLevel(0);
+                                    setLockoutUntil(0);
+                                    setRemainingSeconds(0);
+                                    addToast('Kunci akun berhasil di-reset. Silakan coba login kembali.', 'success');
+                                }}
+                                className="mt-1.5 text-[11px] font-bold text-red-700 hover:text-red-900 hover:underline cursor-pointer transition-colors block w-full text-center"
+                            >
+                                🔓 Buka Kunci Akun (Reset Lockout)
+                            </button>
                         </div>
                     )}
 

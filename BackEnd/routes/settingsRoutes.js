@@ -47,6 +47,24 @@ const defaultSettings = {
     mfa_enforced_for_superadmin: true
 };
 
+// GET /api/settings/public (Open for login page & general info)
+router.get('/public', async (req, res) => {
+    try {
+        const { data, error } = await supabase.from('settings').select('*');
+        const settings = { ...defaultSettings };
+        if (!error && data) {
+            data.forEach(item => {
+                if (item.setting_key && !item.setting_key.includes('secret')) {
+                    settings[item.setting_key] = item.setting_value;
+                }
+            });
+        }
+        res.json(settings);
+    } catch (error) {
+        res.json(defaultSettings);
+    }
+});
+
 // GET /api/settings
 router.get('/', verifyToken, async (req, res) => {
     try {
