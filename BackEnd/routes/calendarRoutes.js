@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/calendarController');
 
 router.get('/calendar/events', verifyToken, controller.get_calendar_events);

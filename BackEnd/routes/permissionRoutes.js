@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/permissionController');
 
 // GET Permissions (Permission/Sick)

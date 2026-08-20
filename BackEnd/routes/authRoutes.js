@@ -6,73 +6,55 @@ const multer = require('multer');
 const authController = require('../controllers/authController');
 
 // Middlewares
-const { verifyToken, isSuperAdmin, isAdmin } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
+const verifyTurnstile = require('../middlewares/turnstileMiddleware');
 
-// MULTER CONFIG
+// MULTER CONFIG - Memory storage because we will upload to Supabase Bucket in controllers
 const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: (req, file, cb) => {
-        const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         if (allowedTypes.includes(file.mimetype)) {
             cb(null, true);
         } else {
-            cb(new Error('Invalid file type. Only JPEG, PNG, and WebP are allowed.'));
+            cb(new Error('Invalid file type.'));
         }
     }
 });
 
 // Auth Routes
-router.get('/jwt-secret', verifyToken, isSuperAdmin, authController.getJwtSecretEndpoint);
-router.post('/jwt-secret/regenerate', verifyToken, isSuperAdmin, authController.regenerateJwtSecret);
-router.post('/login', authController.login);
-router.post('/signup', authController.signup);
-router.post('/setup-password', verifyToken, authController.setup_password);
-router.post('/forgot-password', authController.forgot_password);
+router.post('/signup', upload.any(), authController.signup);
+router.post('/login', verifyTurnstile, authController.login);
+router.post('/logout', authController.logout);
+router.post('/setup-password', verifyToken, authController.setupPassword);
+router.patch('/change-password', verifyToken, authController.changePassword);
+router.patch('/change-username', verifyToken, authController.changeUsername);
+
+// Password Reset with 6-Digit OTP & 10-Minute Anti-Database Fatigue Cooldown
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/verify-reset-otp', authController.verifyResetOtp);
 router.post('/reset-password', authController.resetPassword);
-
-
-const path = require('path');
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/documents/');
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
-const uploadDisk = multer({ 
-    storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    fileFilter: (req, file, cb) => {
-        if (file.mimetype === 'application/pdf') {
-            cb(null, true);
-        } else {
-            cb(new Error('Hanya file PDF yang diizinkan!'));
-        }
-    }
-});
-
-const mfaController = require('../controllers/mfaController');
 
 // Profile Routes
 router.get('/profile', verifyToken, authController.getProfile);
-router.patch('/profile', verifyToken, uploadDisk.fields([{ name: 'ktp_file', maxCount: 1 }, { name: 'kk_file', maxCount: 1 }, { name: 'npwp_file', maxCount: 1 }, { name: 'ijazah_file', maxCount: 1 }]), authController.updateProfile);
-router.patch('/change-password', verifyToken, authController.changePassword);
-router.patch('/profile/photo', verifyToken, upload.single('photo'), authController.uploadProfilePhoto);
+router.patch('/profile', verifyToken, upload.any(), authController.updateProfile);
 
 // Security & MFA Routes
-router.get('/mfa/generate', verifyToken, mfaController.generateMfa);
-router.post('/mfa/verify', verifyToken, mfaController.verifyAndEnableMfa);
-router.post('/mfa/disable', verifyToken, mfaController.disableMfa);
-router.patch('/recovery-email', verifyToken, mfaController.setRecoveryEmail);
-router.get('/devices', verifyToken, mfaController.getDevices);
-router.delete('/devices/:deviceId', verifyToken, mfaController.removeDevice);
+router.get('/mfa/generate', verifyToken, authController.requestMfa);
+router.post('/mfa/verify', verifyToken, authController.verifyMfa);
+router.post('/mfa/disable', verifyToken, authController.disableMfa);
+router.patch('/recovery-email', verifyToken, authController.saveRecoveryEmail);
 
-// Admin User Management Routes
-router.get('/all', verifyToken, isAdmin, authController.getAllUsers);
-router.delete('/users/:id', verifyToken, isAdmin, authController.deleteUser);
-router.get('/online', verifyToken, authController.getOnlineUsers);
+// User Devices
+router.get('/devices', verifyToken, authController.getUserDevices);
+router.delete('/devices/:id', verifyToken, authController.removeUserDevice);
+
+// Face Biometrics & Documents Management
+router.post('/face-enroll', verifyToken, authController.enrollFace);
+router.delete('/face-descriptor', verifyToken, authController.deleteFaceDescriptor);
+router.delete('/document/:id', verifyToken, authController.deleteDocument);
+router.delete('/document-by-type/:docType', verifyToken, authController.deleteDocumentByType);
 
 module.exports = router;
+

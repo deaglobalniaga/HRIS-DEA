@@ -4,7 +4,7 @@ const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST || 'smtp.ethereal.email',
     port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
+    secure: process.env.SMTP_SECURE === 'true',
     auth: {
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS
@@ -13,10 +13,6 @@ const transporter = nodemailer.createTransport({
 
 /**
  * Sends an email notification for HRIS requests
- * @param {string} to - Recipient email (HR/Admin)
- * @param {string} subject - Email subject
- * @param {Object} data - Request details (type, name, reason, date, etc)
- * @param {string} link - Link to the approval page
  */
 const sendRequestNotification = async (to, subject, data, link) => {
     if (!process.env.SMTP_HOST) {
@@ -65,15 +61,91 @@ const sendRequestNotification = async (to, subject, data, link) => {
             html: htmlContent
         });
         console.log('Email sent successfully:', info.messageId);
-        // For ethereal email testing, this will log the URL to preview the email
-        if (process.env.SMTP_HOST === 'smtp.ethereal.email') {
-            console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-        }
     } catch (err) {
         console.error('Failed to send email:', err);
     }
 };
 
+/**
+ * Sends a 6-digit OTP verification email for Password Reset
+ * @param {string} to - Recipient user email
+ * @param {string} otpCode - 6-digit OTP code (e.g. '482910')
+ * @param {number} minutesValid - Validity duration in minutes (default 10)
+ */
+const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
+    const htmlContent = `
+        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; max-width: 550px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <h1 style="color: #991b1b; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.5px;">PT DEA GLOBAL NIAGA</h1>
+                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: bold;">HRIS Enterprise Security Portal</p>
+            </div>
+            
+            <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #e2e8f0; margin-bottom: 24px;">
+                <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin-top: 0; margin-bottom: 8px;">Kode Verifikasi Reset Password</h2>
+                <p style="color: #475569; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+                    Gunakan kode 6-digit di bawah ini untuk mengatur ulang kata sandi akun HRIS Anda:
+                </p>
+                
+                <div style="display: inline-block; background-color: #ffffff; border: 2px dashed #991b1b; border-radius: 12px; padding: 14px 28px; margin: 8px auto;">
+                    <span style="font-family: 'Courier New', Courier, monospace; font-size: 32px; font-weight: 900; color: #991b1b; letter-spacing: 6px;">
+                        ${otpCode}
+                    </span>
+                </div>
+
+                <p style="color: #64748b; font-size: 12px; margin-top: 14px; font-weight: 600;">
+                    ⏱️ Kode ini berlaku selama <strong style="color: #0f172a;">${minutesValid} menit</strong>.
+                </p>
+            </div>
+
+            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;">
+                <p style="color: #991b1b; font-size: 11px; margin: 0; line-height: 1.4; font-weight: 600;">
+                    ⚠️ <strong>Perhatian Keamanan:</strong> Jangan pernah memberikan kode ini kepada siapa pun. Jika Anda tidak meminta reset password, abaikan email ini.
+                </p>
+            </div>
+
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                Email ini dibuat secara otomatis oleh Sistem Keamanan HRIS PT DEA GLOBAL NIAGA.
+            </p>
+        </div>
+    `;
+
+    console.log(`\n========================================`);
+    console.log(`🔐 [RESET PASSWORD OTP] To: ${to}`);
+    console.log(`🔢 OTP Code: ${otpCode}`);
+    console.log(`⏱️ Valid for: ${minutesValid} Minutes`);
+    console.log(`========================================\n`);
+
+    if (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'smtp.ethereal.email') {
+        // Ethereal / Local mode
+        try {
+            const info = await transporter.sendMail({
+                from: '"HRIS DGN Security" <security@deaglobalniaga.com>',
+                to: to,
+                subject: `[HRIS DGN] Kode Reset Password: ${otpCode}`,
+                html: htmlContent
+            });
+            console.log('OTP Email preview URL:', nodemailer.getTestMessageUrl(info));
+        } catch (e) {
+            console.log('Local mailer simulated (OTP logged to console).');
+        }
+        return { success: true, simulated: true };
+    }
+
+    try {
+        const info = await transporter.sendMail({
+            from: '"HRIS DGN Security" <no-reply@deaglobalniaga.com>',
+            to: to,
+            subject: `[HRIS DGN] Kode Reset Password: ${otpCode}`,
+            html: htmlContent
+        });
+        return { success: true, messageId: info.messageId };
+    } catch (err) {
+        console.error('Failed to send reset OTP email:', err);
+        return { success: false, error: err.message };
+    }
+};
+
 module.exports = {
-    sendRequestNotification
+    sendRequestNotification,
+    sendPasswordResetOtpEmail
 };

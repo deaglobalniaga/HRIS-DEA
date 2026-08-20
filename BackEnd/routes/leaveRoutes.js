@@ -1,16 +1,29 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/leaveController');
+const multer = require('multer');
+const path = require('path');
 
-// GET Leave Status
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/documents/');
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, 'leave-' + uniqueSuffix + path.extname(file.originalname));
+    }
+});
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 } });
+
+// GET Leaves for Calendar Monitoring
 router.get('/leave-status', verifyToken, controller.get_leave_status);
+router.get('/leaves', verifyToken, controller.get_leave_status);
 
-// POST Leave Request
-router.post('/leaves', verifyToken, controller.post_leaves);
+// POST Record Leave Block (Admin HRGA Only - pure log recorder)
+router.post('/leaves', verifyToken, isAdmin, upload.single('document'), controller.post_leaves);
 
-// PUT Approve/Reject Leave
-router.put('/leaves/:id/status', verifyToken, controller.put_leave_status);
-
+// DELETE Leave Record
+router.delete('/leaves/:id', verifyToken, isAdmin, controller.delete_leave);
 
 module.exports = router;

@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/analyticsController');
 
-// GET Attendance Trend (3-6 months)
+// GET Attendance Trend (3-6-12 months)
 router.get('/analytics/trend', verifyToken, controller.get_trend);
 
 // GET Attendance Heatmap

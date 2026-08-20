@@ -24,7 +24,6 @@ export const AuthProvider = ({ children }) => {
     useEffect(() => {
         if (token) {
             setAuthToken(token);
-            fetchProfile();
 
             // Auto-logout logic based on JWT expiry
             try {
@@ -34,15 +33,21 @@ export const AuthProvider = ({ children }) => {
 
                 if (timeout <= 0) {
                     logout();
+                    window.location.href = '/login';
+                    return;
                 } else {
                     const timer = setTimeout(() => {
                         logout();
-                        window.location.href = '/'; // Redirect to login
+                        window.location.href = '/login'; // Auto redirect to login upon expiry
                     }, timeout);
+
+                    fetchProfile();
                     return () => clearTimeout(timer);
                 }
             } catch (e) {
                 console.error("Token parse error", e);
+                logout();
+                window.location.href = '/login';
             }
         } else {
             setAuthToken(null);
@@ -57,8 +62,11 @@ export const AuthProvider = ({ children }) => {
             setUser(res.data);
             localStorage.setItem('user_data', JSON.stringify(res.data));
         } catch (err) {
-            console.error(err);
-            logout();
+            console.error('Fetch profile error:', err);
+            if (err.response && err.response.status === 401) {
+                logout();
+                window.location.href = '/login';
+            }
         } finally {
             setLoading(false);
         }
@@ -67,7 +75,7 @@ export const AuthProvider = ({ children }) => {
     const login = (newToken, userData) => {
         setToken(newToken);
         setUser(userData);
-        setAuthToken(newToken); // Fix race condition with navigate()
+        setAuthToken(newToken);
         localStorage.setItem('token', newToken);
         localStorage.setItem('user_data', JSON.stringify(userData));
     };
@@ -77,6 +85,10 @@ export const AuthProvider = ({ children }) => {
         setUser(null);
         localStorage.removeItem('token');
         localStorage.removeItem('user_data');
+        setAuthToken(null);
+        try {
+            api.post('/auth/logout').catch(() => {});
+        } catch (e) {}
     };
 
     return (
@@ -94,8 +106,3 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
-
-
-
-
-

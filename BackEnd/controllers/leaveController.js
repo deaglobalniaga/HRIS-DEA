@@ -1,135 +1,135 @@
-const User = require('../models/User');
-const LeaveRequest = require('../models/LeaveRequest');
-const { createNotification, notifyAdmins } = require('./notificationController');
-const mailer = require('../utils/mailer');
+const supabase = require('../config/supabase');
+const { notifyRole } = require('./notificationController');
 
+// GET /api/hris/leaves / get_leave_status
+// Pure log recorder & monitoring calendar — no approval workflow
 exports.get_leave_status = async (req, res) => {
     try {
-        const leaves = await LeaveRequest.find().populate('user', 'nama full_name role').sort({ start_date: 1 });
-        
+        const { data: leaves, error } = await supabase
+            .from('leaves')
+            .select(`
+                *,
+                employees (
+                    id,
+                    nama_lengkap,
+                    nomor_pegawai,
+                    jabatan,
+                    departments (name)
+                )
+            `)
+            .order('start_date', { ascending: true });
+
+        if (error) throw error;
+
+        const now = new Date();
+        const nowStr = now.toISOString().split('T')[0];
+
         const leaveData = {
             alreadyLeave: [],
             currentlyLeave: [],
-            upcomingLeave: []
+            upcomingLeave: [],
+            allLeaves: leaves || []
         };
-        
-        const now = new Date();
-        
-        leaves.forEach(leave => {
-            if (!leave.user) return;
-            const start = new Date(leave.start_date);
-            const end = new Date(leave.end_date);
-            const name = leave.user.nama || leave.user.full_name || 'Unknown';
-            const role = leave.user.role || 'Staff';
-            const dateStr = `${start.getDate()} - ${end.getDate()} ${start.toLocaleString('default', { month: 'short' })} ${start.getFullYear()}`;
-            
-            const item = { id: leave._id, name, date: dateStr, role, type: leave.leave_type, reason: leave.reason, status: leave.status };
-            
-            if (end < now) {
+
+        (leaves || []).forEach(l => {
+            const empName = l.employees?.nama_lengkap || 'Karyawan';
+            const deptName = l.employees?.departments?.name || 'General';
+            const startDate = l.start_date;
+            const endDate = l.end_date;
+
+            const item = {
+                id: l.id,
+                employee_id: l.employee_id,
+                name: empName,
+                department: deptName,
+                role: l.employees?.jabatan || 'Staff',
+                type: l.leave_type || 'Cuti Roster',
+                start_date: startDate,
+                end_date: endDate,
+                date: `${startDate} s/d ${endDate}`,
+                duration_days: l.duration_days || 14,
+                notes: l.notes || '',
+                document_url: l.document_url || null
+            };
+
+            if (endDate < nowStr) {
                 leaveData.alreadyLeave.push(item);
-            } else if (start <= now && end >= now) {
+            } else if (startDate <= nowStr && endDate >= nowStr) {
                 leaveData.currentlyLeave.push(item);
             } else {
                 leaveData.upcomingLeave.push(item);
             }
         });
-        
-        if (leaves.length === 0) {
-           return res.json({
-               alreadyLeave: [],
-               currentlyLeave: [],
-               upcomingLeave: [],
-               totalLeaveAllowed: 0,
-               usedLeave: 0,
-               remainingLeave: 0,
-               wfhUsed: 0
-           });
-        }
-        
+
         res.json(leaveData);
     } catch (err) {
+        console.error('Get leaves error:', err);
         res.status(500).json({ error: err.message });
     }
 };
 
+// POST /api/hris/leaves
+// (Admin Only) Record leave period (e.g. 2-week leave/roster block)
 exports.post_leaves = async (req, res) => {
     try {
-        const { leave_start, leave_end, reason, proof_url, proof_base64, type } = req.body;
-        
-        let final_proof_url = proof_url;
-        if (proof_base64) {
-            final_proof_url = proof_base64;
+        const { employee_id, leave_type, start_date, end_date, duration_days, notes } = req.body;
+
+        if (!employee_id || !start_date || !end_date) {
+            return res.status(400).json({ message: 'Employee ID, start date, and end date are required' });
         }
 
-        const leave = await LeaveRequest.create({
-            user: req.userId,
-            start_date: leave_start,
-            end_date: leave_end,
-            leave_type: type || 'Cuti',
-            reason: reason,
-            attachment_url: final_proof_url,
-            status: 'Pending'
+        let documentUrl = null;
+        if (req.file) {
+            documentUrl = `/uploads/documents/${req.file.filename}`;
+        }
+
+        // Calculate days if not provided
+        let calcDays = duration_days;
+        if (!calcDays && start_date && end_date) {
+            const d1 = new Date(start_date);
+            const d2 = new Date(end_date);
+            calcDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+        }
+
+        const { data, error } = await supabase
+            .from('leaves')
+            .insert({
+                employee_id,
+                leave_type: leave_type || 'Cuti Roster (2 Minggu)',
+                start_date,
+                end_date,
+                duration_days: calcDays || 14,
+                notes: notes || 'Pencatatan Cuti Roster',
+                document_url: documentUrl
+            })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        // Fetch user info for notification
+        const { data: empData } = await supabase.from('employees').select('nama_lengkap').eq('id', employee_id).single();
+        const empName = empData?.nama_lengkap || 'Karyawan';
+
+        await notifyRole('hr', 'Pengajuan Cuti', `${empName} telah mengajukan ${leave_type || 'cuti'}. Silakan periksa.`);
+
+        res.status(201).json({
+            message: 'Pencatatan cuti/roster karyawan berhasil disimpan ke kalender',
+            data
         });
-
-        const user = await User.findById(req.userId).select('nama full_name');
-        const userName = user?.nama || user?.full_name || 'Karyawan';
-
-        await notifyAdmins(
-            'Pengajuan Cuti Baru',
-            `${userName} mengajukan cuti: ${leave_start} s/d ${leave_end}. Alasan: ${reason || '-'}`,
-            'leave',
-            '/permissions'
-        );
-
-        await mailer.sendRequestNotification(
-            process.env.HR_EMAIL || 'hr@deaglobalniaga.com',
-            `Pengajuan Baru: Cuti - ${userName}`,
-            {
-                type: 'Cuti',
-                name: userName,
-                dateRange: `${leave_start} s/d ${leave_end}`,
-                reason: reason || '-'
-            },
-            'http://localhost:5173/permissions'
-        );
-
-        res.status(201).json({ message: 'Leave request submitted successfully', data: leave });
     } catch (err) {
+        console.error('Post leaves error:', err);
         res.status(500).json({ error: err.message });
     }
 };
 
-// PUT /leaves/:id/approve — Approve or Reject a leave
-exports.put_leave_status = async (req, res) => {
+// DELETE /api/hris/leaves/:id
+exports.delete_leave = async (req, res) => {
     try {
-        const role = (req.userRole || '').toLowerCase();
-        if (!role.includes('admin') && !role.includes('hr') && role !== 'superadmin') {
-            return res.status(403).json({ error: 'Unauthorized' });
-        }
-
         const { id } = req.params;
-        const { status } = req.body; // 'Approved' or 'Rejected'
-
-        if (!['Approved', 'Rejected'].includes(status)) {
-            return res.status(400).json({ error: 'Invalid status' });
-        }
-
-        const leave = await LeaveRequest.findById(id);
-        if (!leave) throw new Error('Leave not found');
-
-        leave.status = status;
-        await leave.save();
-
-        const statusText = status === 'Approved' ? 'disetujui ✅' : 'ditolak ❌';
-        await createNotification(
-            leave.user,
-            `Cuti ${statusText}`,
-            `Pengajuan cuti Anda telah ${statusText}.`,
-            status === 'Approved' ? 'success' : 'warning',
-            '/permissions'
-        );
-
-        res.json({ message: `Leave ${status.toLowerCase()} successfully` });
+        const { error } = await supabase.from('leaves').delete().eq('id', id);
+        if (error) throw error;
+        res.json({ message: 'Data cuti berhasil dihapus' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

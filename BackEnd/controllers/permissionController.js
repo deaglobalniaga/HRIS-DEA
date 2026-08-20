@@ -1,37 +1,53 @@
-const User = require('../models/User');
-const LeaveRequest = require('../models/LeaveRequest');
-const { createNotification, notifyAdmins } = require('./notificationController');
-const mailer = require('../utils/mailer');
+const supabase = require('../config/supabase');
+const { notifyRole, createNotification } = require('./notificationController');
 
 exports.get_permissions = async (req, res) => {
     try {
-        let query = LeaveRequest.find({ leave_type: { $in: ['Izin', 'Sakit', 'Permission', 'Sick'] } })
-            .populate('user', 'full_name nama role')
-            .sort({ createdAt: -1 });
+        let query = supabase
+            .from('leaves')
+            .select(`
+                id,
+                leave_type,
+                start_date,
+                end_date,
+                reason,
+                status,
+                attachment_url,
+                created_at,
+                employees (id, nama_lengkap, jabatan, user_id)
+            `)
+            .in('leave_type', ['Izin', 'Sakit', 'Permission', 'Sick'])
+            .order('created_at', { ascending: false });
 
-        const adminRoles = ['admin', 'hr', 'superadmin'];
+        const adminRoles = ['admin', 'hr', 'hrga_admin', 'superadmin'];
         if (!adminRoles.includes((req.userRole || '').toLowerCase())) {
-            query = query.where('user').equals(req.userId);
+            // Filter by user's employee ID
+            const { data: emp } = await supabase.from('employees').select('id').eq('user_id', req.userId).single();
+            if (emp) {
+                query = query.eq('employee_id', emp.id);
+            }
         }
 
-        const data = await query.exec();
-        
-        const permissionsData = data.map(item => {
-            const d = new Date(item.start_date);
+        const { data, error } = await query;
+        if (error) throw error;
+
+        const permissionsData = (data || []).map(item => {
+            const d = new Date(item.start_date || item.created_at);
             return {
-                id: item._id.toString(),
+                id: item.id,
                 type: item.leave_type,
-                date: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })} ${d.getFullYear()}`,
+                date: `${d.getDate()} ${d.toLocaleString('id-ID', { month: 'short' })} ${d.getFullYear()}`,
                 reason: item.reason,
                 status: item.status,
-                name: item.user ? (item.user.nama || item.user.full_name) : 'Unknown',
-                role: item.user ? item.user.role : 'Staff',
+                name: item.employees?.nama_lengkap || 'Karyawan',
+                role: item.employees?.jabatan || 'Staff',
                 proof_url: item.attachment_url
             };
         });
 
         res.json(permissionsData);
     } catch (err) {
+        console.error('get_permissions error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -44,41 +60,28 @@ exports.post_permissions = async (req, res) => {
             return res.status(400).json({ error: "Tanggal pengajuan wajib diisi" });
         }
 
-        const data = await LeaveRequest.create({
-            user: req.userId,
-            leave_type: type,
-            start_date: date,
-            end_date: date, // For single day permissions
-            reason: reason,
-            attachment_url: proof_base64 || null,
-            status: 'Pending'
-        });
+        const { data: emp } = await supabase.from('employees').select('id, nama_lengkap').eq('user_id', req.userId).single();
+        if (!emp) return res.status(400).json({ error: "Data profil karyawan tidak ditemukan" });
 
-        // Notify admins via system notification
-        const user = await User.findById(req.userId).select('nama full_name');
-        const userName = user ? (user.nama || user.full_name) : 'Karyawan';
-        
-        await notifyAdmins(
-            'Pengajuan Izin Baru',
-            `${userName} mengajukan izin ${type} mulai ${date}. Alasan: ${reason || '-'}`,
-            'permission',
-            '/permissions'
-        );
+        const { data, error } = await supabase
+            .from('leaves')
+            .insert({
+                employee_id: emp.id,
+                leave_type: type || 'Izin',
+                start_date: date,
+                end_date: date,
+                reason: reason || '',
+                attachment_url: proof_base64 || null,
+                status: 'Pending'
+            })
+            .select('*')
+            .single();
 
-        // Send Email Notification
-        await mailer.sendRequestNotification(
-            process.env.HR_EMAIL || 'hr@deaglobalniaga.com',
-            `Pengajuan Baru: ${type} - ${userName}`,
-            {
-                type: type,
-                name: userName,
-                date: date,
-                reason: reason || '-'
-            },
-            'http://localhost:5173/permissions'
-        );
+        if (error) throw error;
 
-        res.status(201).json({ message: 'Permission requested successfully', data });
+        await notifyRole('hr', 'Pengajuan Izin', `${emp.nama_lengkap} mengajukan ${type || 'Izin'}.`);
+
+        res.status(201).json({ message: 'Pengajuan izin berhasil dibuat', data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -88,30 +91,28 @@ exports.put_permissions_id_status = async (req, res) => {
     try {
         const { status } = req.body;
         if (!['Approved_Atasan', 'Approved', 'Rejected'].includes(status)) {
-            return res.status(400).json({ error: 'Invalid status' });
+            return res.status(400).json({ error: 'Status tidak valid' });
         }
 
-        const leave = await LeaveRequest.findById(req.params.id);
-        if (!leave) throw new Error("Permission not found");
-        
-        leave.status = status;
-        await leave.save();
+        const { data, error } = await supabase
+            .from('leaves')
+            .update({ status })
+            .eq('id', req.params.id)
+            .select('*')
+            .single();
 
-        // Notify the employee
-        let statusText = 'diproses';
-        if (status === 'Approved_Atasan') statusText = 'disetujui Atasan (menunggu HR) ⏳';
-        else if (status === 'Approved') statusText = 'disetujui sepenuhnya ✅';
-        else if (status === 'Rejected') statusText = 'ditolak ❌';
+        if (error) throw error;
 
-        await createNotification(
-            leave.user,
-            `Update Izin: ${statusText}`,
-            `Pengajuan izin ${leave.leave_type} telah ${statusText}.`,
-            status === 'Approved' ? 'success' : status === 'Rejected' ? 'warning' : 'info',
-            '/attendance-hub'
-        );
+        const { data: empData } = await supabase.from('employees').select('user_id').eq('id', data.employee_id).single();
+        if (empData && empData.user_id) {
+            await createNotification({
+                userId: empData.user_id,
+                title: 'Status Pengajuan Izin',
+                message: `Pengajuan ${data.leave_type} Anda telah diubah statusnya menjadi ${status}.`
+            });
+        }
 
-        res.json({ message: `Permission ${status.toLowerCase()} successfully`, data: leave });
+        res.json({ message: `Status izin berhasil diubah menjadi ${status}`, data });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

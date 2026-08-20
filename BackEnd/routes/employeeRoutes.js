@@ -1,29 +1,28 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/employeeController');
 const multer = require('multer');
 const path = require('path');
 
-// Configure Multer for local disk storage
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/documents/');
-    },
-    filename: (req, file, cb) => {
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        cb(null, file.fieldname + '-' + uniqueSuffix + path.extname(file.originalname));
-    }
-});
+// Configure Multer for secure In-Memory buffer storage
+const storage = multer.memoryStorage();
 const upload = multer({ 
     storage,
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit per file
     fileFilter: (req, file, cb) => {
-        const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-        if (allowed.includes(file.mimetype)) {
+        const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+        const ext = path.extname(file.originalname || '').toLowerCase();
+        const dangerousExts = ['.exe', '.php', '.sh', '.bat', '.js', '.svg', '.html', '.htm', '.vbs'];
+
+        if (dangerousExts.includes(ext) || file.originalname.includes('.php') || file.originalname.includes('.svg')) {
+            return cb(new Error('Tipe berkas berbahaya terdeteksi dan diblokir demi keamanan!'));
+        }
+
+        if (allowed.includes(file.mimetype.toLowerCase())) {
             cb(null, true);
         } else {
-            cb(new Error('Hanya file PDF atau Gambar (JPG, PNG) yang diizinkan!'));
+            cb(new Error('Hanya file PDF atau Gambar (JPG, PNG, WEBP) yang diizinkan!'));
         }
     }
 });
@@ -31,42 +30,40 @@ const upload = multer({
 // GET All Employees
 router.get('/employees', verifyToken, controller.get_employees);
 
+// GET Single Employee
+router.get('/employees/:id', verifyToken, controller.get_employee_by_id);
+
 // GET Departments
 router.get('/departments', verifyToken, controller.get_departments);
 
-// PUT Update Department Head
-router.put('/departments/head', verifyToken, controller.set_department_head);
+// POST New Employee (HRGA / Admin)
+router.post('/employees', verifyToken, isAdmin, upload.any(), controller.create_employee);
 
-// PUT Update Department Structure (Canvas)
-router.put('/departments/structure', verifyToken, controller.update_department_structure);
+// PUT Update Employee (HRGA / Admin)
+router.put('/employees/:id', verifyToken, isAdmin, upload.any(), controller.update_employee);
 
-// POST New Employee (HRGA usage) with PDF Uploads
-router.post('/employees', verifyToken, upload.fields([
-    { name: 'ktp_file', maxCount: 1 },
-    { name: 'kk_file', maxCount: 1 },
-    { name: 'npwp_file', maxCount: 1 },
-    { name: 'ijazah_file', maxCount: 1 }
-]), controller.post_employees);
+// DELETE Employee (HRGA / Admin)
+router.delete('/employees/:id', verifyToken, isAdmin, controller.delete_employee);
 
-// PUT Update Employee
-router.put('/employees/:id', verifyToken, upload.fields([
-    { name: 'ktp_file', maxCount: 1 },
-    { name: 'kk_file', maxCount: 1 },
-    { name: 'npwp_file', maxCount: 1 },
-    { name: 'ijazah_file', maxCount: 1 }
-]), controller.put_employees);
+// DELETE Employee Document (HRGA / Admin)
+router.delete('/employees/:id/documents/:docType', verifyToken, isAdmin, controller.delete_employee_document);
 
-// DELETE Bulk Employees
-router.delete('/employees/bulk', verifyToken, controller.delete_employees_bulk);
+// PUT Verify & Activate New Employee Account (Super Admin)
+router.put('/employees/:id/verify', verifyToken, controller.verify_employee);
 
-// DELETE Employee
-router.delete('/employees/:id', verifyToken, controller.delete_employees);
+// DELETE Reject & Clean up New Employee Account (Super Admin)
+router.delete('/employees/:id/reject', verifyToken, controller.reject_employee);
 
-// POST Bulk Employees (HRGA Excel Import)
-router.post('/employees/bulk', verifyToken, controller.post_employees_bulk);
+// ROLE REQUESTS (Admin HRGA Request & Super Admin Review)
+router.get('/role-requests', verifyToken, controller.get_role_requests);
+router.post('/role-requests', verifyToken, isAdmin, controller.create_role_request);
+router.put('/role-requests/:id/review', verifyToken, controller.review_role_request);
 
-// PUT Update Profile (Self-service)
-router.put('/profile', verifyToken, controller.update_profile);
+// POST Save Face Samples (for Face Recognition enrollment)
+router.post('/employees/:id/face-samples', verifyToken, controller.save_face_samples);
 
+// GET Export Employees to Excel
+router.get('/employees/export/excel', verifyToken, isAdmin, controller.export_employees_excel);
 
 module.exports = router;
+

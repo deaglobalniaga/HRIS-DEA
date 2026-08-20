@@ -1,90 +1,114 @@
-const User = require('../models/User');
-const Attendance = require('../models/Attendance');
-const LeaveRequest = require('../models/LeaveRequest');
-const KPIAppraisal = require('../models/KPIAppraisal');
+const supabase = require('../config/supabase');
+const { getOrSetCache, invalidateCache } = require('../utils/cache');
 
-// GET /reports/attendance-monthly — Rekap kehadiran bulanan seluruh karyawan
+// GET /api/hris/reports/attendance-monthly — Rekap kehadiran bulanan seluruh karyawan
 exports.get_attendance_monthly = async (req, res) => {
     try {
         const { month, year } = req.query;
         const targetMonth = parseInt(month) || new Date().getMonth() + 1;
         const targetYear = parseInt(year) || new Date().getFullYear();
 
-        const startDate = new Date(targetYear, targetMonth - 1, 1);
-        const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+        const startDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+        const endDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-        // Get all users
-        const users = await User.find().populate('department').sort({ nama: 1 });
+        // 1. Fetch all active employees
+        const { data: employees, error: empErr } = await supabase
+            .from('employees')
+            .select(`
+                id,
+                nama_lengkap,
+                nomor_pegawai,
+                nik,
+                jabatan,
+                level,
+                penempatan,
+                departments (name)
+            `)
+            .order('nama_lengkap', { ascending: true });
 
-        // Get attendance in date range
-        const attendance = await Attendance.find({
-            tanggal: { $gte: startDate, $lte: endDate }
-        });
+        if (empErr) throw empErr;
 
-        // Get leaves in date range (including permissions)
-        const leaves = await LeaveRequest.find({
-            status: 'Approved',
-            $or: [
-                { start_date: { $lte: endDate }, end_date: { $gte: startDate } }
-            ]
-        });
+        // 2. Fetch attendance logs in date range
+        const { data: logs, error: logErr } = await supabase
+            .from('attendance_logs')
+            .select('*')
+            .gte('date', startDateStr)
+            .lte('date', endDateStr);
 
-        // Calculate total work days (exclude weekends)
+        if (logErr) throw logErr;
+
+        // 3. Fetch leaves in date range
+        const { data: leaves } = await supabase
+            .from('leaves')
+            .select('*')
+            .lte('start_date', endDateStr)
+            .gte('end_date', startDateStr)
+            .eq('status', 'Approved');
+
+        // Calculate work days in month (excluding Sundays)
         let totalWorkDays = 0;
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            if (d.getDay() !== 0 && d.getDay() !== 6) totalWorkDays++;
+        for (let d = 1; d <= lastDay; d++) {
+            const dateObj = new Date(targetYear, targetMonth - 1, d);
+            if (dateObj.getDay() !== 0) { // Exclude Sunday
+                totalWorkDays++;
+            }
         }
 
-        // Build report per user
-        const report = users.map(user => {
-            // Count unique check-in days
-            const userAtt = attendance.filter(a => a.user.toString() === user._id.toString() && a.check_in);
-            const uniqueCheckInDays = new Set(userAtt.map(a => new Date(a.tanggal).toDateString())).size;
+        // Map logs and leaves per employee
+        const logMap = {};
+        (logs || []).forEach(log => {
+            if (!logMap[log.employee_id]) logMap[log.employee_id] = [];
+            logMap[log.employee_id].push(log);
+        });
 
-            // Count approved leaves
-            const userLeaves = leaves.filter(l => l.user.toString() === user._id.toString() && l.leave_type === 'Cuti');
-            let leaveDays = 0;
-            userLeaves.forEach(l => {
-                const ls = new Date(Math.max(new Date(l.start_date), startDate));
-                const le = new Date(Math.min(new Date(l.end_date), endDate));
-                const diff = Math.ceil((le - ls) / (1000 * 60 * 60 * 24)) + 1;
-                leaveDays += Math.max(0, diff);
+        const leaveMap = {};
+        (leaves || []).forEach(l => {
+            if (!leaveMap[l.employee_id]) leaveMap[l.employee_id] = [];
+            leaveMap[l.employee_id].push(l);
+        });
+
+        const report = (employees || []).map(emp => {
+            const empLogs = logMap[emp.id] || [];
+            const empLeaves = leaveMap[emp.id] || [];
+
+            const hadirDays = new Set(empLogs.map(l => l.date)).size;
+            let lateCount = 0;
+            empLogs.forEach(l => {
+                if (l.late_minutes > 0 || l.status === 'Terlambat') lateCount++;
             });
 
-            // Count approved permissions (sick/izin)
-            const userPerms = leaves.filter(l => l.user.toString() === user._id.toString() && l.leave_type !== 'Cuti');
-            const sickDays = userPerms.filter(p => (p.leave_type || '').toLowerCase().includes('sakit')).length;
-            const izinDays = userPerms.filter(p => (p.leave_type || '').toLowerCase().includes('izin')).length;
+            let cutiDays = 0;
+            let sakitDays = 0;
+            let izinDays = 0;
 
-            const absentDays = Math.max(0, totalWorkDays - uniqueCheckInDays - leaveDays - sickDays - izinDays);
-
-            // Calculate late check-ins (after 08:30)
-            let lateDays = 0;
-            const checkInsByDay = {};
-            userAtt.forEach(a => {
-                const ts = new Date(a.check_in);
-                const dayKey = ts.toDateString();
-                if (!checkInsByDay[dayKey]) {
-                    checkInsByDay[dayKey] = ts;
-                    const hours = ts.getHours();
-                    const minutes = ts.getMinutes();
-                    if (hours > 8 || (hours === 8 && minutes > 30)) lateDays++;
-                }
+            empLeaves.forEach(l => {
+                const type = (l.leave_type || '').toLowerCase();
+                if (type.includes('sakit')) sakitDays++;
+                else if (type.includes('izin')) izinDays++;
+                else cutiDays++;
             });
+
+            const absentDays = Math.max(0, totalWorkDays - hadirDays - cutiDays - sakitDays - izinDays);
+            const attendancePercentage = totalWorkDays > 0 ? Math.min(100, Math.round((hadirDays / totalWorkDays) * 100)) : 0;
+            const totalHours = hadirDays * 8;
 
             return {
-                id: user._id.toString(),
-                full_name: user.nama || user.full_name,
-                nik_internal: user.nik_internal || user.nik || '-',
-                division: user.department?.name || '-',
-                role: user.role,
-                hadir: uniqueCheckInDays,
-                cuti: leaveDays,
-                sakit: sickDays,
+                id: emp.id,
+                full_name: emp.nama_lengkap,
+                name: emp.nama_lengkap,
+                nik_internal: emp.nomor_pegawai || emp.nik || '-',
+                division: emp.departments?.name || 'Operasional',
+                jabatan: emp.jabatan,
+                hadir: hadirDays,
+                present_days: hadirDays,
+                total_hours: totalHours,
+                cuti: cutiDays,
+                sakit: sakitDays,
                 izin: izinDays,
                 alpa: absentDays,
-                terlambat: lateDays,
-                persentase: totalWorkDays > 0 ? Math.round((uniqueCheckInDays / totalWorkDays) * 100) : 0
+                terlambat: lateCount,
+                persentase: attendancePercentage
             };
         });
 
@@ -92,171 +116,67 @@ exports.get_attendance_monthly = async (req, res) => {
             month: targetMonth,
             year: targetYear,
             totalWorkDays,
-            totalEmployees: users.length,
-            report
+            totalEmployees: (employees || []).length,
+            report,
+            data: report
         });
     } catch (err) {
+        console.error('Error in get_attendance_monthly:', err);
         res.status(500).json({ error: err.message });
     }
 };
 
-// GET /reports/attendance-personal — Rekap kehadiran per karyawan
+// GET /api/hris/reports/attendance-personal
 exports.get_attendance_personal = async (req, res) => {
     try {
-        const userId = req.query.user_id || req.userId;
+        const userId = req.userId;
         const { month, year } = req.query;
         const targetMonth = parseInt(month) || new Date().getMonth() + 1;
         const targetYear = parseInt(year) || new Date().getFullYear();
 
-        const startDate = new Date(targetYear, targetMonth - 1, 1);
-        const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59);
+        const startDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(targetYear, targetMonth, 0).getDate();
+        const endDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-        // Get user profile
-        const user = await User.findById(userId).populate('department');
+        const { data: emp } = await supabase
+            .from('employees')
+            .select('id, nama_lengkap, nomor_pegawai, jabatan, departments(name)')
+            .eq('user_id', userId)
+            .maybeSingle();
 
-        // Get daily attendance detail
-        const attendance = await Attendance.find({
-            user: userId,
-            tanggal: { $gte: startDate, $lte: endDate }
-        }).sort({ tanggal: 1 });
-
-        // Build daily detail
-        const dailyDetail = [];
-        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dayKey = d.toDateString();
-            const nextDay = new Date(d);
-            nextDay.setDate(nextDay.getDate() + 1);
-
-            const dayAtt = attendance.filter(a => {
-                const ts = new Date(a.tanggal);
-                return ts >= d && ts < nextDay;
-            });
-
-            const attRecord = dayAtt[0]; // Assuming 1 record per day per user
-            const checkIn = attRecord?.check_in;
-            const checkOut = attRecord?.check_out;
-            const photoUrl = attRecord?.photo_url || null; // Add if schema has photo
-            
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-
-            dailyDetail.push({
-                date: new Date(d).toISOString().split('T')[0],
-                day: d.toLocaleDateString('id-ID', { weekday: 'short' }),
-                checkIn: checkIn ? new Date(checkIn).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
-                checkOut: checkOut ? new Date(checkOut).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
-                status: isWeekend ? 'Libur' : (checkIn ? 'Hadir' : (d < new Date() ? 'Tidak Hadir' : '-')),
-                photoUrl: photoUrl
-            });
+        if (!emp) {
+            return res.status(404).json({ message: 'Profil karyawan tidak ditemukan' });
         }
+
+        const { data: logs } = await supabase
+            .from('attendance_logs')
+            .select('*')
+            .eq('employee_id', emp.id)
+            .gte('date', startDateStr)
+            .lte('date', endDateStr)
+            .order('date', { ascending: false });
 
         res.json({
-            user: user ? {
-                id: user._id,
-                full_name: user.nama || user.full_name,
-                nik_internal: user.nik_internal || user.nik,
-                division: user.department?.name,
-                role: user.role,
-                job_title: user.job_title
-            } : {},
-            month: targetMonth,
-            year: targetYear,
-            dailyDetail
+            employee: emp,
+            logs: logs || []
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
 
-// GET /reports/attendance-log — Menampilkan log raw kehadiran beserta foto (bisa difilter harian/mingguan/bulanan)
-exports.get_attendance_log = async (req, res) => {
-    try {
-        const { range } = req.query; // 'day', 'week', 'month', '6months'
-        const endDate = new Date();
-        let startDate = new Date();
-
-        // Tentukan batas waktu mulai
-        startDate.setHours(0, 0, 0, 0); // Default ke hari ini
-        endDate.setHours(23, 59, 59, 999);
-
-        if (range === 'week') {
-            startDate.setDate(startDate.getDate() - 7);
-        } else if (range === 'month') {
-            startDate.setMonth(startDate.getMonth() - 1);
-        } else if (range === '6months') {
-            startDate.setMonth(startDate.getMonth() - 6);
-        }
-
-        // Ambil data attendance beserta relasi user
-        const attendance = await Attendance.find({
-            tanggal: { $gte: startDate, $lte: endDate }
-        }).populate({
-            path: 'user',
-            populate: { path: 'department' }
-        }).sort({ tanggal: -1 });
-
-        const logs = [];
-        attendance.forEach(a => {
-            if (a.check_in) {
-                logs.push({
-                    id: a._id.toString() + '_in',
-                    type: 'Check In',
-                    timestamp: a.check_in,
-                    photo_url: a.photo_url || null,
-                    user_id: a.user?._id,
-                    users: {
-                        id: a.user?._id,
-                        full_name: a.user?.nama || a.user?.full_name,
-                        division: a.user?.department?.name || 'Unassigned'
-                    }
-                });
-            }
-            if (a.check_out) {
-                logs.push({
-                    id: a._id.toString() + '_out',
-                    type: 'Check Out',
-                    timestamp: a.check_out,
-                    photo_url: a.photo_url || null,
-                    user_id: a.user?._id,
-                    users: {
-                        id: a.user?._id,
-                        full_name: a.user?.nama || a.user?.full_name,
-                        division: a.user?.department?.name || 'Unassigned'
-                    }
-                });
-            }
-        });
-        
-        // sort logs by timestamp desc
-        logs.sort((x, y) => new Date(y.timestamp) - new Date(x.timestamp));
-
-        res.json({ logs });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// DELETE /reports/cleanup - Hapus data lama (Admin only)
+// DELETE /api/hris/reports/cleanup
 exports.cleanup_old_data = async (req, res) => {
     try {
         const { year } = req.query;
-        if (!year) return res.status(400).json({ error: 'Year parameter is required' });
+        if (!year) return res.status(400).json({ message: 'Tahun cutoff wajib diisi' });
 
-        // Ensure admin or HR
-        const user = await User.findById(req.userId);
-        if (!user || (!user.role.toLowerCase().includes('admin') && !user.role.toLowerCase().includes('hr') && user.role !== 'superadmin')) {
-            return res.status(403).json({ error: 'Unauthorized access' });
-        }
+        const cutoffDate = `${year}-12-31`;
+        await supabase.from('attendance_logs').delete().lte('date', cutoffDate);
+        await supabase.from('leaves').delete().lte('end_date', cutoffDate);
 
-        const cutoffDate = new Date(`${year}-01-01T00:00:00Z`);
-
-        // Delete old attendance logs
-        await Attendance.deleteMany({ tanggal: { $lt: cutoffDate } });
-        // Delete old leaves and permissions
-        await LeaveRequest.deleteMany({ start_date: { $lt: cutoffDate } });
-        // Delete old performance goals (KPIAppraisal)
-        await KPIAppraisal.deleteMany({ evaluation_date: { $lt: cutoffDate } });
-
-        res.json({ message: `Successfully cleared data before ${year}` });
+        await invalidateCache('attendance:*');
+        res.json({ message: `Data kehadiran sebelum ${year} berhasil dibersihkan` });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }

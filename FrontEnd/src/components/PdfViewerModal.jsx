@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { X, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Download, Printer, FileText, Maximize2, RotateCw } from 'lucide-react';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -10,101 +10,203 @@ pdfjs.GlobalWorkerOptions.workerSrc = new URL(
   import.meta.url,
 ).toString();
 
-const PdfViewerModal = ({ url, onClose, fileName = "Document" }) => {
+const PdfViewerModal = ({ url, onClose, fileName = "Dokumen Karyawan" }) => {
     const [numPages, setNumPages] = useState(null);
     const [pageNumber, setPageNumber] = useState(1);
-    const [scale, setScale] = useState(1.0);
+    const [scale, setScale] = useState(1.2);
+    const [rotation, setRotation] = useState(0);
     const [loading, setLoading] = useState(true);
+
+    const isImage = url && (
+        url.startsWith('data:image/') ||
+        url.toLowerCase().endsWith('.png') ||
+        url.toLowerCase().endsWith('.jpg') ||
+        url.toLowerCase().endsWith('.jpeg') ||
+        url.toLowerCase().endsWith('.webp')
+    );
 
     const onDocumentLoadSuccess = ({ numPages }) => {
         setNumPages(numPages);
         setLoading(false);
     };
 
-    const zoomIn = () => setScale(prev => Math.min(prev + 0.2, 3.0));
-    const zoomOut = () => setScale(prev => Math.max(prev - 0.2, 0.5));
+    const zoomIn = () => setScale(prev => Math.min(prev + 0.25, 3.5));
+    const zoomOut = () => setScale(prev => Math.max(prev - 0.25, 0.5));
+    const rotate = () => setRotation(prev => (prev + 90) % 360);
     const prevPage = () => setPageNumber(prev => Math.max(prev - 1, 1));
     const nextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages || 1));
 
+    // Handle Escape key to close
+    useEffect(() => {
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
+    const handlePrint = () => {
+        const printWindow = window.open(url, '_blank');
+        if (printWindow) {
+            printWindow.focus();
+            printWindow.print();
+        }
+    };
+
     return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-200 p-4">
-            <div className="bg-slate-100 rounded-3xl w-full max-w-5xl h-[90vh] flex flex-col shadow-2xl overflow-hidden relative">
-                
-                {/* Toolbar */}
-                <div className="bg-white border-b border-slate-200 p-4 flex items-center justify-between shrink-0">
-                    <div className="flex items-center gap-4">
-                        <h3 className="font-black text-slate-800 hidden sm:block">{fileName}</h3>
-                        <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
-                            <button onClick={zoomOut} className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 hover:shadow-sm transition" title="Zoom Out">
-                                <ZoomOut size={18} />
-                            </button>
-                            <span className="text-xs font-bold w-12 text-center text-slate-500">{Math.round(scale * 100)}%</span>
-                            <button onClick={zoomIn} className="p-1.5 hover:bg-white rounded-lg text-slate-600 hover:text-slate-900 hover:shadow-sm transition" title="Zoom In">
-                                <ZoomIn size={18} />
-                            </button>
-                        </div>
+        <div className="fixed inset-0 z-[9999] w-screen h-screen bg-slate-950/95 backdrop-blur-md flex flex-col animate-in fade-in duration-200 select-none">
+            {/* Top Toolbar */}
+            <div className="bg-slate-900 border-b border-slate-800 px-4 py-3 flex items-center justify-between shrink-0 shadow-lg text-white">
+                <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30 flex items-center justify-center font-bold">
+                        <FileText size={18} />
                     </div>
-                    
-                    <div className="flex items-center gap-2">
-                        {numPages > 1 && (
-                            <div className="flex items-center gap-3 mr-4 bg-slate-100 rounded-xl p-1">
-                                <button 
-                                    onClick={prevPage} 
-                                    disabled={pageNumber <= 1}
-                                    className="p-1.5 hover:bg-white rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition"
-                                >
-                                    <ChevronLeft size={18} />
-                                </button>
-                                <span className="text-xs font-bold text-slate-500 min-w-[60px] text-center">
-                                    {pageNumber} / {numPages}
-                                </span>
-                                <button 
-                                    onClick={nextPage} 
-                                    disabled={pageNumber >= numPages}
-                                    className="p-1.5 hover:bg-white rounded-lg text-slate-600 disabled:opacity-30 disabled:hover:bg-transparent transition"
-                                >
-                                    <ChevronRight size={18} />
-                                </button>
-                            </div>
-                        )}
-                        <a 
-                            href={url} 
-                            download 
-                            className="p-2 hover:bg-blue-50 text-blue-600 rounded-xl transition-colors hidden sm:flex items-center gap-2 text-sm font-bold"
-                            title="Download PDF"
-                        >
-                            <Download size={18} /> <span className="hidden md:inline">Download</span>
-                        </a>
-                        <button onClick={onClose} className="p-2 hover:bg-red-50 text-slate-400 hover:text-red-500 rounded-xl transition-colors">
-                            <X size={24} />
-                        </button>
+                    <div>
+                        <h3 className="font-bold text-sm text-slate-100 tracking-tight line-clamp-1">{fileName}</h3>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                            {isImage ? 'Gambar / Foto Resmi' : 'Dokumen PDF'}
+                        </span>
                     </div>
                 </div>
 
-                {/* PDF Content Area */}
-                <div className="flex-1 overflow-auto bg-slate-200/50 p-4 flex justify-center items-start custom-scrollbar relative">
-                    {loading && (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                            <div className="animate-spin w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full"></div>
+                {/* Center Controls: Zoom, Rotate & Pages */}
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="flex items-center gap-1 bg-slate-800/80 border border-slate-700/80 rounded-xl p-1">
+                        <button
+                            onClick={zoomOut}
+                            className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition"
+                            title="Zoom Out"
+                        >
+                            <ZoomOut size={16} />
+                        </button>
+                        <span className="text-xs font-mono font-bold w-12 text-center text-slate-300">
+                            {Math.round(scale * 100)}%
+                        </span>
+                        <button
+                            onClick={zoomIn}
+                            className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 hover:text-white transition"
+                            title="Zoom In"
+                        >
+                            <ZoomIn size={16} />
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={rotate}
+                        className="p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition"
+                        title="Putar 90 Derajat"
+                    >
+                        <RotateCw size={16} />
+                    </button>
+
+                    {!isImage && numPages > 1 && (
+                        <div className="flex items-center gap-2 bg-slate-800/80 border border-slate-700/80 rounded-xl p-1">
+                            <button 
+                                onClick={prevPage} 
+                                disabled={pageNumber <= 1}
+                                className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 disabled:opacity-30 disabled:hover:bg-transparent transition"
+                            >
+                                <ChevronLeft size={16} />
+                            </button>
+                            <span className="text-xs font-mono font-bold text-slate-300 min-w-[50px] text-center">
+                                {pageNumber} / {numPages}
+                            </span>
+                            <button 
+                                onClick={nextPage} 
+                                disabled={pageNumber >= numPages}
+                                className="p-1.5 hover:bg-slate-700 rounded-lg text-slate-300 disabled:opacity-30 disabled:hover:bg-transparent transition"
+                            >
+                                <ChevronRight size={16} />
+                            </button>
                         </div>
                     )}
-                    <Document
-                        file={url}
-                        onLoadSuccess={onDocumentLoadSuccess}
-                        loading=""
-                        error={<div className="text-red-500 font-bold p-8 bg-white rounded-xl shadow-sm">Gagal memuat PDF. Harap periksa apakah file tersedia.</div>}
-                    >
-                        <div className="bg-white shadow-xl mb-4 transition-transform origin-top">
-                            <Page 
-                                pageNumber={pageNumber} 
-                                scale={scale} 
-                                renderAnnotationLayer={false} 
-                                renderTextLayer={false} 
-                                loading=""
-                            />
-                        </div>
-                    </Document>
                 </div>
+                
+                {/* Right Controls: Actions & Close */}
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={handlePrint}
+                        className="p-2 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/80 rounded-xl text-slate-300 hover:text-white transition hidden sm:flex items-center gap-1.5 text-xs font-bold"
+                        title="Cetak Dokumen"
+                    >
+                        <Printer size={16} /> <span className="hidden md:inline">Cetak</span>
+                    </button>
+
+                    <a 
+                        href={url} 
+                        download={fileName}
+                        className="p-2 bg-red-600 hover:bg-red-700 text-white rounded-xl transition flex items-center gap-1.5 text-xs font-bold shadow-md shadow-red-900/30"
+                        title="Unduh Berkas"
+                    >
+                        <Download size={16} /> <span className="hidden md:inline">Unduh</span>
+                    </a>
+
+                    <button 
+                        onClick={onClose} 
+                        className="p-2 bg-slate-800 hover:bg-red-600/80 text-slate-300 hover:text-white rounded-xl transition border border-slate-700/80 ml-1"
+                        title="Tutup (Esc)"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+            </div>
+
+            {/* Document Full Viewport Area */}
+            <div className="flex-1 w-full h-[calc(100vh-65px)] overflow-auto bg-slate-950 p-4 sm:p-8 flex justify-center items-center relative custom-scrollbar">
+                {isImage ? (
+                    <div 
+                        className="transition-transform duration-200 flex items-center justify-center max-w-full max-h-full"
+                        style={{ transform: `scale(${scale}) rotate(${rotation}deg)` }}
+                    >
+                        <img 
+                            src={url} 
+                            alt={fileName} 
+                            className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl border border-slate-800 bg-white" 
+                        />
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center justify-start min-h-full">
+                        {loading && (
+                            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+                                <div className="animate-spin w-10 h-10 border-4 border-red-600 border-t-transparent rounded-full"></div>
+                                <span className="text-xs font-bold text-slate-400">Memuat Dokumen Full-Page...</span>
+                            </div>
+                        )}
+                        <Document
+                            file={url}
+                            onLoadSuccess={onDocumentLoadSuccess}
+                            loading=""
+                            error={
+                                <div className="text-center p-8 bg-slate-900 border border-slate-800 rounded-2xl text-slate-300 max-w-md shadow-2xl">
+                                    <FileText size={36} className="text-red-500 mx-auto mb-2" />
+                                    <p className="font-bold text-sm text-red-400 mb-1">Gagal merender file PDF.</p>
+                                    <p className="text-xs text-slate-400 mb-4">File mungkin disimpan dalam format terkompresi atau browser memblokir objek PDF.</p>
+                                    <a
+                                        href={url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="px-4 py-2 bg-red-600 text-white font-bold text-xs rounded-xl hover:bg-red-700 transition inline-block"
+                                    >
+                                        Buka di Tab Baru / Unduh
+                                    </a>
+                                </div>
+                            }
+                        >
+                            <div 
+                                className="bg-white shadow-2xl rounded-xl overflow-hidden mb-6 transition-transform duration-200 origin-top"
+                                style={{ transform: `scale(${scale}) rotate(${rotation}deg)` }}
+                            >
+                                <Page 
+                                    pageNumber={pageNumber} 
+                                    scale={1.5}
+                                    renderAnnotationLayer={false} 
+                                    renderTextLayer={false} 
+                                    loading=""
+                                />
+                            </div>
+                        </Document>
+                    </div>
+                )}
             </div>
         </div>
     );

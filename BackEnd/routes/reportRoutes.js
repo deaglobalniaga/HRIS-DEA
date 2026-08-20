@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/reportController');
 
 // GET monthly attendance report (all employees)
@@ -8,9 +8,6 @@ router.get('/reports/attendance-monthly', verifyToken, controller.get_attendance
 
 // GET personal attendance detail
 router.get('/reports/attendance-personal', verifyToken, controller.get_attendance_personal);
-
-// GET raw attendance logs with photos
-router.get('/reports/attendance-log', verifyToken, controller.get_attendance_log);
 
 // DELETE clear old data
 router.delete('/reports/cleanup', verifyToken, controller.cleanup_old_data);
