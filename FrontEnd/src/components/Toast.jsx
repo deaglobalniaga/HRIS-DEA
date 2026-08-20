@@ -49,7 +49,7 @@ const Toast = () => {
                 {isSuccess ? 'Berhasil' : isError ? 'Peringatan' : isWarning ? 'Perhatian' : 'Informasi'}
               </p>
               <p className="text-[11px] text-slate-600 font-medium mt-0.5 leading-snug break-words">
-                {toast.message}
+                {typeof toast.message === 'object' ? (toast.message?.message || toast.message?.error || JSON.stringify(toast.message)) : String(toast.message || '')}
               </p>
             </div>
 

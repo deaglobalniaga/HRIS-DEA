@@ -1,4 +1,4 @@
-const supabase = require('../config/supabaseClient');
+const supabase = require('../config/supabase');
 const webpush = require('web-push');
 require('dotenv').config();
 

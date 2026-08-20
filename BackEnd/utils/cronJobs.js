@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const supabase = require('../config/supabaseClient');
+const supabase = require('../config/supabase');
 const webpush = require('web-push');
 
 // 08:30 WITA = 00:30 UTC

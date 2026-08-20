@@ -30,7 +30,7 @@ const MainLayout = () => {
         </div>
 
         {/* Main Content Area: Proper comfortable padding on mobile, standard padding on desktop */}
-        <main className="flex-1 w-full px-4 py-4 sm:px-6 sm:py-6 lg:p-6 overflow-x-hidden overflow-y-auto flex flex-col pb-32 lg:pb-8">
+        <main className={`flex-1 w-full ${isEmployeeRole ? '' : 'px-4 py-4 sm:px-6 sm:py-6'} lg:p-6 overflow-x-hidden overflow-y-auto flex flex-col pb-32 lg:pb-8`}>
           <Outlet />
         </main>
       </div>

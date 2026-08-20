@@ -6,8 +6,16 @@ export const ToastProvider = ({ children }) => {
   const [toasts, setToasts] = useState([]);
 
   const addToast = useCallback((message, type = 'success', duration = 3000) => {
+    let cleanMessage = '';
+    if (typeof message === 'string') {
+      cleanMessage = message;
+    } else if (message && typeof message === 'object') {
+      cleanMessage = message.error || message.message || JSON.stringify(message);
+    } else {
+      cleanMessage = String(message || '');
+    }
     const id = Date.now().toString() + Math.random().toString(36).substring(7);
-    setToasts(prev => [...prev, { id, message, type }]);
+    setToasts(prev => [...prev, { id, message: cleanMessage, type }]);
     
     if (duration > 0) {
       setTimeout(() => {
