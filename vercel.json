@@ -10,11 +10,7 @@
             "destination": "/index.html"
         }
     ],
-    "functions": {
-        "api/index.js": {
-            "includeFiles": "BackEnd/**,node_modules/**"
-        }
-    },
-    "buildCommand": "npm install && cd FrontEnd && npm install && npm run build",
+    "installCommand": "npm install",
+    "buildCommand": "cd FrontEnd && npm install && npm run build",
     "outputDirectory": "FrontEnd/dist"
 }
