@@ -3,26 +3,16 @@
  * PT DEA GLOBAL NIAGA HRIS Enterprise Security
  */
 
-const { JSDOM } = require('jsdom');
-const createDOMPurify = require('dompurify');
-
-const window = new JSDOM('').window;
-const DOMPurify = createDOMPurify(window);
-
-// 1. Anti-XSS: Recursively sanitize and strip dangerous HTML/script tags with DOMPurify & Regex
+// 1. Anti-XSS: Recursively sanitize and strip dangerous HTML/script tags
 const sanitizeString = (str) => {
     if (typeof str !== 'string') return str;
-    // Clean with DOMPurify
-    const purified = DOMPurify.sanitize(str, {
-        ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a', 'p', 'br', 'ul', 'ol', 'li', 'span'],
-        ALLOWED_ATTR: ['href', 'title', 'target', 'class']
-    });
-    return purified
+    return str
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
-        .replace(/on\w+\s*=\s*(?:["'][^"']*["']|[^\s>]+)/gi, '') // strips onerror=, onclick=, onload=
+        .replace(/on\w+\s*=\s*(?:["'][^"']*["']|[^\s>]+)/gi, '')
         .replace(/javascript:/gi, '')
         .replace(/data:text\/html/gi, '')
+        .replace(/<[^>]*>/g, '') // strip all HTML tags
         .trim();
 };
 
