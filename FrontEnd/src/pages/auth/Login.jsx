@@ -230,22 +230,6 @@ const Login = () => {
                             <p className="text-[10px] text-slate-600 font-medium">
                                 Batas percobaan salah ({failedAttempts}x). Harap tunggu hingga timer selesai.
                             </p>
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    localStorage.removeItem('hris_failed_attempts');
-                                    localStorage.removeItem('hris_lockout_level');
-                                    localStorage.removeItem('hris_lockout_until');
-                                    setFailedAttempts(0);
-                                    setLockoutLevel(0);
-                                    setLockoutUntil(0);
-                                    setRemainingSeconds(0);
-                                    addToast('Kunci akun berhasil di-reset. Silakan coba login kembali.', 'success');
-                                }}
-                                className="mt-1.5 text-[11px] font-bold text-red-700 hover:text-red-900 hover:underline cursor-pointer transition-colors block w-full text-center"
-                            >
-                                🔓 Buka Kunci Akun (Reset Lockout)
-                            </button>
                         </div>
                     )}
 
