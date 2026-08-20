@@ -4,7 +4,12 @@
  * Storing 100% of files purely in database tables with sharp image compression.
  */
 
-const sharp = require('sharp');
+let sharp = null;
+try {
+    sharp = require('sharp');
+} catch (e) {
+    // Sharp native bindings not present in current env
+}
 const zlib = require('zlib');
 
 /**
@@ -15,17 +20,19 @@ const zlib = require('zlib');
  * @returns {Promise<string>} Base64 Data URI
  */
 async function compressImageToDataUri(buffer, maxWidth = 1200, quality = 75) {
-    try {
-        const compressedBuffer = await sharp(buffer)
-            .resize({ width: maxWidth, withoutEnlargement: true })
-            .webp({ quality, effort: 4 })
-            .toBuffer();
-        
-        return `data:image/webp;base64,${compressedBuffer.toString('base64')}`;
-    } catch (err) {
-        console.warn('Sharp image compression fallback to raw base64:', err.message);
-        return `data:image/jpeg;base64,${buffer.toString('base64')}`;
+    if (sharp) {
+        try {
+            const compressedBuffer = await sharp(buffer)
+                .resize({ width: maxWidth, withoutEnlargement: true })
+                .webp({ quality, effort: 4 })
+                .toBuffer();
+            
+            return `data:image/webp;base64,${compressedBuffer.toString('base64')}`;
+        } catch (err) {
+            console.warn('Sharp image compression fallback to raw base64:', err.message);
+        }
     }
+    return `data:image/jpeg;base64,${buffer.toString('base64')}`;
 }
 
 /**
