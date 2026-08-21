@@ -10,11 +10,8 @@ const verifyTurnstile = async (req, res, next) => {
 
     const token = req.body.cf_turnstile_response || req.headers['cf-turnstile-response'];
     if (!token) {
-        // If secret is set but no token is passed, allow bypass in development or reject if in production
-        if (process.env.NODE_ENV !== 'production') {
-            return next();
-        }
-        return res.status(403).json({ error: 'Turnstile token missing' });
+        // No token provided — reject with clear message (both dev and production)
+        return res.status(403).json({ error: 'Verifikasi keamanan diperlukan. Silakan muat ulang halaman.' });
     }
 
     try {
@@ -30,11 +27,10 @@ const verifyTurnstile = async (req, res, next) => {
             return res.status(403).json({ error: 'Turnstile verification failed', details: response.data['error-codes'] });
         }
     } catch (err) {
-        console.error('Turnstile verification error:', err.message);
-        if (process.env.NODE_ENV !== 'production') {
-            return next(); // Fallback in development
-        }
-        return res.status(500).json({ error: 'Internal Server Error during Turnstile verification' });
+        // If Cloudflare Turnstile is unreachable, log and allow through
+        // Do NOT block legitimate users due to 3rd-party service failures
+        console.error('Turnstile verification error (non-blocking):', err.message);
+        return next();
     }
 };
 
