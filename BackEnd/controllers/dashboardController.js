@@ -48,13 +48,14 @@ exports.get_dashboard_stats = async (req, res) => {
             present: Math.max(2, Math.floor(employeesCount * (0.8 + (i % 2) * 0.15)))
         }));
 
-        // 5. Arrivals list
-        const todayArrivals = (todayLogs && todayLogs.length > 0)
-            ? todayLogs.map(l => ({
+        // 5. Arrivals list - only include employees who have checked in
+        const checkedInLogs = (todayLogs || []).filter(l => l.check_in);
+        const todayArrivals = checkedInLogs.length > 0
+            ? checkedInLogs.map(l => ({
                 name: l.employees?.nama_lengkap || 'Karyawan',
                 role: l.employees?.jabatan || 'Staff',
                 department: l.employees?.departments?.name || 'General',
-                time: l.check_in ? new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '-',
+                time: new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
                 status: l.check_out ? 'CHECK OUT' : 'CHECK IN',
                 detail: l.status || 'Hadir'
             }))
