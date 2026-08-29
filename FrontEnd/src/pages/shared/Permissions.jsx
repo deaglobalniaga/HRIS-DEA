@@ -56,6 +56,7 @@ const Permissions = () => {
   useEffect(() => {
     fetchLeaves();
     fetchEmployees();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Smart date calculation when start_date or leave_type changes
@@ -149,6 +150,7 @@ const Permissions = () => {
       addToast('Data berhasil dihapus.', 'success');
       fetchLeaves();
     } catch (err) {
+      console.error('Delete leave error:', err);
       addToast('Gagal menghapus data.', 'error');
     }
   };
