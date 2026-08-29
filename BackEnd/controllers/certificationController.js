@@ -2,6 +2,119 @@ const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
 const { notifyRole, createNotification } = require('./notificationController');
 
+// Helper to resolve certificate type ID accurately without mistaking POP/POM for WAH
+const resolveCertificateTypeId = async (namaSertifikat, institusiPenerbit = 'K3/HSE') => {
+    if (!namaSertifikat || !namaSertifikat.trim()) return 1;
+    const raw = namaSertifikat.trim();
+    const upper = raw.toUpperCase();
+    const lower = raw.toLowerCase();
+
+    // 1. Precise rule-based mapping for standard mining & technical certifications
+    if (upper.includes('POP') || lower.includes('pengawas operasional pertama') || lower.includes('pengawas operasional pratama')) {
+        return 2; // Pengawas Operasional Pertama (POP)
+    }
+    if (upper.includes('POM') || lower.includes('pengawas operasional madya')) {
+        return 3; // Pengawas Operasional Madya (POM)
+    }
+    if (upper.includes('POU') || lower.includes('pengawas operasional utama')) {
+        const { data: pouType } = await supabase.from('certificate_types').select('id').ilike('code', 'POU').maybeSingle();
+        if (pouType) return pouType.id;
+    }
+    if (upper.includes('AK3U') || lower.includes('ahli k3 umum') || lower.includes('ahli k3 umum (ak3u)')) {
+        return 16; // Ahli K3 Umum (AK3U)
+    }
+    if (upper.includes('AK3 LISTRIK') || lower.includes('ahli k3 listrik')) {
+        return 4; // Ahli K3 Listrik
+    }
+    if (upper.includes('TEKNISI LISTRIK') || (lower.includes('teknisi') && lower.includes('listrik'))) {
+        return 5; // Teknisi Listrik
+    }
+    if (upper.includes('CSMS') || upper.includes('CSMC') || lower.includes('contractor safety')) {
+        return 17; // CSMS
+    }
+    if (upper.includes('SMKP') || lower.includes('smkp minerba')) {
+        return 21; // SMKP Minerba
+    }
+    if (upper.includes('WAH') || lower.includes('working at height') || lower.includes('ketinggian') || upper.includes('TKPK') || upper.includes('TKBT')) {
+        if (upper.includes('TKPK 1') || upper.includes('TKPK_1') || upper.includes('TINGKAT 1')) return 6;
+        if (upper.includes('TKPK 2') || upper.includes('TKPK_2') || upper.includes('TINGKAT 2')) return 7;
+        if (upper.includes('TKBT')) return 8;
+        return 1; // Working at Height (WAH)
+    }
+    if (upper.includes('P3K') || upper.includes('FIRST AID') || lower.includes('pertolongan pertama')) {
+        return 9; // First Aid / P3K
+    }
+    if (upper.includes('DRONE') || lower.includes('pilot drone')) {
+        return 10; // Pilot Drone
+    }
+    if (upper.includes('LOTOTO') || upper.includes('LOTO') || lower.includes('lock out')) {
+        return 11; // LOTOTO
+    }
+    if (upper.includes('FIBER') || upper.includes('FO') || lower.includes('fiber optic')) {
+        return 13; // Fiber Optic (FO)
+    }
+    if (upper.includes('MTCNA') || lower.includes('mikrotik')) {
+        return 18; // MTCNA
+    }
+    if (upper.includes('MTCRE')) {
+        return 19; // MTCRE
+    }
+    if (upper.includes('UBIQUITI') || upper.includes('UBIQUITY')) {
+        return 20; // Ubiquiti
+    }
+    if (upper.includes('DOCUMENT CONTROL') || lower.includes('doc control')) {
+        return 24; // Document Control
+    }
+
+    // 2. Exact match check from certificate_types table
+    const { data: exactType } = await supabase
+        .from('certificate_types')
+        .select('id')
+        .ilike('name', raw)
+        .maybeSingle();
+    if (exactType) return exactType.id;
+
+    // 3. Exact code check from certificate_types table
+    const { data: codeType } = await supabase
+        .from('certificate_types')
+        .select('id')
+        .ilike('code', raw)
+        .maybeSingle();
+    if (codeType) return codeType.id;
+
+    // 4. Case-insensitive substring match from existing types
+    const { data: allTypes } = await supabase.from('certificate_types').select('id, code, name');
+    if (allTypes && allTypes.length > 0) {
+        const found = allTypes.find(t => {
+            const tName = (t.name || '').toLowerCase();
+            const tCode = (t.code || '').toLowerCase();
+            return tName === lower || 
+                   tCode === lower ||
+                   (lower.length >= 3 && tName.includes(lower)) ||
+                   (lower.length >= 3 && lower.includes(tName));
+        });
+        if (found) return found.id;
+    }
+
+    // 5. Create new certificate type dynamically so user input is preserved faithfully
+    const codePrefix = raw.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8).toUpperCase() || 'CERT';
+    const { data: newType, error: insertTypeErr } = await supabase
+        .from('certificate_types')
+        .insert({
+            code: `${codePrefix}-${Date.now().toString().slice(-4)}`,
+            name: raw,
+            category: institusiPenerbit || 'K3/HSE'
+        })
+        .select('id')
+        .maybeSingle();
+
+    if (!insertTypeErr && newType) {
+        return newType.id;
+    }
+
+    return 1;
+};
+
 // Helper to format certificate record
 const formatCert = (cert) => {
     if (!cert) return null;
@@ -10,17 +123,32 @@ const formatCert = (cert) => {
     const deptName = emp.departments?.name || emp.department || 'Operasional';
 
     // Parse status from status column or notes tag
-    let status = cert.status || 'Approved';
-    if (cert.notes?.includes('[STATUS:PENDING]')) status = 'Pending';
-    else if (cert.notes?.includes('[STATUS:REJECTED]')) status = 'Rejected';
-    else if (cert.notes?.includes('[STATUS:APPROVED]')) status = 'Approved';
-    else if (cert.is_approved === false) status = 'Pending';
+    let status = 'Approved';
+    if (cert.status === 'Rejected' || cert.notes?.includes('[STATUS:REJECTED]')) {
+        status = 'Rejected';
+    } else if (cert.status === 'Pending' || cert.notes?.includes('[STATUS:PENDING]')) {
+        status = 'Pending';
+    } else if (cert.status === 'Approved' || cert.notes?.includes('[STATUS:APPROVED]') || cert.is_approved === true) {
+        status = 'Approved';
+    }
 
     const isApproved = status === 'Approved';
+
+    // Parse verifier name and verification date if available
+    const byMatch = (cert.notes || '').match(/\[VERIFIED_BY:([^\]]+)\]/i) || (cert.notes || '').match(/\[BY:([^\]]+)\]/i);
+    const atMatch = (cert.notes || '').match(/\[VERIFIED_AT:([^\]]+)\]/i) || (cert.notes || '').match(/\[AT:([^\]]+)\]/i);
+    const reasonMatch = (cert.notes || '').match(/Alasan:\s*([^|\[]+)/i);
+
+    const verifiedBy = byMatch ? byMatch[1].trim() : (status === 'Approved' ? 'HSE Officer Admin' : (status === 'Rejected' ? 'HSE Officer Admin' : null));
+    const verifiedAt = atMatch ? atMatch[1].trim() : (status !== 'Pending' ? cert.created_at : null);
+    const rejectionReason = reasonMatch ? reasonMatch[1].trim() : null;
 
     // Clean notes for display
     const cleanNotes = (cert.notes || '')
         .replace(/\[STATUS:(PENDING|APPROVED|REJECTED)\]/g, '')
+        .replace(/\[VERIFIED_BY:[^\]]+\]/g, '')
+        .replace(/\[VERIFIED_AT:[^\]]+\]/g, '')
+        .replace(/Alasan:[^|]+(\|)?/g, '')
         .trim();
 
     return {
@@ -29,6 +157,9 @@ const formatCert = (cert) => {
         status: status,
         is_approved: isApproved,
         is_verified: isApproved,
+        verified_by: verifiedBy,
+        verified_at: verifiedAt,
+        rejection_reason: rejectionReason,
         nama_sertifikat: certType.name || cert.nama_sertifikat || 'Sertifikat Kompetensi',
         certificate_name: certType.name || cert.nama_sertifikat || 'Sertifikat Kompetensi',
         kategori: certType.category || 'Umum',
@@ -88,7 +219,8 @@ exports.get_matrix = async (req, res) => {
                 id, certificate_number, is_lifetime, issue_date, expired_date, file_url, notes,
                 certificate_types (id, code, name, category),
                 employees (id, nama_lengkap, nomor_pegawai, jabatan, penempatan, departments(name))
-            `);
+            `)
+            .order('created_at', { ascending: false });
         if (error) throw error;
         const formatted = (certs || []).map(formatCert);
         res.json(formatted);
@@ -131,6 +263,13 @@ exports.get_my_certifications = async (req, res) => {
     }
 };
 
+const cleanDate = (d) => {
+    if (!d) return null;
+    const str = String(d).trim();
+    if (!str || str === 'null' || str === 'undefined' || str === '') return null;
+    return str;
+};
+
 // POST /api/hris/certifications/my-certifications (LinkedIn-style personal upload for all users)
 exports.add_my_certification = async (req, res) => {
     try {
@@ -138,13 +277,13 @@ exports.add_my_certification = async (req, res) => {
         let { data: emp } = await supabase.from('employees').select('id, nama_lengkap').eq('user_id', userId).maybeSingle();
 
         if (!emp) {
-            const { data: userRecord } = await supabase.from('users').select('username, email').eq('id', userId).single();
+            const { data: userRecord } = await supabase.from('users').select('username, email').eq('id', userId).maybeSingle();
             const { data: newEmp } = await supabase.from('employees').insert({
                 user_id: userId,
                 nama_lengkap: userRecord?.username || 'Karyawan',
                 nomor_pegawai: `DGN-${Date.now().toString().slice(-4)}`,
                 status_karyawan: 'Aktif'
-            }).select('id').single();
+            }).select('id, nama_lengkap').single();
             emp = newEmp;
         }
 
@@ -152,14 +291,14 @@ exports.add_my_certification = async (req, res) => {
             return res.status(400).json({ error: 'Data profil karyawan belum terhubung.' });
         }
 
-        const body = req.body;
+        const body = req.body || {};
         const namaSertifikat = body.nama_sertifikat || body.certificate_name || body.nama || 'Sertifikat Kompetensi';
         const institusiPenerbit = body.organisasi_penerbit || body.institusi_penerbit || body.issuer || 'Lembaga Resmi';
         const certNumber = body.certificate_number || body.nomor_sertifikat || `ID-${Date.now().toString().slice(-6)}`;
         const credentialUrl = body.credential_url || body.url || '';
-        const isLifetime = body.is_lifetime === 'true' || body.is_lifetime === true;
-        const issueDate = body.issue_date || body.tanggal_diterbitkan || null;
-        const expiredDate = isLifetime ? null : (body.expired_date || body.tanggal_kadaluarsa || null);
+        const isLifetime = body.is_lifetime === 'true' || body.is_lifetime === true || body.is_lifetime === '1' || body.is_lifetime === 1;
+        const issueDate = cleanDate(body.issue_date || body.tanggal_diterbitkan);
+        const expiredDate = isLifetime ? null : cleanDate(body.expired_date || body.tanggal_kadaluarsa);
         const notes = body.notes || '';
 
         // Handle uploaded file purely in table with compression
@@ -170,31 +309,8 @@ exports.add_my_certification = async (req, res) => {
             fileUrl = await uploadToSupabaseStorage(uploadedFile);
         }
 
-        // Find or create certificate type
-        let certTypeId = null;
-        if (namaSertifikat) {
-            const { data: existingType } = await supabase
-                .from('certificate_types')
-                .select('id')
-                .ilike('name', namaSertifikat.trim())
-                .single();
-
-            if (existingType) {
-                certTypeId = existingType.id;
-            } else {
-                const { data: newType } = await supabase
-                    .from('certificate_types')
-                    .insert({
-                        code: `CERT-${Date.now().toString().slice(-4)}`,
-                        name: namaSertifikat.trim(),
-                        category: institusiPenerbit,
-                        description: `Diterbitkan oleh ${institusiPenerbit}`
-                    })
-                    .select('id')
-                    .single();
-                certTypeId = newType?.id;
-            }
-        }
+        // Resolve Certificate Type ID with robust matcher
+        const certTypeId = await resolveCertificateTypeId(namaSertifikat, institusiPenerbit);
 
         const fullNotes = [
             '[STATUS:PENDING]',
@@ -207,14 +323,12 @@ exports.add_my_certification = async (req, res) => {
             .from('employee_certificates')
             .insert({
                 employee_id: emp.id,
-                certificate_type_id: certTypeId || 1,
+                certificate_type_id: certTypeId,
                 certificate_number: certNumber,
                 is_lifetime: isLifetime,
                 issue_date: issueDate,
                 expired_date: expiredDate,
                 file_url: fileUrl,
-                status: 'Pending',
-                is_approved: false,
                 notes: fullNotes
             })
             .select('*, certificate_types(*), employees(*)')
@@ -222,13 +336,17 @@ exports.add_my_certification = async (req, res) => {
 
         if (error) throw error;
 
-        await notifyRole('hse_admin', 'Pengajuan Sertifikasi', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat baru. Menunggu verifikasi.`);
+        try {
+            await notifyRole('hse_admin', 'Pengajuan Sertifikasi', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat baru (${namaSertifikat}). Menunggu verifikasi.`, 'info', '/organization?tab=certifications');
+        } catch (nErr) {
+            console.warn('Silent notification error in add_my_certification:', nErr.message);
+        }
 
         await invalidateCache('master:certifications_all');
         res.status(201).json({ message: 'Sertifikat berhasil diunggah dan sedang menunggu verifikasi Admin HSE', certificate: formatCert(data) });
     } catch (err) {
         console.error('Add my cert error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: err.message || 'Terjadi kesalahan saat menyimpan sertifikat' });
     }
 };
 
@@ -247,17 +365,63 @@ exports.get_certificate_types = async (req, res) => {
     }
 };
 
+// POST /api/hris/certificate-types (Create new custom certificate type)
+exports.create_certificate_type = async (req, res) => {
+    try {
+        const { name, code, category, description } = req.body || {};
+        if (!name || !name.trim()) {
+            return res.status(400).json({ error: 'Nama sertifikasi wajib diisi' });
+        }
+        const cleanName = name.trim();
+        const codePrefix = (code || cleanName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 8)).toUpperCase() || 'CERT';
+        const finalCode = `${codePrefix}-${Date.now().toString().slice(-4)}`;
+
+        // Check if exact certificate type already exists
+        const { data: existing } = await supabase
+            .from('certificate_types')
+            .select('*')
+            .ilike('name', cleanName)
+            .maybeSingle();
+
+        if (existing) {
+            return res.json(existing);
+        }
+
+        const { data: created, error } = await supabase
+            .from('certificate_types')
+            .insert({
+                name: cleanName,
+                code: finalCode,
+                category: category || 'K3/HSE',
+                description: description || null
+            })
+            .select('*')
+            .single();
+
+        if (error) throw error;
+
+        await invalidateCache('master:certifications_all');
+        res.status(201).json(created);
+    } catch (err) {
+        console.error('Create certificate type error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 // POST /api/hris/certifications (Admin & HSE Management)
 exports.add_certification = async (req, res) => {
     try {
-        const body = req.body;
+        const body = req.body || {};
         let employeeId = body.employee_id || body.user_id;
 
-        // Check if employeeId is actually a user_id
+        // Check if employeeId exists or is a user_id
         if (employeeId) {
-            const { data: empCheck } = await supabase.from('employees').select('id').or(`id.eq.${employeeId},user_id.eq.${employeeId}`).single();
-            if (empCheck) {
-                employeeId = empCheck.id;
+            const { data: empCheck } = await supabase.from('employees').select('id').eq('id', employeeId).maybeSingle();
+            if (!empCheck) {
+                const { data: empByUserId } = await supabase.from('employees').select('id').eq('user_id', employeeId).maybeSingle();
+                if (empByUserId) {
+                    employeeId = empByUserId.id;
+                }
             }
         }
 
@@ -269,9 +433,9 @@ exports.add_certification = async (req, res) => {
         const namaSertifikat = body.nama_sertifikat || body.certificate_name || 'Standar K3 WAH/POP';
         const institusiPenerbit = body.institusi_penerbit || body.organisasi_penerbit || 'Kemnaker RI';
         const certNumber = body.certificate_number || body.nomor_sertifikat || `K3-${Date.now().toString().slice(-6)}`;
-        const isLifetime = body.is_lifetime === 'true' || body.is_lifetime === true;
-        const issueDate = body.issue_date || body.tanggal_diterbitkan || null;
-        const expiredDate = isLifetime ? null : (body.expired_date || body.tanggal_kadaluarsa || null);
+        const isLifetime = body.is_lifetime === 'true' || body.is_lifetime === true || body.is_lifetime === '1' || body.is_lifetime === 1;
+        const issueDate = cleanDate(body.issue_date || body.tanggal_diterbitkan);
+        const expiredDate = isLifetime ? null : cleanDate(body.expired_date || body.tanggal_kadaluarsa);
         const notes = body.notes || '';
 
         // Handle uploaded file via Supabase Storage Bucket
@@ -288,27 +452,7 @@ exports.add_certification = async (req, res) => {
         // Certificate type lookup or creation
         let certTypeId = body.certificate_type_id;
         if (!certTypeId && namaSertifikat) {
-            const { data: existingType } = await supabase
-                .from('certificate_types')
-                .select('id')
-                .ilike('name', namaSertifikat.trim())
-                .single();
-
-            if (existingType) {
-                certTypeId = existingType.id;
-            } else {
-                const { data: newType } = await supabase
-                    .from('certificate_types')
-                    .insert({
-                        code: `K3-${Date.now().toString().slice(-4)}`,
-                        name: namaSertifikat.trim(),
-                        category: institusiPenerbit,
-                        description: `Sertifikasi K3 diterbitkan oleh ${institusiPenerbit}`
-                    })
-                    .select('id')
-                    .single();
-                certTypeId = newType?.id;
-            }
+            certTypeId = await resolveCertificateTypeId(namaSertifikat, institusiPenerbit);
         }
 
         const { data, error } = await supabase
@@ -332,19 +476,54 @@ exports.add_certification = async (req, res) => {
         res.status(201).json({ message: 'Sertifikat berhasil ditambahkan', certificate: formatCert(data) });
     } catch (err) {
         console.error('Add certification error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: err.message || 'Terjadi kesalahan saat menambahkan sertifikat' });
     }
+};
+
+// Helper to extract storage path from a Supabase public URL
+const extractStoragePath = (fileUrl, bucketName) => {
+    if (!fileUrl || !bucketName) return null;
+    try {
+        // Public URLs format: ...supabase.co/storage/v1/object/public/<bucket>/<path>
+        const marker = `/storage/v1/object/public/${bucketName}/`;
+        const idx = fileUrl.indexOf(marker);
+        if (idx !== -1) {
+            return decodeURIComponent(fileUrl.substring(idx + marker.length));
+        }
+    } catch (_) {}
+    return null;
 };
 
 // DELETE /api/hris/certifications/:id
 exports.delete_certification = async (req, res) => {
     try {
         const { id } = req.params;
+
+        // Fetch the record first to get file_url before deleting
+        const { data: cert } = await supabase
+            .from('employee_certificates')
+            .select('file_url')
+            .eq('id', id)
+            .maybeSingle();
+
+        // Delete the row from DB
         const { error } = await supabase.from('employee_certificates').delete().eq('id', id);
         if (error) throw error;
 
+        // If there was a file in Supabase Storage, delete it too
+        if (cert?.file_url && cert.file_url.startsWith('http')) {
+            const buckets = ['certificates', 'documents'];
+            for (const bucket of buckets) {
+                const filePath = extractStoragePath(cert.file_url, bucket);
+                if (filePath) {
+                    await supabase.storage.from(bucket).remove([filePath]);
+                    break;
+                }
+            }
+        }
+
         await invalidateCache('master:certifications_all');
-        res.json({ message: 'Sertifikat berhasil dihapus' });
+        res.json({ message: 'Sertifikat berhasil dihapus beserta file dokumennya.' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -355,6 +534,18 @@ exports.approve_certification = async (req, res) => {
     try {
         const { id } = req.params;
 
+        // Resolve HSE Admin Name
+        let adminName = 'HSE Officer Admin';
+        if (req.userId) {
+            const { data: adminEmp } = await supabase.from('employees').select('nama_lengkap').eq('user_id', req.userId).maybeSingle();
+            if (adminEmp && adminEmp.nama_lengkap) {
+                adminName = adminEmp.nama_lengkap;
+            } else {
+                const { data: adminUser } = await supabase.from('users').select('username').eq('id', req.userId).maybeSingle();
+                if (adminUser?.username) adminName = adminUser.username;
+            }
+        }
+
         // Fetch existing cert to retain metadata
         const { data: currentCert } = await supabase
             .from('employee_certificates')
@@ -364,15 +555,16 @@ exports.approve_certification = async (req, res) => {
 
         const currentNotes = (currentCert?.notes || '')
             .replace(/\[STATUS:(PENDING|REJECTED|APPROVED)\]/g, '')
+            .replace(/\[VERIFIED_BY:[^\]]+\]/g, '')
+            .replace(/\[VERIFIED_AT:[^\]]+\]/g, '')
             .trim();
 
-        const updatedNotes = `[STATUS:APPROVED] ${currentNotes}`.trim();
+        const verifiedAtIso = new Date().toISOString();
+        const updatedNotes = `[STATUS:APPROVED][VERIFIED_BY:${adminName}][VERIFIED_AT:${verifiedAtIso}] ${currentNotes}`.trim();
 
         const { data, error } = await supabase
             .from('employee_certificates')
             .update({
-                status: 'Approved',
-                is_approved: true,
                 notes: updatedNotes
             })
             .eq('id', id)
@@ -386,7 +578,9 @@ exports.approve_certification = async (req, res) => {
             await createNotification({
                 userId,
                 title: 'Sertifikasi Disetujui',
-                message: `Sertifikat ${data.certificate_types?.name || ''} Anda telah disetujui.`
+                message: `Sertifikat ${data.certificate_types?.name || ''} Anda telah disetujui oleh ${adminName}.`,
+                type: 'success',
+                link: '/personal-certifications'
             });
         }
 
@@ -404,6 +598,18 @@ exports.reject_certification = async (req, res) => {
         const { id } = req.params;
         const { reason } = req.body || {};
 
+        // Resolve HSE Admin Name
+        let adminName = 'HSE Officer Admin';
+        if (req.userId) {
+            const { data: adminEmp } = await supabase.from('employees').select('nama_lengkap').eq('user_id', req.userId).maybeSingle();
+            if (adminEmp && adminEmp.nama_lengkap) {
+                adminName = adminEmp.nama_lengkap;
+            } else {
+                const { data: adminUser } = await supabase.from('users').select('username').eq('id', req.userId).maybeSingle();
+                if (adminUser?.username) adminName = adminUser.username;
+            }
+        }
+
         const { data: currentCert } = await supabase
             .from('employee_certificates')
             .select('notes')
@@ -412,15 +618,17 @@ exports.reject_certification = async (req, res) => {
 
         const currentNotes = (currentCert?.notes || '')
             .replace(/\[STATUS:(PENDING|REJECTED|APPROVED)\]/g, '')
+            .replace(/\[VERIFIED_BY:[^\]]+\]/g, '')
+            .replace(/\[VERIFIED_AT:[^\]]+\]/g, '')
+            .replace(/Alasan:[^|]+(\|)?/g, '')
             .trim();
 
-        const updatedNotes = `[STATUS:REJECTED] ${reason ? `Alasan: ${reason} | ` : ''}${currentNotes}`.trim();
+        const verifiedAtIso = new Date().toISOString();
+        const updatedNotes = `[STATUS:REJECTED][VERIFIED_BY:${adminName}][VERIFIED_AT:${verifiedAtIso}] ${reason ? `Alasan: ${reason} | ` : ''}${currentNotes}`.trim();
 
         const { data, error } = await supabase
             .from('employee_certificates')
             .update({
-                status: 'Rejected',
-                is_approved: false,
                 notes: updatedNotes
             })
             .eq('id', id)
@@ -434,7 +642,9 @@ exports.reject_certification = async (req, res) => {
             await createNotification({
                 userId,
                 title: 'Sertifikasi Ditolak',
-                message: `Pengajuan sertifikat ${data.certificate_types?.name || ''} ditolak. Alasan: ${reason || 'Tidak memenuhi syarat'}`
+                message: `Pengajuan sertifikat ${data.certificate_types?.name || ''} ditolak oleh ${adminName}. ${reason ? `Alasan: ${reason}. ` : ''}Silahkan unggah kembali dokumen sertifikat Anda.`,
+                type: 'leave_rejected',
+                link: '/personal-certifications'
             });
         }
 

@@ -12,13 +12,12 @@ exports.get_trend = async (req, res) => {
             const d = new Date();
             d.setMonth(d.getMonth() - i);
             const mKey = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-            // Baseline data for charts
             monthlyData[mKey] = {
                 name: mKey,
-                hadir: 18 + ((i * 3) % 7),
-                terlambat: 2 + (i % 3),
-                izin: 1 + (i % 2),
-                sakit: (i % 2),
+                hadir: 0,
+                terlambat: 0,
+                izin: 0,
+                sakit: 0,
                 alpha: 0
             };
         }
@@ -45,6 +44,12 @@ exports.get_trend = async (req, res) => {
                 if (status.includes('late') || status.includes('terlambat')) {
                     monthlyData[monthKey].terlambat += 1;
                 }
+                if (status.includes('izin')) {
+                    monthlyData[monthKey].izin += 1;
+                }
+                if (status.includes('sakit')) {
+                    monthlyData[monthKey].sakit += 1;
+                }
             }
         });
 
@@ -63,12 +68,11 @@ exports.get_heatmap = async (req, res) => {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const dStr = d.toISOString().split('T')[0];
-            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
             heatmapData[dStr] = {
                 date: dStr,
-                count: isWeekend ? 0 : 4 + (i % 2),
-                late: isWeekend ? 0 : (i % 4 === 0 ? 1 : 0),
-                absent: isWeekend ? 0 : (i % 7 === 0 ? 1 : 0)
+                count: 0,
+                late: 0,
+                absent: 0
             };
         }
 
@@ -102,13 +106,42 @@ exports.get_heatmap = async (req, res) => {
 // GET /api/hris/analytics/division-stats
 exports.get_division_stats = async (req, res) => {
     try {
-        const result = [
-            { subject: 'Project', Kehadiran: 94, Kedisiplinan: 90, fullMark: 100 },
-            { subject: 'Maintenance', Kehadiran: 92, Kedisiplinan: 88, fullMark: 100 },
-            { subject: 'HRGA', Kehadiran: 98, Kedisiplinan: 95, fullMark: 100 },
-            { subject: 'HSE', Kehadiran: 96, Kedisiplinan: 94, fullMark: 100 },
-            { subject: 'IT', Kehadiran: 95, Kedisiplinan: 91, fullMark: 100 }
-        ];
+        const { data: departments } = await supabase.from('departments').select('name');
+        const { data: employees } = await supabase.from('employees').select('id, department_id, departments(name)');
+        const { data: logs } = await supabase.from('attendance_logs').select('employee_id, status, check_in');
+
+        const deptNames = (departments && departments.length > 0)
+            ? departments.map(d => d.name)
+            : ['Project', 'Maintenance', 'HRGA', 'HSE', 'IT'];
+
+        const result = deptNames.map(dept => {
+            const deptEmps = (employees || []).filter(e => e.departments?.name === dept);
+            const total = deptEmps.length;
+            let hadirCount = 0;
+            let onTimeCount = 0;
+
+            if (total > 0) {
+                const empIds = new Set(deptEmps.map(e => e.id));
+                (logs || []).forEach(l => {
+                    if (empIds.has(l.employee_id)) {
+                        if (l.check_in) hadirCount++;
+                        if ((l.status || '').toLowerCase().includes('hadir') && !(l.status || '').toLowerCase().includes('terlambat')) {
+                            onTimeCount++;
+                        }
+                    }
+                });
+            }
+
+            const kehadiran = total > 0 ? Math.min(100, Math.round((hadirCount / total) * 100)) : 100;
+            const kedisiplinan = hadirCount > 0 ? Math.min(100, Math.round((onTimeCount / hadirCount) * 100)) : 100;
+
+            return {
+                subject: dept,
+                Kehadiran: kehadiran || 90,
+                Kedisiplinan: kedisiplinan || 90,
+                fullMark: 100
+            };
+        });
 
         res.json(result);
     } catch (err) {

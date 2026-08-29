@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Users, Briefcase, Shield, Building, Award, ShieldCheck, Scan } from 'lucide-react';
 import Employees from './Employees';
 import Departments from './Departments';
@@ -10,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 
 const Organization = () => {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
   const role = (user?.role || '').toLowerCase();
   const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
   const jabatan = (user?.jabatan || '').toLowerCase();
@@ -25,103 +27,126 @@ const Organization = () => {
     )
   );
 
-  // HSE Direct View: Matriks Sertifikasi K3
-  if (isHSEAdmin) {
-    return (
-      <div className="flex flex-col w-full h-full bg-slate-50 p-1">
-        <div className="mb-4">
-          <h1 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-            <Award className="text-red-700" size={24} /> Matriks Sertifikasi K3 & Kompetensi
-          </h1>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            Monitoring masa berlaku sertifikat K3 (POP, POM, WAH, AK3U, CSMS) seluruh personel PT DEA GLOBAL NIAGA.
-          </p>
-        </div>
-        <Certifications />
-      </div>
-    );
-  }
-
-  // Default active tab based on role
+  // Default active tab based on role or URL query
   const getDefaultTab = () => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam) return tabParam;
     if (isSuperAdmin) return 'company';
+    if (isHSEAdmin) return 'certifications';
     return 'employees';
   };
 
   const [activeTab, setActiveTab] = useState(getDefaultTab());
 
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && tabParam !== activeTab) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    setSearchParams({ tab: tabName });
+  };
+
   return (
-    <div className="flex flex-col w-full h-full bg-slate-50">
-      <div className="mb-6 px-1 flex flex-col md:flex-row justify-start items-start md:items-center gap-4">
-        {/* Tab Navigation */}
-        <div className="flex flex-wrap bg-white rounded-xl shadow-sm border border-slate-200 p-1">
-          {/* Admin only tabs */}
+    <div className="flex flex-col w-full h-full space-y-4">
+      {/* Sleek Floating Acrylic Glass Tab Navigation */}
+      <div className="flex flex-col md:flex-row justify-start items-start md:items-center gap-4">
+        <div className="flex flex-wrap bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-white/80 ring-1 ring-slate-900/5 p-1.5 gap-1.5">
+          {/* Admin only tabs (HRGA & HSE) */}
           {isAdmin && (
             <button
-              onClick={() => setActiveTab('employees')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'employees' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+              onClick={() => handleTabChange('employees')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'employees'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Users size={16} /> Karyawan
+              <Users size={15} /> Karyawan
             </button>
           )}
 
-          {/* Departemen: Full edit for Admin, Read-Only for Superadmin */}
-          {(isAdmin || isSuperAdmin) && (
+          {/* Matriks Sertifikasi K3 & Lisensi (HRGA & HSE) */}
+          {isAdmin && (
             <button
-              onClick={() => setActiveTab('departments')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'departments' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+              onClick={() => handleTabChange('certifications')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'certifications'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Briefcase size={16} /> Departemen & Jabatan {isSuperAdmin && <span className="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded ml-1 font-bold">Read-Only</span>}
+              <Award size={15} /> Sertifikasi & Lisensi K3
+            </button>
+          )}
+
+          {/* Departemen & Struktur Organisasi: Full edit for HRGA & HSE Admin */}
+          {(isAdmin || isSuperAdmin) && (
+            <button
+              onClick={() => handleTabChange('departments')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'departments'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+              }`}
+            >
+              <Briefcase size={15} /> Departemen & Jabatan {isSuperAdmin && <span className="text-[10px] bg-slate-100/80 text-slate-500 px-1.5 py-0.5 rounded-md ml-1 font-bold">Read-Only</span>}
             </button>
           )}
 
           {/* Data Wajah Karyawan (Biometrik Wajah AI) */}
           {isAdmin && (
             <button
-              onClick={() => setActiveTab('face_biometrics')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'face_biometrics' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+              onClick={() => handleTabChange('face_biometrics')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'face_biometrics'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Scan size={16} /> Data Wajah Karyawan
+              <Scan size={15} /> Data Wajah Karyawan {isHSEAdmin && <span className="text-[10px] bg-slate-100/80 text-slate-500 px-1.5 py-0.5 rounded-md ml-1 font-bold">Read-Only</span>}
             </button>
           )}
 
           {/* Hak Akses & Role tab */}
           {(isAdmin || isSuperAdmin) && (
             <button
-              onClick={() => setActiveTab('permissions')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'permissions' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+              onClick={() => handleTabChange('permissions')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'permissions'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Shield size={16} /> Hak Akses & Role
+              <Shield size={15} /> Hak Akses & Role {isHSEAdmin && <span className="text-[10px] bg-slate-100/80 text-slate-500 px-1.5 py-0.5 rounded-md ml-1 font-bold">Read-Only</span>}
             </button>
           )}
 
           {/* Profil Perusahaan (Master - Only Super Admin) */}
           {isSuperAdmin && (
             <button
-              onClick={() => setActiveTab('company')}
-              className={`flex items-center gap-2 px-5 py-2 rounded-lg text-sm font-bold transition-all ${
-                activeTab === 'company' ? 'bg-red-900 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
+              onClick={() => handleTabChange('company')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                activeTab === 'company'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Building size={16} /> Profil Perusahaan <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded ml-1 font-bold">Master</span>
+              <Building size={15} /> Profil Perusahaan <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded-md ml-1 font-bold">Master</span>
             </button>
           )}
         </div>
       </div>
 
       <div className="flex-1 w-full animate-in fade-in duration-300">
-        {activeTab === 'employees' && isAdmin && <Employees />}
+        {activeTab === 'employees' && isAdmin && <Employees readOnly={isHSEAdmin} />}
+        {activeTab === 'certifications' && isAdmin && <Certifications />}
         {activeTab === 'departments' && <Departments readOnly={isSuperAdmin} />}
-        {activeTab === 'face_biometrics' && isAdmin && <FaceEnrollmentTab />}
-        {activeTab === 'permissions' && (isAdmin || isSuperAdmin) && <AccessRights />}
+        {activeTab === 'face_biometrics' && isAdmin && <FaceEnrollmentTab readOnly={isHSEAdmin} />}
+        {activeTab === 'permissions' && (isAdmin || isSuperAdmin) && <AccessRights readOnly={isHSEAdmin} />}
         {activeTab === 'company' && <CompanySettings />}
       </div>
     </div>

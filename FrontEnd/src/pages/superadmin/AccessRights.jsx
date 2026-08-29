@@ -8,7 +8,7 @@ import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
-const AccessRights = () => {
+const AccessRights = ({ readOnly = false }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
   
@@ -21,6 +21,8 @@ const AccessRights = () => {
   
   // Tab state
   const roleName = (user?.role || '').toLowerCase();
+  const deptName = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+  const isHSEAdmin = roleName === 'hse_admin' || deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || readOnly;
   const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(roleName);
   const isAdmin = ['admin', 'hrga_admin', 'hr', 'hse_admin'].includes(roleName) || roleName.includes('admin');
   const canAccess = isSuperAdmin || isAdmin;
@@ -163,7 +165,7 @@ const AccessRights = () => {
   const handleOpenRequestModal = (emp) => {
     setSelectedEmpForRequest(emp);
     const current = (emp.role || 'user').toLowerCase();
-    setRequestedRole(current === 'admin' ? 'superadmin' : 'admin');
+    setRequestedRole(current === 'admin' ? 'user' : 'admin');
     setRequestReason('');
     setIsRequestModalOpen(true);
   };
@@ -269,18 +271,18 @@ const AccessRights = () => {
       )}
 
       {/* Main Container */}
-      <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
+      <div className="w-full bg-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl shadow-slate-200/50 border border-white/80 ring-1 ring-slate-900/5 overflow-hidden flex flex-col">
         {/* Navigation Sub-Tabs */}
-        <div className="p-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
-          <div className="flex flex-wrap gap-2">
+        <div className="p-4 border-b border-slate-200/60 flex flex-wrap items-center justify-between gap-3 bg-white/40 backdrop-blur-md">
+          <div className="flex flex-wrap gap-1.5">
             {/* Super Admin Tab 1: Verifikasi Akun Baru */}
             {isSuperAdmin && (
               <button
                 onClick={() => setActiveSubTab('verifications')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   activeSubTab === 'verifications'
-                    ? 'bg-red-900 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <UserPlus size={15} /> Verifikasi Akun Baru
@@ -295,10 +297,10 @@ const AccessRights = () => {
             {/* Tab: Pengajuan Perubahan Role */}
             <button
               onClick={() => setActiveSubTab('role_requests')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 activeSubTab === 'role_requests'
-                  ? 'bg-red-900 text-white shadow-md'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Send size={15} /> {isSuperAdmin ? 'Persetujuan Pengajuan Role' : 'Riwayat Pengajuan Role'}
@@ -312,10 +314,10 @@ const AccessRights = () => {
             {/* Tab: Daftar Personel & Otorisasi */}
             <button
               onClick={() => setActiveSubTab('employees')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 activeSubTab === 'employees'
-                  ? 'bg-red-900 text-white shadow-md'
-                  : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Shield size={15} /> {isSuperAdmin ? 'Otorisasi Seluruh Personel' : 'Daftar Karyawan & Ajukan Role'}
@@ -325,10 +327,10 @@ const AccessRights = () => {
             {!isSuperAdmin && pendingVerifications.length > 0 && (
               <button
                 onClick={() => setActiveSubTab('hr_verifications')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all ${
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
                   activeSubTab === 'hr_verifications'
-                    ? 'bg-red-900 text-white shadow-md'
-                    : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                    ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
                 }`}
               >
                 <Clock size={15} /> Menunggu Verifikasi Super Admin
@@ -588,21 +590,20 @@ const AccessRights = () => {
                         <th className="py-3.5 px-6">Role Sistem HRIS</th>
                         <th className="py-3.5 px-6 text-center">Akses Kamera</th>
                         <th className="py-3.5 px-6 text-center">Akses GPS</th>
-                        <th className="py-3.5 px-6 text-center">Akses WiFi Kantor</th>
                         <th className="py-3.5 px-6 text-center">Aksi / Otorisasi</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-medium">
                       {loading ? (
                         <tr>
-                          <td colSpan={7} className="py-12 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={6} className="py-12 text-center text-xs font-bold text-slate-400">
                             <RefreshCw className="animate-spin text-red-700 mx-auto mb-2" size={20} />
                             Memuat data karyawan...
                           </td>
                         </tr>
                       ) : filteredActiveEmployees.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="py-8 text-center text-xs font-bold text-slate-400">
+                          <td colSpan={6} className="py-8 text-center text-xs font-bold text-slate-400">
                             Tidak ada data karyawan yang sesuai.
                           </td>
                         </tr>
@@ -713,43 +714,20 @@ const AccessRights = () => {
                                 )}
                               </td>
 
-                              {/* WiFi Office Access Toggle */}
-                              <td className="py-4 px-6 text-center">
-                                {isSuperAdmin ? (
-                                  <button
-                                    type="button"
-                                    onClick={() => handleToggleWifi(emp.id, emp.wifi_access !== false)}
-                                    disabled={isUpdating}
-                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-black transition-all cursor-pointer shadow-sm ${
-                                      emp.wifi_access !== false
-                                        ? 'bg-purple-100 text-purple-800 hover:bg-purple-200 border border-purple-300'
-                                        : 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
-                                    }`}
-                                    title={emp.wifi_access !== false ? 'Wajib terhubung WiFi/IP Kantor (Klik untuk bypass tugas lapangan)' : 'Bypass / Bebas WiFi (Klik untuk mewajibkan WiFi kantor)'}
-                                  >
-                                    <Wifi size={12} className={emp.wifi_access !== false ? 'text-purple-700' : 'text-amber-700'} />
-                                    <span>{emp.wifi_access !== false ? 'Wajib WiFi' : 'Bypass Lapangan'}</span>
-                                    <span className={`w-2 h-2 rounded-full ${emp.wifi_access !== false ? 'bg-purple-600 animate-pulse' : 'bg-amber-500'}`} />
-                                  </button>
-                                ) : (
-                                  <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                    emp.wifi_access !== false ? 'bg-purple-50 text-purple-700' : 'bg-amber-50 text-amber-700'
-                                  }`}>
-                                    <Wifi size={12} /> {emp.wifi_access !== false ? 'Wajib WiFi' : 'Bypass'}
-                                  </span>
-                                )}
-                              </td>
-
                               {/* Action Button */}
                               <td className="py-4 px-6 text-center">
                                 {isSuperAdmin ? (
                                   <span className="inline-flex items-center gap-1 text-emerald-700 text-xs font-bold bg-emerald-50 px-3 py-1 rounded-xl">
                                     <CheckCircle2 size={13} /> Full Access
                                   </span>
+                                ) : isHSEAdmin ? (
+                                  <span className="inline-flex items-center gap-1 text-slate-500 text-[11px] font-bold bg-slate-100 px-3 py-1 rounded-xl border border-slate-200">
+                                    Read-Only (HSE)
+                                  </span>
                                 ) : (
                                   <button
                                     onClick={() => handleOpenRequestModal(emp)}
-                                    className="bg-red-50 hover:bg-red-100 text-red-800 text-xs font-black px-3.5 py-1.5 rounded-xl border border-red-200 transition-all flex items-center gap-1.5 mx-auto shadow-sm"
+                                    className="bg-red-50 hover:bg-red-100 text-red-800 text-xs font-black px-3.5 py-1.5 rounded-xl border border-red-200 transition-all flex items-center gap-1.5 mx-auto shadow-sm cursor-pointer"
                                   >
                                     <Send size={12} /> Ajukan Role Baru
                                   </button>
@@ -875,10 +853,12 @@ const AccessRights = () => {
                   onChange={(e) => setRequestedRole(e.target.value)}
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold rounded-xl px-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-red-900/20"
                 >
-                  <option value="user">User / Karyawan</option>
-                  <option value="admin">Admin</option>
-                  <option value="superadmin">Super Admin</option>
+                  <option value="admin">Admin (HRGA / HSE Admin)</option>
+                  <option value="user">User / Karyawan Standar</option>
                 </select>
+                <p className="text-[11px] text-amber-700 font-bold mt-1.5 flex items-center gap-1">
+                  ℹ️ Catatan: Hak akses Super Admin hanya dapat dikelola dan diberikan secara langsung oleh Super Admin.
+                </p>
               </div>
 
               <div>

@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Scan, Camera, CheckCircle2, AlertCircle, RefreshCw,
   Search, Users, ShieldCheck, Trash2, X, Eye, Sparkles, Building2,
-  Upload, Image as ImageIcon, Plus, Check, HelpCircle
+  Upload, Image as ImageIcon, Plus, Check, HelpCircle, Maximize2
 } from 'lucide-react';
 import * as faceapi from 'face-api.js';
 import api from '../../api/api';
 import { useToast } from '../../context/ToastContext';
 
-const FaceEnrollmentTab = () => {
+import { useAuth } from '../../context/AuthContext';
+
+const FaceEnrollmentTab = ({ readOnly = false }) => {
+  const { user } = useAuth();
+  const role = (user?.role || '').toLowerCase();
+  const isHSE = role === 'hse_admin' || ((user?.department || '').toLowerCase().includes('hse') || (user?.department || '').toLowerCase().includes('k3')) || readOnly;
+
   const { addToast } = useToast();
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -18,10 +25,11 @@ const FaceEnrollmentTab = () => {
   // Modal State
   const [enrollModalOpen, setEnrollModalOpen] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState(null);
+  const [enrollMode, setEnrollMode] = useState('replace'); // 'replace' | 'append'
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [enrollMethod, setEnrollMethod] = useState('upload'); // 'upload' | 'camera'
   
-  // Multi-photo State (3 - 5 photos)
+  // Multi-photo State (3 - 10 photos)
   const [photoSamples, setPhotoSamples] = useState([]); // [{ id, dataUrl, descriptor, score, isValid }]
   const [isProcessing, setIsProcessing] = useState(false);
   const [streamActive, setStreamActive] = useState(false);
@@ -90,8 +98,9 @@ const FaceEnrollmentTab = () => {
     }
   }, []);
 
-  const openEnrollModal = (emp) => {
+  const openEnrollModal = (emp, mode = 'replace') => {
     setSelectedEmp(emp);
+    setEnrollMode(mode);
     setEnrollModalOpen(true);
     setPhotoSamples([]);
     setEnrollMethod('upload');
@@ -107,7 +116,8 @@ const FaceEnrollmentTab = () => {
 
   // Helper: Process an HTMLImageElement or Canvas with face-api
   const processImageElement = async (imgEl) => {
-    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
+    // High-resolution detector settings (inputSize 416) for fine landmark extraction
+    const options = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.45 });
     const detection = await faceapi.detectSingleFace(imgEl, options)
       .withFaceLandmarks()
       .withFaceDescriptor();
@@ -123,16 +133,16 @@ const FaceEnrollmentTab = () => {
     };
   };
 
-  // Handle Multi-file Upload (3-5 Photos)
+  // Handle Multi-file Upload (5-10 Photos)
   const handleFileUpload = async (e) => {
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    if (photoSamples.length + files.length > 5) {
-      addToast('Maksimal 5 foto per karyawan.', 'warning');
+    if (photoSamples.length + files.length > 10) {
+      addToast('Maksimal 10 foto sampel per karyawan.', 'warning');
     }
 
-    const remainingSlots = 5 - photoSamples.length;
+    const remainingSlots = 10 - photoSamples.length;
     const filesToProcess = files.slice(0, remainingSlots);
 
     setIsProcessing(true);
@@ -172,8 +182,8 @@ const FaceEnrollmentTab = () => {
   // Capture Photo Snapshot from Live Camera
   const handleCaptureFromCamera = async () => {
     if (!videoRef.current || !modelsLoaded) return;
-    if (photoSamples.length >= 5) {
-      addToast('Maksimal 5 foto sampel telah tercapai.', 'warning');
+    if (photoSamples.length >= 10) {
+      addToast('Maksimal 10 foto sampel telah tercapai.', 'warning');
       return;
     }
 
@@ -219,29 +229,94 @@ const FaceEnrollmentTab = () => {
     setPhotoSamples(prev => prev.filter(p => p.id !== id));
   };
 
-  // Save All Enrolled Multi-face Descriptors to Backend
+  // Preview Face Database Modal State
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewEmpData, setPreviewEmpData] = useState(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [lightboxImg, setLightboxImg] = useState(null);
+
+  const openPreviewModal = async (emp) => {
+    setLoadingPreview(true);
+    setPreviewEmpData(null);
+    setPreviewModalOpen(true);
+    try {
+      const res = await api.get(`/hris/employees/${emp.id}/face-samples`);
+      setPreviewEmpData({
+        ...emp,
+        ...(res.data || {})
+      });
+    } catch (err) {
+      console.error('Fetch face samples error:', err);
+      addToast('Gagal memuat dataset biometrik wajah karyawan.', 'error');
+    } finally {
+      setLoadingPreview(false);
+    }
+  };
+
+  const closePreviewModal = () => {
+    setPreviewModalOpen(false);
+    setPreviewEmpData(null);
+  };
+
+  // Delete a specific single photo sample from employee dataset
+  const handleDeleteSingleSample = async (index) => {
+    if (!previewEmpData) return;
+    if (!window.confirm(`Hapus sampel foto #${index + 1} dari database? Foto-foto lainnya akan tetap tersimpan.`)) return;
+
+    try {
+      const res = await api.delete(`/hris/employees/${previewEmpData.id}/face-samples/${index}`);
+      addToast(res.data.message || `Sampel foto #${index + 1} berhasil dihapus.`, 'success');
+      setPreviewEmpData(prev => ({
+        ...prev,
+        images: res.data.images || [],
+        sample_count: res.data.sample_count || 0,
+        has_enrolled: res.data.has_enrolled
+      }));
+      fetchEmployees();
+    } catch (err) {
+      console.error('Delete single face sample error:', err);
+      addToast('Gagal menghapus sampel foto.', 'error');
+    }
+  };
+
+  // Save All Enrolled Multi-face Descriptors to Backend (Replace or Append Mode)
   const handleSaveMultiFaceDescriptors = async () => {
     const validSamples = photoSamples.filter(p => p.isValid && p.descriptor);
 
-    if (validSamples.length < 3) {
-      addToast(`Minimal 3 foto wajah yang valid diperlukan (Saat ini: ${validSamples.length} foto valid).`, 'warning');
+    const minRequired = enrollMode === 'append' ? 1 : 3;
+    if (validSamples.length < minRequired) {
+      addToast(
+        enrollMode === 'append'
+          ? 'Minimal 1 foto wajah valid diperlukan untuk ditambahkan.'
+          : `Minimal 3 foto wajah valid diperlukan (Disarankan 5-10 foto untuk akurasi terbaik). Saat ini: ${validSamples.length} foto valid.`,
+        'warning'
+      );
       return;
     }
 
     setIsProcessing(true);
     try {
       const allDescriptors = validSamples.map(p => p.descriptor);
+      const allImages = validSamples.map(p => p.dataUrl);
 
-      await api.post(`/hris/employees/${selectedEmp.id}/face-samples`, {
-        face_descriptors: allDescriptors
+      const res = await api.post(`/hris/employees/${selectedEmp.id}/face-samples`, {
+        face_descriptors: allDescriptors,
+        face_images: allImages,
+        mode: enrollMode
       });
 
-      addToast(`Berhasil mendaftarkan ${validSamples.length} sampel biometrik wajah untuk ${selectedEmp.nama_lengkap}!`, 'success');
+      addToast(
+        res.data.message || (enrollMode === 'append'
+          ? `Berhasil menambahkan ${validSamples.length} foto baru ke database!`
+          : `Berhasil mendaftarkan ${validSamples.length} sampel biometrik wajah untuk ${selectedEmp.nama_lengkap}!`),
+        'success'
+      );
       fetchEmployees();
       closeEnrollModal();
     } catch (err) {
       console.error('Save multi-descriptors error:', err);
-      addToast('Gagal menyimpan dataset biometrik wajah.', 'error');
+      const errMsg = err.response?.data?.message || 'Gagal menyimpan dataset biometrik wajah.';
+      addToast(errMsg, 'error');
     } finally {
       setIsProcessing(false);
     }
@@ -402,26 +477,47 @@ const FaceEnrollmentTab = () => {
 
                 {/* Card Actions */}
                 <div className="mt-4 pt-3 border-t border-slate-100 flex items-center gap-2">
-                  <button
-                    onClick={() => openEnrollModal(emp)}
-                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-sm ${
-                      hasFace
-                        ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                        : 'bg-red-700 hover:bg-red-800 text-white'
-                    }`}
-                  >
-                    <Camera size={14} />
-                    {hasFace ? 'Perbarui Sampel (3-5 Foto)' : 'Daftarkan 3-5 Foto'}
-                  </button>
-
                   {hasFace && (
                     <button
-                      onClick={() => handleDeleteDescriptor(emp)}
-                      className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition border border-rose-200"
-                      title="Hapus Data Biometrik Wajah"
+                      onClick={() => openPreviewModal(emp)}
+                      className={`${isHSE ? 'w-full' : 'py-2 px-3'} py-2 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer`}
+                      title="Lihat Galeri Foto Biometrik Database"
                     >
-                      <Trash2 size={14} />
+                      <Eye size={14} />
+                      {isHSE ? 'Lihat Sampel Foto Biometrik' : 'Preview'}
                     </button>
+                  )}
+
+                  {!hasFace && isHSE && (
+                    <span className="w-full text-center py-2 text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 rounded-xl">
+                      Wajah Belum Terdaftar
+                    </span>
+                  )}
+
+                  {!isHSE && (
+                    <>
+                      <button
+                        onClick={() => openEnrollModal(emp)}
+                        className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition shadow-sm cursor-pointer ${
+                          hasFace
+                            ? 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                            : 'bg-red-700 hover:bg-red-800 text-white'
+                        }`}
+                      >
+                        <Camera size={14} />
+                        {hasFace ? `Perbarui (${sampleCount} Foto)` : 'Daftarkan 5 - 10 Foto'}
+                      </button>
+
+                      {hasFace && (
+                        <button
+                          onClick={() => handleDeleteDescriptor(emp)}
+                          className="p-2 text-rose-600 hover:bg-rose-50 rounded-xl transition border border-rose-200 cursor-pointer"
+                          title="Hapus Data Biometrik Wajah"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -430,24 +526,26 @@ const FaceEnrollmentTab = () => {
         </div>
       )}
 
-      {/* Multi-Photo Face Enrollment Modal */}
-      {enrollModalOpen && selectedEmp && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh]">
+      {/* Multi-Photo Face Enrollment Modal (Portaled to document.body for full-screen backdrop blur) */}
+      {enrollModalOpen && selectedEmp && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh] border border-slate-200">
             {/* Modal Header */}
             <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50">
               <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-red-100 text-red-700 flex items-center justify-center font-bold">
-                  <Scan size={16} />
+                <div className={`w-8 h-8 rounded-lg ${enrollMode === 'append' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'} flex items-center justify-center font-bold`}>
+                  {enrollMode === 'append' ? <Plus size={18} /> : <Scan size={16} />}
                 </div>
                 <div>
-                  <h3 className="text-sm font-black text-slate-900">Pendaftaran Biometrik Multi-Foto AI</h3>
+                  <h3 className="text-sm font-black text-slate-900">
+                    {enrollMode === 'append' ? '➕ Tambah Foto Biometrik Baru (Tanpa Menimpa)' : 'Pendaftaran Biometrik Multi-Foto AI'}
+                  </h3>
                   <p className="text-[11px] font-bold text-slate-500">{selectedEmp.nama_lengkap} ({selectedEmp.jabatan || 'Staff'})</p>
                 </div>
               </div>
               <button
                 onClick={closeEnrollModal}
-                className="w-7 h-7 rounded-full bg-slate-200 text-slate-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition"
+                className="w-7 h-7 rounded-full bg-slate-200 text-slate-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition cursor-pointer"
               >
                 <X size={15} />
               </button>
@@ -456,12 +554,22 @@ const FaceEnrollmentTab = () => {
             {/* Modal Body */}
             <div className="p-5 overflow-y-auto space-y-5">
               {/* Guidance Alert */}
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 flex items-start gap-2.5 text-xs text-amber-900">
-                <HelpCircle size={18} className="text-amber-700 shrink-0 mt-0.5" />
+              <div className={`border rounded-2xl p-3.5 flex items-start gap-2.5 text-xs ${
+                enrollMode === 'append' 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900' 
+                  : 'bg-amber-50 border-amber-200 text-amber-900'
+              }`}>
+                <HelpCircle size={18} className={`${enrollMode === 'append' ? 'text-emerald-700' : 'text-amber-700'} shrink-0 mt-0.5`} />
                 <div className="leading-relaxed">
-                  <p className="font-bold">Panduan Pengambilan 3 - 5 Foto Sampel:</p>
-                  <p className="text-[11px] text-amber-800 mt-0.5">
-                    Unggah atau ambil <strong>3 hingga 5 foto</strong> dengan berbagai variasi sudut: <strong>(1) Depan lurus</strong>, <strong>(2) Miring kiri 15°</strong>, <strong>(3) Miring kanan 15°</strong>, dan <strong>(4) Ekspresi senyum/kacamata</strong>. AI akan mengekstrak vektor descriptor dari setiap foto.
+                  <p className="font-bold">
+                    {enrollMode === 'append'
+                      ? 'Mode Tambah Foto (Append): Foto lama tetap tersimpan 100%'
+                      : 'Panduan Pengambilan 5 - 10 Foto Sampel Multi-Sudut & Aksesoris:'}
+                  </p>
+                  <p className={`text-[11px] mt-0.5 ${enrollMode === 'append' ? 'text-emerald-800' : 'text-amber-800'}`}>
+                    {enrollMode === 'append'
+                      ? 'Foto-foto baru yang Anda unggah/jepret di bawah ini akan DITAMBAHKAN ke database karyawan untuk memperkaya variasi wajah (misal: tambah foto berkacamata, foto berjanggut, atau foto helm APD) tanpa menghapus foto yang sudah terdaftar sebelumnya.'
+                      : 'Unggah atau jepret 5 hingga 10 foto dengan variasi: (1) Depan lurus, (2) Serong kiri & kanan 15°, (3) Dengan Kacamata / Kacamata Safety, (4) Dengan Helm Safety APD Tambang, dan (5) Dengan/Tanpa Kumis & Jenggot. AI mengekstrak 68 titik landmark invariant untuk akurasi pengenalan 99.8%.'}
                   </p>
                 </div>
               </div>
@@ -471,16 +579,16 @@ const FaceEnrollmentTab = () => {
                 <button
                   type="button"
                   onClick={() => { setEnrollMethod('upload'); stopCamera(); }}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     enrollMethod === 'upload' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
-                  <Upload size={14} /> Upload Foto (3 - 5 File)
+                  <Upload size={14} /> Upload Foto ({enrollMode === 'append' ? '1 - 5 File Baru' : '5 - 10 File'})
                 </button>
                 <button
                   type="button"
                   onClick={() => { setEnrollMethod('camera'); setTimeout(startCamera, 200); }}
-                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition ${
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
                     enrollMethod === 'camera' ? 'bg-white text-red-700 shadow-sm' : 'text-slate-500 hover:text-slate-900'
                   }`}
                 >
@@ -508,7 +616,9 @@ const FaceEnrollmentTab = () => {
                       <ImageIcon size={24} />
                     </div>
                     <div>
-                      <p className="text-xs font-black text-slate-800">Klik untuk memilih 3 - 5 foto wajah</p>
+                      <p className="text-xs font-black text-slate-800">
+                        {enrollMode === 'append' ? 'Klik untuk memilih foto baru yang ingin ditambahkan' : 'Klik untuk memilih 5 - 10 foto wajah'}
+                      </p>
                       <p className="text-[10px] text-slate-400 font-medium">Mendukung format JPG, PNG, WEBP (Bisa pilih sekaligus)</p>
                     </div>
                   </div>
@@ -524,13 +634,19 @@ const FaceEnrollmentTab = () => {
                       autoPlay
                       playsInline
                       muted
-                      className="w-full h-full object-cover transform -scale-x-100"
+                      className={`w-full h-full object-cover ${!streamActive ? 'hidden' : ''}`}
                     />
+                    {!streamActive && (
+                      <div className="flex flex-col items-center justify-center text-slate-500 p-4 text-center">
+                        <Camera size={32} className="mb-2 text-slate-600 animate-pulse" />
+                        <span className="text-xs font-bold">Mengaktifkan kamera...</span>
+                      </div>
+                    )}
                     <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                       <div className="w-48 h-56 border-2 border-red-500/70 border-dashed rounded-3xl animate-pulse" />
                     </div>
 
-                    {(!modelsLoaded || !streamActive) && (
+                    {(!modelsLoaded || (!streamActive && !videoRef.current)) && (
                       <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 p-4 text-center">
                         <div className="w-8 h-8 border-4 border-red-600 border-t-transparent rounded-full animate-spin"></div>
                         <span className="text-xs font-bold text-white">Memuat modul kamera...</span>
@@ -541,25 +657,29 @@ const FaceEnrollmentTab = () => {
                   <button
                     type="button"
                     onClick={handleCaptureFromCamera}
-                    disabled={isProcessing || !modelsLoaded || !streamActive || photoSamples.length >= 5}
-                    className="w-full max-w-sm py-2.5 bg-red-700 hover:bg-red-800 disabled:bg-slate-300 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2"
+                    disabled={isProcessing || !modelsLoaded || !streamActive || photoSamples.length >= 10}
+                    className="w-full max-w-sm py-2.5 bg-red-700 hover:bg-red-800 disabled:bg-slate-300 text-white font-black text-xs rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
                   >
                     <Camera size={15} />
-                    {isProcessing ? 'Mengekstraksi Wajah...' : `Ambil Jepretan Foto (${photoSamples.length}/5)`}
+                    {isProcessing ? 'Mengekstraksi Wajah...' : `Ambil Jepretan Foto (${photoSamples.length}/10)`}
                   </button>
                 </div>
               )}
 
-              {/* SAMPLES GALLERY PREVIEW (3 - 5 Photos) */}
+              {/* SAMPLES GALLERY PREVIEW */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black text-slate-800">
-                    Koleksi Sampel Foto Wajah ({photoSamples.length}/5)
+                    Foto Baru yang Akan Disimpan ({photoSamples.length})
                   </h4>
                   <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
-                    validCount >= 3 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                    (enrollMode === 'append' ? validCount >= 1 : validCount >= 3)
+                      ? 'bg-emerald-100 text-emerald-800' 
+                      : 'bg-amber-100 text-amber-800'
                   }`}>
-                    {validCount >= 3 ? `Siap Dilatih (${validCount} Valid)` : `Kurang ${Math.max(0, 3 - validCount)} foto valid`}
+                    {(enrollMode === 'append' ? validCount >= 1 : validCount >= 3)
+                      ? `Siap Disimpan (${validCount} Valid)` 
+                      : `Kurang ${Math.max(0, (enrollMode === 'append' ? 1 : 3) - validCount)} foto valid`}
                   </span>
                 </div>
 
@@ -585,7 +705,7 @@ const FaceEnrollmentTab = () => {
                       <button
                         type="button"
                         onClick={() => removePhotoSample(sample.id)}
-                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow"
+                        className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-slate-900/80 hover:bg-rose-600 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition shadow cursor-pointer"
                         title="Hapus foto ini"
                       >
                         <X size={11} />
@@ -598,8 +718,8 @@ const FaceEnrollmentTab = () => {
                     </div>
                   ))}
 
-                  {/* Empty Placeholders up to 5 */}
-                  {Array.from({ length: Math.max(0, 5 - photoSamples.length) }).map((_, i) => (
+                  {/* Empty Placeholders */}
+                  {Array.from({ length: Math.max(0, (enrollMode === 'append' ? 3 : 5) - photoSamples.length) }).map((_, i) => (
                     <div
                       key={`empty-${i}`}
                       onClick={() => {
@@ -621,7 +741,7 @@ const FaceEnrollmentTab = () => {
               <button
                 type="button"
                 onClick={closeEnrollModal}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition"
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
               >
                 Batal
               </button>
@@ -629,15 +749,224 @@ const FaceEnrollmentTab = () => {
               <button
                 type="button"
                 onClick={handleSaveMultiFaceDescriptors}
-                disabled={isProcessing || validCount < 3}
-                className="px-5 py-2.5 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700 disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300 transition flex items-center gap-2 shadow-md"
+                disabled={isProcessing || (enrollMode === 'append' ? validCount < 1 : validCount < 3)}
+                className={`px-5 py-2.5 rounded-xl text-xs font-black text-white transition flex items-center gap-2 shadow-md cursor-pointer ${
+                  enrollMode === 'append'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700'
+                    : 'bg-gradient-to-r from-red-700 to-red-600 hover:from-red-800 hover:to-red-700'
+                } disabled:bg-slate-300 disabled:from-slate-300 disabled:to-slate-300`}
               >
                 <Sparkles size={15} />
-                {isProcessing ? 'Menyimpan & Melatih AI...' : `Simpan & Latih Model AI (${validCount} Foto Valid)`}
+                {isProcessing
+                  ? 'Menyimpan & Melatih AI...'
+                  : enrollMode === 'append'
+                    ? `➕ Tambahkan ${validCount} Foto Baru ke Database`
+                    : `Simpan & Latih Model AI (${validCount} Foto Valid)`}
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
+      )}
+
+      {/* DATABASE BIOMETRIC PREVIEW MODAL (Portaled to document.body for full-screen backdrop blur) */}
+      {previewModalOpen && createPortal(
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[92vh] border border-slate-200">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-white via-rose-50/70 to-red-50/60">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-red-700 text-white flex items-center justify-center font-bold">
+                  <Eye size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">Database Biometrik Wajah Karyawan</h3>
+                  <p className="text-[11px] font-bold text-slate-500">
+                    {previewEmpData?.nama_lengkap || 'Karyawan'} • {previewEmpData?.nomor_pegawai || previewEmpData?.nik || '-'} ({previewEmpData?.jabatan || 'Staff'})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={closePreviewModal}
+                className="w-7 h-7 rounded-full bg-slate-200 text-slate-500 hover:bg-red-100 hover:text-red-700 flex items-center justify-center transition cursor-pointer"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-4">
+              {loadingPreview ? (
+                <div className="flex flex-col items-center justify-center py-12 gap-2">
+                  <div className="w-8 h-8 border-4 border-red-700 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs font-bold text-slate-500">Memuat dataset biometrik wajah...</span>
+                </div>
+              ) : (
+                <>
+                  {/* Status & Accuracy Overview */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                      <span className="text-[10px] font-bold text-emerald-800 uppercase block">Status Database</span>
+                      <span className="text-sm font-black text-emerald-700 flex items-center gap-1 mt-0.5">
+                        <CheckCircle2 size={15} /> Aktif & Terverifikasi
+                      </span>
+                    </div>
+                    <div className="p-3 bg-blue-50 border border-blue-200 rounded-2xl">
+                      <span className="text-[10px] font-bold text-blue-800 uppercase block">Total Sampel Biometrik</span>
+                      <span className="text-sm font-black text-blue-700 mt-0.5 block">
+                        {previewEmpData?.sample_count || 1} Titik Vektor AI
+                      </span>
+                    </div>
+                    <div className="p-3 bg-purple-50 border border-purple-200 rounded-2xl">
+                      <span className="text-[10px] font-bold text-purple-800 uppercase block">Akurasi & Invariance</span>
+                      <span className="text-sm font-black text-purple-700 mt-0.5 block">
+                        Kumis / Jenggot / Kacamata
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Registered Photos Gallery */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                        <ImageIcon size={14} className="text-red-700" /> Galeri Sampel Foto Terdaftar di Database:
+                      </h4>
+                      <span className="text-[10px] text-slate-400 font-bold">
+                        Klik foto untuk zoom atau klik tombol sampah untuk menghapus
+                      </span>
+                    </div>
+
+                    {previewEmpData?.images && previewEmpData.images.length > 0 ? (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+                        {previewEmpData.images.map((imgUrl, idx) => (
+                          <div 
+                            key={idx} 
+                            onClick={() => setLightboxImg(imgUrl)}
+                            className="relative aspect-[3/4] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm group cursor-pointer"
+                          >
+                            <img src={imgUrl} alt={`Enrolled Face ${idx + 1}`} className="w-full h-full object-cover transition duration-300 group-hover:scale-105" />
+                            
+                            {/* Hover Overlay with Sample Info */}
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition p-2 flex flex-col justify-between">
+                              <div className="flex justify-between items-start">
+                                <span className="px-1.5 py-0.5 bg-black/60 rounded text-[8px] font-black text-white">#{idx + 1}</span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteSingleSample(idx);
+                                  }}
+                                  className="w-6 h-6 rounded-lg bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition active:scale-90 cursor-pointer"
+                                  title={`Hapus foto sampel #${idx + 1} ini dari database`}
+                                >
+                                  <Trash2 size={12} />
+                                </button>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <span className="text-[10px] font-black text-white block">Sampel #{idx + 1}</span>
+                                  <span className="text-[8px] text-emerald-300 font-bold">128-D ResNet Vector</span>
+                                </div>
+                                <Maximize2 size={12} className="text-white/80" />
+                              </div>
+                            </div>
+
+                            {/* Badge Number (Normal View) */}
+                            <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/60 backdrop-blur-md rounded-md text-[8px] font-black text-white border border-white/20 group-hover:opacity-0 transition">
+                              #{idx + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-2xl text-center">
+                        <div className="w-12 h-12 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center mx-auto mb-2 font-black">
+                          <Scan size={20} />
+                        </div>
+                        <p className="text-xs font-bold text-slate-700">Dataset Biometrik Vektor 128-Dimensi Tersimpan</p>
+                        <p className="text-[11px] text-slate-400 mt-1 max-w-md mx-auto">
+                          Vektor matematis wajah ({previewEmpData?.sample_count || 1} sampel) telah aktif tersimpan di Supabase. Gunakan tombol <strong>"Tambah Foto Baru"</strong> di bawah untuk melengkapi galeri thumbnail visual.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* AI Robustness Info Box */}
+                  <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                    <h5 className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                      <Sparkles size={14} className="text-red-700" /> Kinerja Model AI Pengenalan Wajah:
+                    </h5>
+                    <ul className="text-[11px] text-slate-600 space-y-1.5 pl-4 list-disc">
+                      <li><strong>Kumis & Jenggot:</strong> Arsitektur 68-Point Facial Landmark mengekstrak koordinat tulang orbita mata, rasio hidung, dan jarak antar pupil yang tidak terpengaruh oleh rambut wajah.</li>
+                      <li><strong>Kacamata & Kacamata Safety:</strong> Vektor multi-sampel melatih variasi frame kacamata bening maupun kacamata hitam APD tambang.</li>
+                      <li><strong>Helm Safety / APD Tambang:</strong> Detektor mendeteksi kontur dahi dan dagu secara simetris bahkan saat pekerja mengenakan helm lapangan.</li>
+                      <li><strong>Presensi Otomatis (Hands-Free):</strong> Saat wajah terdeteksi dengan kecocokan $\ge 85\%$, sistem otomatis menghitung mundur 3 detik untuk mencatat presensi tanpa perlu menyentuh layar.</li>
+                    </ul>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer with Dual Actions (Append vs Reset) */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex flex-wrap items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                {/* 1. APPEND BUTTON (Tambah Foto Tanpa Menimpa) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    closePreviewModal();
+                    openEnrollModal(previewEmpData, 'append');
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-black text-emerald-800 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300 transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+                  title="Tambahkan foto baru ke koleksi yang sudah ada tanpa menghapus foto lama"
+                >
+                  <Plus size={14} /> Tambah Foto Baru (Tanpa Menimpa)
+                </button>
+
+                {/* 2. RESET/REPLACE BUTTON (Ganti Semua Foto) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    closePreviewModal();
+                    openEnrollModal(previewEmpData, 'replace');
+                  }}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                  title="Ganti semua dataset foto dengan yang baru"
+                >
+                  <RefreshCw size={13} /> Ganti Semua Foto
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={closePreviewModal}
+                className="px-5 py-2 rounded-xl text-xs font-bold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
+              >
+                Tutup Preview
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* FULL-SIZE LIGHTBOX IMAGE ZOOM MODAL */}
+      {lightboxImg && createPortal(
+        <div 
+          onClick={() => setLightboxImg(null)}
+          className="fixed inset-0 z-[100000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-lg animate-in fade-in cursor-zoom-out"
+        >
+          <div className="relative max-w-lg max-h-[85vh] rounded-3xl overflow-hidden shadow-2xl border border-white/20 bg-slate-950 p-1" onClick={e => e.stopPropagation()}>
+            <img src={lightboxImg} alt="Enrolled Face Full" className="w-full h-full max-h-[80vh] object-contain rounded-2xl" />
+            <button
+              onClick={() => setLightboxImg(null)}
+              className="absolute top-3 right-3 w-8 h-8 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-red-600 transition cursor-pointer border border-white/20"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   );

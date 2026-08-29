@@ -9,6 +9,8 @@ if (initialToken) {
     setAuthToken(initialToken);
 }
 
+import AuthTransitionOverlay from '../components/common/AuthTransitionOverlay';
+
 export const AuthProvider = ({ children }) => {
     const [user, setUser] = useState(() => {
         const savedUser = localStorage.getItem('user_data');
@@ -72,6 +74,8 @@ export const AuthProvider = ({ children }) => {
         }
     };
 
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
     const login = (newToken, userData) => {
         setToken(newToken);
         setUser(userData);
@@ -80,19 +84,28 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('user_data', JSON.stringify(userData));
     };
 
-    const logout = () => {
-        setToken(null);
-        setUser(null);
-        localStorage.removeItem('token');
-        localStorage.removeItem('user_data');
-        setAuthToken(null);
+    const logout = async () => {
+        setIsLoggingOut(true);
         try {
-            api.post('/auth/logout').catch(() => {});
+            await api.post('/auth/logout').catch(() => {});
         } catch (e) {}
+
+        setTimeout(() => {
+            setToken(null);
+            setUser(null);
+            localStorage.removeItem('token');
+            localStorage.removeItem('user_data');
+            setAuthToken(null);
+            setIsLoggingOut(false);
+            window.location.href = '/login';
+        }, 700);
     };
 
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, loading, isLoggingOut }}>
+            {/* Clean White Orbiting Auth Transition Overlay on Logout */}
+            {isLoggingOut && <AuthTransitionOverlay />}
+
             {loading ? (
                 <div className="flex h-screen items-center justify-center bg-slate-50">
                     <div className="flex flex-col items-center gap-4">

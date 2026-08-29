@@ -9,7 +9,7 @@ const { verifyToken, isHSE } = require('../middlewares/authMiddleware');
 const storage = multer.memoryStorage();
 const upload = multer({ 
     storage,
-    limits: { fileSize: 5 * 1024 * 1024 },
+    limits: { fileSize: 15 * 1024 * 1024 },
     fileFilter: (req, file, cb) => {
         const allowed = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
         const ext = path.extname(file.originalname || '').toLowerCase();
@@ -35,6 +35,7 @@ router.post('/certifications/my-certifications', verifyToken, upload.any(), cont
 router.get('/certifications', verifyToken, controller.get_certifications);
 router.get('/certifications/matrix', verifyToken, controller.get_matrix);
 router.get('/certificate-types', verifyToken, controller.get_certificate_types);
+router.post('/certificate-types', verifyToken, controller.create_certificate_type);
 
 // Admin & HSE Management
 router.post('/certifications', verifyToken, isHSE, upload.any(), controller.add_certification);

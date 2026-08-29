@@ -44,6 +44,7 @@ router.patch('/profile', verifyToken, upload.any(), authController.updateProfile
 router.get('/mfa/generate', verifyToken, authController.requestMfa);
 router.post('/mfa/verify', verifyToken, authController.verifyMfa);
 router.post('/mfa/disable', verifyToken, authController.disableMfa);
+router.post('/mfa/send-email-otp', authController.sendMfaEmailOtp);
 router.patch('/recovery-email', verifyToken, authController.saveRecoveryEmail);
 
 // User Devices

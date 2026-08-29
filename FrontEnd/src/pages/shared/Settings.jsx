@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-    User, Lock, Shield, Smartphone, Key, RefreshCw, CheckCircle2, AlertCircle, Save, X,
+    User, Lock, Shield, ShieldCheck, Smartphone, Key, RefreshCw, CheckCircle2, AlertCircle, Save, X,
     FileText, Award, Building2, Briefcase, Calendar, CreditCard, Hash, MapPin, Eye, Check,
     Upload, Download, AlertTriangle, Trash2
 } from 'lucide-react';
@@ -15,7 +15,6 @@ const Settings = () => {
     const [activeTab, setActiveTab] = useState('profile');
     const [profileTab, setProfileTab] = useState('publik'); // 'publik' | 'inti' | 'dokumen'
     const [loading, setLoading] = useState(false);
-    const [uploadingDoc, setUploadingDoc] = useState(null);
     const [previewDocUrl, setPreviewDocUrl] = useState(null);
     const [previewDocTitle, setPreviewDocTitle] = useState('');
     
@@ -52,17 +51,13 @@ const Settings = () => {
         documents: []
     });
 
-    const [passwords, setPasswords] = useState({
-        oldPassword: '',
+    const [credForm, setCredForm] = useState({
+        username: '',
+        currentPassword: '',
         newPassword: '',
-        confirmPassword: ''
+        confirmNewPassword: ''
     });
-
-    const [usernameForm, setUsernameForm] = useState({
-        newUsername: '',
-        confirmPassword: ''
-    });
-    const [usernameLoading, setUsernameLoading] = useState(false);
+    const [savingCreds, setSavingCreds] = useState(false);
 
     const [mfaData, setMfaData] = useState({
         secret: '',
@@ -70,14 +65,18 @@ const Settings = () => {
         token: '',
         enabled: false
     });
+    const [mfaEmailCooldown, setMfaEmailCooldown] = useState(0);
+    const [mfaSendingEmail, setMfaSendingEmail] = useState(false);
+
+    useEffect(() => {
+        if (mfaEmailCooldown <= 0) return;
+        const timer = setInterval(() => {
+            setMfaEmailCooldown(prev => prev - 1);
+        }, 1000);
+        return () => clearInterval(timer);
+    }, [mfaEmailCooldown]);
 
     const [devices, setDevices] = useState([]);
-    const [photoPreview, setPhotoPreview] = useState(null);
-
-    const ktpInputRef = useRef();
-    const kkInputRef = useRef();
-    const npwpInputRef = useRef();
-    const ijazahInputRef = useRef();
 
     const fetchProfile = async () => {
         try {
@@ -116,7 +115,7 @@ const Settings = () => {
                     documents: u.documents || []
                 });
                 setPhotoPreview(u.profile_photo_url || null);
-                if (u.username) setUsernameForm(prev => ({ ...prev, newUsername: u.username }));
+                if (u.username) setCredForm(prev => ({ ...prev, username: u.username }));
                 if (u.mfa_enabled) setMfaData(prev => ({ ...prev, enabled: true }));
             }
         } catch (err) {
@@ -145,10 +144,6 @@ const Settings = () => {
         } else {
             setProfileData(prev => ({ ...prev, [name]: value }));
         }
-    };
-
-    const handlePasswordChange = (e) => {
-        setPasswords({ ...passwords, [e.target.name]: e.target.value });
     };
 
     // SAVE PROFILE (Publik only)
@@ -189,83 +184,76 @@ const Settings = () => {
         }
     };
 
-    // UPLOAD DOCUMENT (KTP, KK, NPWP, IJAZAH)
-    const handleUploadDoc = async (docType, file) => {
-        if (!file) return;
-        if (file.size > 5 * 1024 * 1024) {
-            addToast('Ukuran file maksimal 5MB', 'error');
-            return;
-        }
-
-        setUploadingDoc(docType);
-        const formData = new FormData();
-        formData.append(`${docType.toLowerCase()}_file`, file);
-
-        try {
-            await api.patch('/auth/profile', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
-            addToast(`Berkas ${docType} berhasil diunggah!`, 'success');
-            fetchProfile();
-        } catch (err) {
-            console.error(err);
-            addToast(`Gagal mengunggah berkas ${docType}`, 'error');
-        } finally {
-            setUploadingDoc(null);
-        }
-    };
-
-    // SAVE USERNAME
-    const handleSaveUsername = async (e) => {
+    // SAVE UNIFIED CREDENTIALS (USERNAME & PASSWORD)
+    const handleSaveCredentials = async (e) => {
         e.preventDefault();
-        const cleanName = (usernameForm.newUsername || '').trim();
-        if (!cleanName || cleanName.length < 3) {
-            addToast('Username minimal 3 karakter tanpa spasi.', 'error');
+        const currentPass = (credForm.currentPassword || '').trim();
+        if (!currentPass) {
+            addToast('Kata sandi saat ini wajib diisi untuk verifikasi keamanan!', 'error');
             return;
         }
-        setUsernameLoading(true);
-        try {
-            const res = await api.patch('/auth/change-username', {
-                newUsername: cleanName,
-                password: usernameForm.confirmPassword
-            });
-            addToast(res.data.message || 'Username berhasil diperbarui!', 'success');
-            if (res.data.username) {
-                login(token, { ...user, username: res.data.username });
-                setProfileData(prev => ({ ...prev, username: res.data.username }));
+
+        const newCleanUsername = (credForm.username || '').trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
+        const currentUsername = (profileData.username || user?.username || '').trim().toLowerCase();
+        const isUsernameChanged = newCleanUsername && newCleanUsername !== currentUsername;
+        const isPasswordChanged = !!credForm.newPassword;
+
+        if (!isUsernameChanged && !isPasswordChanged) {
+            addToast('Tidak ada perubahan nama pengguna atau kata sandi yang dibuat.', 'info');
+            return;
+        }
+
+        if (isUsernameChanged && newCleanUsername.length < 3) {
+            addToast('Username baru minimal 3 karakter tanpa spasi.', 'error');
+            return;
+        }
+
+        if (isPasswordChanged) {
+            if (credForm.newPassword.length < 6) {
+                addToast('Kata sandi baru minimal 6 karakter.', 'error');
+                return;
             }
-            setUsernameForm(prev => ({ ...prev, confirmPassword: '' }));
+            if (credForm.newPassword !== credForm.confirmNewPassword) {
+                addToast('Konfirmasi kata sandi baru tidak cocok!', 'error');
+                return;
+            }
+        }
+
+        setSavingCreds(true);
+        try {
+            // 1. Update Username if changed
+            if (isUsernameChanged) {
+                const userRes = await api.patch('/auth/change-username', {
+                    newUsername: newCleanUsername,
+                    password: currentPass
+                });
+                if (userRes.data.username) {
+                    login(token, { ...user, username: userRes.data.username });
+                    setProfileData(prev => ({ ...prev, username: userRes.data.username }));
+                }
+            }
+
+            // 2. Update Password if changed
+            if (isPasswordChanged) {
+                await api.patch('/auth/change-password', {
+                    oldPassword: currentPass,
+                    newPassword: credForm.newPassword
+                });
+            }
+
+            addToast('Kredensial akun (nama pengguna / kata sandi) berhasil diperbarui!', 'success');
+            setCredForm(prev => ({
+                ...prev,
+                currentPassword: '',
+                newPassword: '',
+                confirmNewPassword: ''
+            }));
             fetchProfile();
         } catch (error) {
-            addToast(error.response?.data?.message || 'Gagal mengubah username', 'error');
+            console.error('Update credentials error:', error);
+            addToast(error.response?.data?.message || error.response?.data?.error || 'Gagal memperbarui kredensial akun.', 'error');
         } finally {
-            setUsernameLoading(false);
-        }
-    };
-
-    // SAVE PASSWORD
-    const handleSavePassword = async (e) => {
-        e.preventDefault();
-        if (!passwords.newPassword || passwords.newPassword.length < 6) {
-            addToast('Password baru minimal 6 karakter.', 'error');
-            return;
-        }
-        if (passwords.newPassword !== passwords.confirmPassword) {
-            addToast('Konfirmasi password tidak cocok!', 'error');
-            return;
-        }
-        setLoading(true);
-        try {
-            await api.patch('/auth/change-password', { 
-                oldPassword: passwords.oldPassword,
-                newPassword: passwords.newPassword 
-            });
-            addToast('Password berhasil diubah!', 'success');
-            setPasswords({ oldPassword: '', newPassword: '', confirmPassword: '' });
-        } catch (error) {
-            addToast('Gagal mengubah password: ' + (error.response?.data?.message || error.response?.data?.error || error.message), 'error');
-        } finally {
-            setLoading(false);
+            setSavingCreds(false);
         }
     };
 
@@ -305,29 +293,43 @@ const Settings = () => {
         }
     };
 
-    // MFA METHODS
+    // MFA METHODS (Google Authenticator & Email OTP)
     const setupMfa = async () => {
         try {
             const res = await api.get('/auth/mfa/generate');
             setMfaData(prev => ({ ...prev, secret: res.data.secret, qr: res.data.qrCodeUrl }));
-            addToast('QR Code MFA berhasil dibuat. Scan dengan Google Authenticator.', 'info');
+            addToast('Setup MFA aktif. Scan QR Code dengan Google Authenticator atau kirim OTP ke email.', 'info');
         } catch(e) {
             addToast('Gagal membuat QR Code MFA', 'error');
         }
     };
 
+    const sendEmailOtpForMfa = async () => {
+        if (mfaEmailCooldown > 0 || mfaSendingEmail) return;
+        setMfaSendingEmail(true);
+        try {
+            const res = await api.post('/auth/mfa/send-email-otp', {});
+            setMfaEmailCooldown(60);
+            addToast(res.data?.message || 'Kode OTP telah dikirim ke email terdaftar!', 'success');
+        } catch(e) {
+            addToast(e.response?.data?.message || 'Gagal mengirim kode OTP ke email', 'error');
+        } finally {
+            setMfaSendingEmail(false);
+        }
+    };
+
     const verifyMfa = async () => {
         if (!mfaData.token) {
-            addToast('Masukkan 6 digit kode dari aplikasi Authenticator', 'error');
+            addToast('Masukkan 6 digit kode verifikasi (dari Authenticator atau Email)', 'error');
             return;
         }
         try {
             await api.post('/auth/mfa/verify', { token: mfaData.token });
-            addToast('MFA 2-Faktor berhasil diaktifkan!', 'success');
+            addToast('Autentikasi 2-Langkah (MFA) berhasil diaktifkan!', 'success');
             setMfaData(prev => ({ ...prev, enabled: true, secret: '', qr: '', token: '' }));
             fetchProfile();
         } catch(e) {
-            addToast('Kode MFA Salah atau Kedaluwarsa', 'error');
+            addToast(e.response?.data?.message || 'Kode verifikasi salah atau telah kedaluwarsa', 'error');
         }
     };
 
@@ -894,8 +896,12 @@ const Settings = () => {
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <h4 className="text-xs font-black text-slate-900">Autentikasi 2 Langkah (MFA Google Authenticator)</h4>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Lindungi akun Anda dengan kode OTP 6 digit dari ponsel.</p>
+                                        <h4 className="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                                            🛡️ Autentikasi 2 Langkah (MFA: Google Authenticator & Email OTP)
+                                        </h4>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Lindungi akun Anda dengan kode OTP 6 digit dari aplikasi Authenticator atau email terdaftar.
+                                        </p>
                                     </div>
                                     <span className={`text-[10px] font-black px-2.5 py-1 rounded-full ${
                                         mfaData.enabled ? 'bg-green-100 text-green-800' : 'bg-slate-200 text-slate-600'
@@ -907,12 +913,12 @@ const Settings = () => {
                                 {mfaData.enabled ? (
                                     <div className="flex items-center justify-between pt-2">
                                         <span className="text-xs text-green-700 font-bold flex items-center gap-1.5">
-                                            <CheckCircle2 size={15} /> Akun Anda telah diamankan dengan MFA.
+                                            <CheckCircle2 size={15} /> Akun Anda telah diamankan dengan MFA (Mendukung Authenticator & Email OTP).
                                         </span>
                                         <button
                                             type="button"
                                             onClick={disableMfa}
-                                            className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all"
+                                            className="px-3.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-2xs"
                                         >
                                             Nonaktifkan MFA
                                         </button>
@@ -923,36 +929,67 @@ const Settings = () => {
                                             <button
                                                 type="button"
                                                 onClick={setupMfa}
-                                                className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all shadow-sm"
+                                                className="px-4 py-2 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-all shadow-sm cursor-pointer"
                                             >
                                                 Setup MFA Sekarang
                                             </button>
                                         ) : (
-                                            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-3">
-                                                <p className="text-xs text-slate-600 font-medium">
-                                                    1. Buka Google Authenticator di HP Anda lalu scan QR Code di bawah:
-                                                </p>
-                                                <div className="flex justify-center">
-                                                    <img src={mfaData.qr} alt="MFA QR Code" className="w-36 h-36 border border-slate-200 rounded-lg p-1" />
+                                            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-4">
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                    {/* Option 1: Google Authenticator */}
+                                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5 text-center">
+                                                        <span className="text-xs font-black text-slate-800 block">Metode 1: Google Authenticator / App</span>
+                                                        <p className="text-[11px] text-slate-500">Scan QR Code ini menggunakan aplikasi Authenticator di HP Anda:</p>
+                                                        <div className="flex justify-center my-1">
+                                                            <img src={mfaData.qr} alt="MFA QR Code" className="w-32 h-32 border border-slate-200 rounded-lg p-1 bg-white" />
+                                                        </div>
+                                                        <p className="text-[10px] text-slate-500 font-mono break-all">
+                                                            Secret: <span className="font-bold text-slate-800">{mfaData.secret}</span>
+                                                        </p>
+                                                    </div>
+
+                                                    {/* Option 2: Email OTP */}
+                                                    <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 space-y-2.5 flex flex-col justify-between">
+                                                        <div>
+                                                            <span className="text-xs font-black text-slate-800 block">Metode 2: Kode OTP via Email</span>
+                                                            <p className="text-[11px] text-slate-500 mt-1">
+                                                                Kirim kode 6 digit langsung ke alamat email terdaftar Anda untuk verifikasi instan.
+                                                            </p>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={mfaEmailCooldown > 0 || mfaSendingEmail}
+                                                            onClick={sendEmailOtpForMfa}
+                                                            className="w-full py-2 px-3 bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs rounded-xl border border-red-200 transition flex items-center justify-center gap-1.5 disabled:opacity-60 cursor-pointer"
+                                                        >
+                                                            <Mail size={14} className="text-red-700" />
+                                                            {mfaSendingEmail ? 'Mengirim OTP...' : mfaEmailCooldown > 0 ? `Kirim Ulang (${mfaEmailCooldown}s)` : 'Kirim Kode ke Email Saya'}
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[11px] text-slate-500 font-mono text-center">
-                                                    Secret Key: <span className="font-bold text-slate-800">{mfaData.secret}</span>
-                                                </p>
-                                                <div className="flex gap-2 max-w-xs mx-auto">
-                                                    <input
-                                                        type="text"
-                                                        placeholder="6 Digit Kode OTP"
-                                                        value={mfaData.token}
-                                                        onChange={(e) => setMfaData({ ...mfaData, token: e.target.value })}
-                                                        className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-center outline-none focus:ring-1 focus:ring-red-900"
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={verifyMfa}
-                                                        className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl"
-                                                    >
-                                                        Verifikasi
-                                                    </button>
+
+                                                {/* Input token to verify */}
+                                                <div className="pt-2 border-t border-slate-100">
+                                                    <p className="text-xs font-bold text-slate-700 text-center mb-2">
+                                                        Masukkan 6 digit kode (dari Aplikasi atau Email) untuk mengaktifkan:
+                                                    </p>
+                                                    <div className="flex gap-2 max-w-xs mx-auto">
+                                                        <input
+                                                            type="text"
+                                                            placeholder="000000"
+                                                            maxLength={6}
+                                                            value={mfaData.token}
+                                                            onChange={(e) => setMfaData({ ...mfaData, token: e.target.value })}
+                                                            className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-center tracking-widest outline-none focus:ring-1 focus:ring-red-900"
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={verifyMfa}
+                                                            className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl cursor-pointer shadow-sm"
+                                                        >
+                                                            Verifikasi
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}
@@ -983,108 +1020,98 @@ const Settings = () => {
                                 </div>
                             </form>
 
-                            {/* 1. Ubah Username (ID Login) */}
-                            <form onSubmit={handleSaveUsername} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                                <div className="flex items-center justify-between">
+                            {/* Unified Kredensial Akun (Username & Kata Sandi) */}
+                            <form onSubmit={handleSaveCredentials} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-200/80">
                                     <div>
                                         <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                            <User size={15} className="text-red-700" /> Nama Pengguna (Username / ID Login)
+                                            <ShieldCheck size={16} className="text-red-700" /> Kredensial Akun (Nama Pengguna & Kata Sandi)
                                         </h4>
-                                        <p className="text-[11px] text-slate-500 mt-0.5">Username digunakan sebagai identitas akun untuk masuk ke portal HRIS.</p>
+                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                            Kelola username (ID login) dan kata sandi akun Anda dalam satu formulir verifikasi terpadu.
+                                        </p>
                                     </div>
-                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 shadow-sm">
-                                        <span className="text-slate-400 text-[11px]">Saat ini:</span>
+                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white border border-slate-200 rounded-xl text-xs font-mono font-bold text-slate-800 shadow-sm self-start sm:self-auto">
+                                        <span className="text-slate-400 text-[11px]">Username saat ini:</span>
                                         <span className="text-red-700">@{profileData.username || user?.username || '-'}</span>
                                     </div>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs font-medium pt-1">
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs font-medium">
+                                    {/* Username Baru */}
                                     <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">Username Baru</label>
+                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">
+                                            Nama Pengguna (Username Baru)
+                                        </label>
                                         <div className="relative">
                                             <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-xs">@</span>
                                             <input
                                                 type="text"
                                                 placeholder="contoh: aryatony_dgn"
-                                                value={usernameForm.newUsername}
-                                                onChange={(e) => setUsernameForm({ ...usernameForm, newUsername: e.target.value.toLowerCase().replace(/\s+/g, '') })}
+                                                value={credForm.username}
+                                                onChange={(e) => setCredForm({ ...credForm, username: e.target.value.toLowerCase().replace(/\s+/g, '') })}
                                                 className="w-full pl-7 pr-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900 font-mono"
                                             />
                                         </div>
                                         <span className="text-[9px] text-slate-400 mt-0.5 block">Hanya huruf kecil, angka, titik, atau underscore tanpa spasi.</span>
                                     </div>
+
+                                    {/* Kata Sandi Saat Ini (Konfirmasi Keamanan) */}
                                     <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">Kata Sandi Saat Ini (Konfirmasi)</label>
+                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">
+                                            Kata Sandi Saat Ini (Konfirmasi Keamanan) <span className="text-red-600">*</span>
+                                        </label>
                                         <input
                                             type="password"
                                             placeholder="Masukkan kata sandi saat ini"
-                                            value={usernameForm.confirmPassword}
-                                            onChange={(e) => setUsernameForm({ ...usernameForm, confirmPassword: e.target.value })}
+                                            value={credForm.currentPassword}
+                                            onChange={(e) => setCredForm({ ...credForm, currentPassword: e.target.value })}
                                             className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900"
+                                            required
                                         />
                                         <span className="text-[9px] text-slate-400 mt-0.5 block">Wajib diisi untuk memverifikasi keamanan kepemilikan akun.</span>
                                     </div>
-                                </div>
-                                <div className="flex justify-end pt-1">
-                                    <button
-                                        type="submit"
-                                        disabled={usernameLoading}
-                                        className="px-5 py-2 bg-slate-900 hover:bg-black text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5"
-                                    >
-                                        <Save size={13} /> {usernameLoading ? 'Menyimpan...' : 'Simpan Username Baru'}
-                                    </button>
-                                </div>
-                            </form>
 
-                            {/* 2. Ubah Kata Sandi */}
-                            <form onSubmit={handleSavePassword} className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                                <div>
-                                    <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
-                                        <Lock size={15} className="text-red-700" /> Ubah Kata Sandi (Password)
-                                    </h4>
-                                    <p className="text-[11px] text-slate-500 mt-0.5">Gunakan password yang kuat dengan kombinasi minimal 6 karakter huruf dan angka.</p>
-                                </div>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs font-medium pt-1">
+                                    {/* Kata Sandi Baru */}
                                     <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">Kata Sandi Lama / Saat Ini</label>
+                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">
+                                            Kata Sandi Baru (Opsional)
+                                        </label>
                                         <input
                                             type="password"
-                                            name="oldPassword"
-                                            placeholder="Kata sandi saat ini"
-                                            value={passwords.oldPassword}
-                                            onChange={handlePasswordChange}
+                                            placeholder="Kosongkan jika tidak ingin mengubah password"
+                                            value={credForm.newPassword}
+                                            onChange={(e) => setCredForm({ ...credForm, newPassword: e.target.value })}
                                             className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900"
                                         />
+                                        <span className="text-[9px] text-slate-400 mt-0.5 block">Gunakan kombinasi minimal 6 karakter huruf & angka.</span>
                                     </div>
+
+                                    {/* Konfirmasi Kata Sandi Baru */}
                                     <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">Kata Sandi Baru</label>
+                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">
+                                            Konfirmasi Kata Sandi Baru
+                                        </label>
                                         <input
                                             type="password"
-                                            name="newPassword"
-                                            placeholder="Minimal 6 karakter"
-                                            value={passwords.newPassword}
-                                            onChange={handlePasswordChange}
-                                            className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-slate-600 text-[10px] font-bold mb-1">Konfirmasi Kata Sandi Baru</label>
-                                        <input
-                                            type="password"
-                                            name="confirmPassword"
                                             placeholder="Ulangi kata sandi baru"
-                                            value={passwords.confirmPassword}
-                                            onChange={handlePasswordChange}
-                                            className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900"
+                                            value={credForm.confirmNewPassword}
+                                            onChange={(e) => setCredForm({ ...credForm, confirmNewPassword: e.target.value })}
+                                            className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                                            disabled={!credForm.newPassword}
                                         />
+                                        <span className="text-[9px] text-slate-400 mt-0.5 block">Harus persis sama dengan kata sandi baru.</span>
                                     </div>
                                 </div>
-                                <div className="flex justify-end pt-1">
+
+                                <div className="flex justify-end pt-2 border-t border-slate-200/80">
                                     <button
                                         type="submit"
-                                        disabled={loading}
-                                        className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5"
+                                        disabled={savingCreds}
+                                        className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                                     >
-                                        <Key size={13} /> {loading ? 'Memproses...' : 'Simpan Kata Sandi Baru'}
+                                        <Save size={13} className={savingCreds ? 'animate-spin' : ''} />
+                                        <span>{savingCreds ? 'Menyimpan...' : 'Simpan Perubahan Kredensial'}</span>
                                     </button>
                                 </div>
                             </form>

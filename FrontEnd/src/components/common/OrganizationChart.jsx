@@ -285,10 +285,10 @@ const OrganizationChart = ({ readOnly = false }) => {
   const { user } = useAuth();
   const { addToast } = useToast();
 
-  // Strict RBAC: Only HRGA Admins can edit or drag nodes
+  // RBAC: HRGA & HSE Admins can edit or drag nodes
   const userRole = (user?.role || '').toLowerCase();
-  const isHRGAAdmin = ['admin', 'hrga_admin', 'hr'].includes(userRole);
-  const canEdit = isHRGAAdmin && !readOnly;
+  const isOrgAdmin = ['admin', 'hrga_admin', 'hr', 'hse_admin'].includes(userRole) || userRole.includes('admin');
+  const canEdit = isOrgAdmin && !readOnly;
 
   const [nodes, setNodes] = useState(() => {
     try {
@@ -355,11 +355,17 @@ const OrganizationChart = ({ readOnly = false }) => {
     fetchLiveEmployees();
   }, []);
 
-  // Save Nodes positions to localStorage (Admin HRGA only)
-  const handleSaveCanvas = () => {
+  // Save Nodes positions to localStorage & DB History (Admin HRGA & HSE)
+  const handleSaveCanvas = async () => {
     if (!canEdit) return;
     try {
       localStorage.setItem('hris_org_nodes_canvas', JSON.stringify(nodes));
+      try {
+        await api.post('/hris/organization/history', {
+          nodes,
+          notes: `Tata letak kanvas bagan organisasi (${nodes.length} posisi) diperbarui dan disimpan oleh ${user?.nama || user?.username || 'Admin'}.`
+        });
+      } catch (e) {}
       addToast('Tata letak struktur organisasi berhasil disimpan!', 'success');
     } catch (e) {
       addToast('Gagal menyimpan tata letak bagan', 'error');
@@ -561,7 +567,7 @@ const OrganizationChart = ({ readOnly = false }) => {
   return (
     <div className="w-full flex flex-col gap-4 font-sans select-none">
       {/* Top Header Bar */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white/80 backdrop-blur-2xl rounded-[32px] p-5 border border-white/80 ring-1 ring-slate-900/5 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-black shadow-sm">
@@ -611,12 +617,14 @@ const OrganizationChart = ({ readOnly = false }) => {
             </>
           )}
 
-          <div className="flex bg-slate-100 p-1 rounded-2xl">
+          <div className="flex bg-slate-100/70 backdrop-blur-md p-1 rounded-2xl border border-slate-200/60">
             <button
               type="button"
               onClick={() => setViewMode('tree')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 ${
-                viewMode === 'tree' ? 'bg-red-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
+              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'tree'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Building2 size={14} /> Hirarki Visual (Canvas)
@@ -624,8 +632,10 @@ const OrganizationChart = ({ readOnly = false }) => {
             <button
               type="button"
               onClick={() => setViewMode('directory')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 ${
-                viewMode === 'directory' ? 'bg-red-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
+              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+                viewMode === 'directory'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Users size={14} /> Direktori Anggota ({ORG_DATA.length})
@@ -638,9 +648,9 @@ const OrganizationChart = ({ readOnly = false }) => {
       {/* 1. INTERACTIVE CANVAS VIEW (MATCHING OFFICIAL PDF EXACTLY) */}
       {/* ======================================================== */}
       {viewMode === 'tree' && (
-        <div className="relative w-full h-[780px] bg-slate-50 border border-slate-200 rounded-3xl overflow-hidden shadow-inner flex">
+        <div className="relative w-full h-[780px] bg-white/70 backdrop-blur-2xl border border-white/80 ring-1 ring-slate-900/5 rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/40 flex">
           {/* Left Fixed Certification Legend Sidebar */}
-          <div className="w-56 bg-white/95 backdrop-blur-md border-r border-slate-200 p-3.5 flex flex-col z-30 shadow-sm overflow-y-auto shrink-0 custom-scrollbar">
+          <div className="w-56 bg-white/80 backdrop-blur-xl border-r border-slate-200/70 p-3.5 flex flex-col z-30 shadow-sm overflow-y-auto shrink-0 custom-scrollbar">
             <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
               <Award size={14} className="text-red-700" /> Matriks Sertifikasi
             </span>

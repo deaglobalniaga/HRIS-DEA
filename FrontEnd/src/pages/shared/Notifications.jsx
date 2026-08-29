@@ -50,12 +50,24 @@ const Notifications = () => {
     if (!notif.is_read) {
       try {
         await api.put(`/hris/notifications/${notif.id}/read`);
+        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
       } catch (e) {
         console.error('Mark read error:', e);
       }
     }
     if (notif.link) {
       navigate(notif.link);
+    } else {
+      const title = (notif.title || '').toLowerCase();
+      if (title.includes('sertifikat') || title.includes('sertifikasi')) {
+        navigate('/personal-certifications');
+      } else if (title.includes('cuti') || title.includes('izin') || title.includes('sakit')) {
+        navigate('/attendance-hub', { state: { tab: 'permissions' } });
+      } else if (title.includes('karyawan') || title.includes('akun') || title.includes('role')) {
+        navigate('/organization');
+      } else if (title.includes('agenda') || title.includes('kalender')) {
+        navigate('/calendar');
+      }
     }
   };
 

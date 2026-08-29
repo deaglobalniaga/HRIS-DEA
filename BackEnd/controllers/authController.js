@@ -116,7 +116,8 @@ exports.signup = async (req, res) => {
                 agama: payload.agama || '',
                 no_handphone: payload.no_handphone || '',
                 join_date: payload.join_date || new Date().toISOString().split('T')[0],
-                roster_type: payload.roster_type || '8/2'
+                roster_type: payload.roster_type || '8/2',
+                cost_center: payload.cost_center || 'GENERAL'
             })
             .select('id')
             .single();
@@ -136,8 +137,7 @@ exports.signup = async (req, res) => {
             kontak_darurat_nomor: payload.kontak_darurat_nomor || '',
             nama_bank: payload.nama_bank || 'BCA',
             nama_rekening: payload.nama_rekening || nama,
-            nomor_rekening: payload.nomor_rekening || '',
-            cost_center: payload.cost_center || ''
+            nomor_rekening: payload.nomor_rekening || ''
         });
 
         // 4. Process Uploaded Documents purely in database table with compression
@@ -257,25 +257,34 @@ exports.login = async (req, res) => {
         }
 
         // Validate Password OR Face Descriptor
-        // Face recognition logic will compare the incoming faceDescriptor with DB if provided
+        // Face recognition logic: multi-sample minimum Euclidean distance
         if (faceDescriptor) {
             const { data: empData } = await supabase.from('employees').select('face_descriptor').eq('user_id', user.id).single();
             if (!empData || !empData.face_descriptor) {
-                return res.status(401).json({ message: 'Face not enrolled for this user' });
+                return res.status(401).json({ message: 'Data biometrik wajah belum didaftarkan untuk pengguna ini.' });
             }
             
-            const dbDescriptor = JSON.parse(empData.face_descriptor);
-            const incomingDescriptor = JSON.parse(faceDescriptor);
-            
-            // Euclidean distance calculation
-            let distance = 0;
-            for (let i = 0; i < dbDescriptor.length; i++) {
-                distance += Math.pow(dbDescriptor[i] - incomingDescriptor[i], 2);
-            }
-            distance = Math.sqrt(distance);
+            try {
+                const storedData = JSON.parse(empData.face_descriptor);
+                const samples = Array.isArray(storedData[0]) ? storedData : [storedData];
+                const incoming = typeof faceDescriptor === 'string' ? JSON.parse(faceDescriptor) : faceDescriptor;
+                
+                let minDistance = 1.0;
+                for (const sample of samples) {
+                    let sum = 0;
+                    for (let i = 0; i < sample.length; i++) {
+                        sum += Math.pow(sample[i] - incoming[i], 2);
+                    }
+                    const dist = Math.sqrt(sum);
+                    if (dist < minDistance) minDistance = dist;
+                }
 
-            if (distance > 0.45) { // Threshold for face-api.js (usually 0.4 to 0.5)
-                return res.status(401).json({ message: 'Face not recognized' });
+                if (minDistance > 0.42) { // Calibrated threshold for face-api.js 128D embeddings
+                    return res.status(401).json({ message: 'Verifikasi biometrik wajah tidak cocok.' });
+                }
+            } catch (parseErr) {
+                console.error('Face match parse error:', parseErr);
+                return res.status(401).json({ message: 'Format data biometrik wajah tidak valid.' });
             }
         } else {
             const isValid = await bcrypt.compare(password, user.password_hash);
@@ -291,23 +300,55 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Handle MFA
+        // Handle MFA (Supports both Google Authenticator TOTP and Email OTP Code)
         if (user.mfa_enabled) {
             // Need to query trusted devices
             const { data: devices } = await supabase.from('user_trusted_devices').select('*').eq('user_id', user.id);
-            const isKnownDevice = deviceId && devices.some(d => d.device_fingerprint === deviceId);
+            const isKnownDevice = deviceId && devices && devices.some(d => d.device_fingerprint === deviceId);
 
             if (!isKnownDevice) {
+                const targetEmail = user.email || user.recovery_email || '';
+                const parts = targetEmail.split('@');
+                const masked = parts[0] && parts[0].length > 2 
+                    ? `${parts[0].charAt(0)}***${parts[0].slice(-1)}@${parts[1] || 'deaglobalniaga.com'}`
+                    : `${(parts[0] || 'u').charAt(0)}***@${parts[1] || 'deaglobalniaga.com'}`;
+
                 if (!mfaToken) {
-                    return res.status(403).json({ requireMfa: true, message: 'MFA required for new device' });
+                    return res.status(403).json({ 
+                        requireMfa: true, 
+                        emailMasked: masked,
+                        userId: user.id,
+                        username: user.username,
+                        message: 'Verifikasi Masuk 2-Langkah (MFA) diperlukan' 
+                    });
                 }
-                const verified = speakeasy.totp.verify({
-                    secret: user.mfa_secret,
-                    encoding: 'base32',
-                    token: mfaToken
-                });
+
+                let verified = false;
+
+                // 1. Check Google Authenticator / App TOTP
+                if (user.mfa_secret && mfaToken) {
+                    try {
+                        verified = speakeasy.totp.verify({
+                            secret: user.mfa_secret,
+                            encoding: 'base32',
+                            token: String(mfaToken).trim(),
+                            window: 1
+                        });
+                    } catch (totpErr) {}
+                }
+
+                // 2. Check Email OTP Code
+                if (!verified && user.reset_otp && user.reset_otp_expires_at && mfaToken) {
+                    const isOtpMatch = String(user.reset_otp).trim() === String(mfaToken).trim();
+                    const isNotExpired = new Date() < new Date(user.reset_otp_expires_at);
+                    if (isOtpMatch && isNotExpired) {
+                        verified = true;
+                        await supabase.from('users').update({ reset_otp: null, reset_otp_expires_at: null }).eq('id', user.id);
+                    }
+                }
+
                 if (!verified) {
-                    return res.status(401).json({ message: 'Kode MFA tidak valid' });
+                    return res.status(401).json({ message: 'Kode MFA / OTP Email tidak valid atau telah kedaluwarsa' });
                 }
             }
         }
@@ -492,14 +533,16 @@ exports.updateProfile = async (req, res) => {
         employeeUpdates.nama_lengkap = targetName;
     }
 
-    if (updates.no_handphone !== undefined) employeeUpdates.no_handphone = updates.no_handphone;
-    if (updates.alamat !== undefined) employeeUpdates.alamat = updates.alamat;
+    if (updates.nik !== undefined || updates.no_ktp !== undefined) employeeUpdates.nik = updates.nik || updates.no_ktp;
+    if (updates.nomor_pkwt !== undefined || updates.no_pkwt !== undefined) employeeUpdates.nomor_pkwt = updates.nomor_pkwt || updates.no_pkwt;
+    if (updates.no_handphone !== undefined || updates.no_hp !== undefined || updates.phone !== undefined) employeeUpdates.no_handphone = updates.no_handphone || updates.no_hp || updates.phone;
+    if (updates.alamat !== undefined || updates.address !== undefined) employeeUpdates.alamat = updates.alamat || updates.address;
     if (updates.agama !== undefined) employeeUpdates.agama = updates.agama;
     if (updates.status_perkawinan !== undefined) employeeUpdates.status_perkawinan = updates.status_perkawinan;
-    if (updates.tempat_lahir !== undefined) employeeUpdates.tempat_lahir = updates.tempat_lahir;
-    if (updates.tanggal_lahir !== undefined) employeeUpdates.tanggal_lahir = updates.tanggal_lahir;
-    if (updates.pendidikan !== undefined) employeeUpdates.pendidikan = updates.pendidikan;
-    if (updates.jurusan !== undefined) employeeUpdates.jurusan = updates.jurusan;
+    if (updates.tempat_lahir !== undefined || updates.birth_place !== undefined) employeeUpdates.tempat_lahir = updates.tempat_lahir || updates.birth_place;
+    if (updates.tanggal_lahir !== undefined || updates.birth_date !== undefined) employeeUpdates.tanggal_lahir = updates.tanggal_lahir || updates.birth_date;
+    if (updates.pendidikan !== undefined || updates.education !== undefined || updates.pendidikan_terakhir !== undefined) employeeUpdates.pendidikan = updates.pendidikan || updates.education || updates.pendidikan_terakhir;
+    if (updates.jurusan !== undefined || updates.major !== undefined) employeeUpdates.jurusan = updates.jurusan || updates.major;
 
     // Contact details mapping
     if (updates.email_office !== undefined) detailUpdates.email_office = updates.email_office;
@@ -749,16 +792,71 @@ exports.setupPassword = async (req, res) => {
 exports.requestMfa = async (req, res) => {
     try {
         const secret = speakeasy.generateSecret({ length: 20 });
-        const { data: user } = await supabase.from('users').select('username').eq('id', req.userId).single();
+        const { data: user } = await supabase.from('users').select('username, email').eq('id', req.userId).single();
         
         await supabase.from('users').update({ mfa_secret: secret.base32 }).eq('id', req.userId);
         
-        const url = speakeasy.otpauthURL({ secret: secret.ascii, label: `HRIS:${user.username}`, issuer: 'PT DEA GLOBAL NIAGA' });
+        const url = speakeasy.otpauthURL({ secret: secret.ascii, label: `HRIS:${user?.username || 'User'}`, issuer: 'PT DEA GLOBAL NIAGA' });
         QRCode.toDataURL(url, (err, data_url) => {
             if (err) throw err;
-            res.json({ qrCodeUrl: data_url, secret: secret.base32 });
+            res.json({ qrCodeUrl: data_url, secret: secret.base32, email: user?.email });
         });
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// Send OTP code to user's registered email for 2-Factor Authentication
+exports.sendMfaEmailOtp = async (req, res) => {
+    try {
+        const { username, email, userId } = req.body;
+        const targetUserId = req.userId || userId;
+        
+        let user = null;
+        if (targetUserId) {
+            const { data } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', targetUserId).maybeSingle();
+            user = data;
+        } else if (username || email) {
+            const cleanIdent = (username || email).trim();
+            const { data } = await supabase.from('users').select('id, username, email, recovery_email')
+                .or(`username.ilike.${cleanIdent},email.ilike.${cleanIdent}`)
+                .maybeSingle();
+            user = data;
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
+        }
+
+        const targetEmail = user.email || user.recovery_email;
+        if (!targetEmail) {
+            return res.status(400).json({ message: 'Tidak ada email terdaftar untuk mengirim kode verifikasi' });
+        }
+
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+
+        await supabase.from('users').update({
+            reset_otp: otpCode,
+            reset_otp_expires_at: expiresAt
+        }).eq('id', user.id);
+
+        const { sendMfaOtpEmail } = require('../utils/mailer');
+        await sendMfaOtpEmail(targetEmail, otpCode, 5);
+
+        // Mask email for privacy (e.g. j***@gmail.com)
+        const parts = targetEmail.split('@');
+        const masked = parts[0] && parts[0].length > 2 
+            ? `${parts[0].charAt(0)}***${parts[0].slice(-1)}@${parts[1] || 'deaglobalniaga.com'}`
+            : `${(parts[0] || 'u').charAt(0)}***@${parts[1] || 'deaglobalniaga.com'}`;
+
+        res.json({
+            success: true,
+            message: `Kode verifikasi 6 digit telah dikirim ke email ${masked}`,
+            emailMasked: masked
+        });
+    } catch (err) {
+        console.error('Send MFA Email OTP error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -766,13 +864,36 @@ exports.requestMfa = async (req, res) => {
 exports.verifyMfa = async (req, res) => {
     const { token } = req.body;
     try {
-        const { data: user } = await supabase.from('users').select('mfa_secret').eq('id', req.userId).single();
-        const verified = speakeasy.totp.verify({ secret: user.mfa_secret, encoding: 'base32', token });
+        const { data: user } = await supabase.from('users').select('mfa_secret, reset_otp, reset_otp_expires_at').eq('id', req.userId).single();
+        let verified = false;
+
+        // 1. Check Google Authenticator / TOTP
+        if (user?.mfa_secret && token) {
+            try {
+                verified = speakeasy.totp.verify({
+                    secret: user.mfa_secret,
+                    encoding: 'base32',
+                    token: String(token).trim(),
+                    window: 1
+                });
+            } catch (e) {}
+        }
+
+        // 2. Check Email OTP
+        if (!verified && user?.reset_otp && user?.reset_otp_expires_at && token) {
+            const isOtpMatch = String(user.reset_otp).trim() === String(token).trim();
+            const isNotExpired = new Date() < new Date(user.reset_otp_expires_at);
+            if (isOtpMatch && isNotExpired) {
+                verified = true;
+                await supabase.from('users').update({ reset_otp: null, reset_otp_expires_at: null }).eq('id', req.userId);
+            }
+        }
+
         if (verified) {
             await supabase.from('users').update({ mfa_enabled: true }).eq('id', req.userId);
-            res.json({ message: 'MFA setup verified and enabled' });
+            res.json({ message: 'Autentikasi 2-Langkah (MFA) berhasil diverifikasi dan diaktifkan!' });
         } else {
-            res.status(400).json({ message: 'Invalid token' });
+            res.status(400).json({ message: 'Kode verifikasi salah atau telah kedaluwarsa' });
         }
     } catch (err) {
         res.status(500).json({ error: err.message });

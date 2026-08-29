@@ -60,6 +60,71 @@ body {
   filter: blur(64px);
 }
 
+/* Route & Page Transitions - Blur In */
+@keyframes page-blur-in {
+  0% {
+    opacity: 0;
+    filter: blur(10px);
+    transform: scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: scale(1);
+  }
+}
+
+.page-blur-in {
+  animation: page-blur-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: filter, opacity, transform;
+}
+
+/* Orbiting Rings Animations for Auth Transition */
+@keyframes orbit-rotate-1 {
+  0% {
+    transform: rotate(0deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(1.05);
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+  }
+}
+
+@keyframes orbit-rotate-2 {
+  0% {
+    transform: rotate(360deg) scale(1);
+  }
+  50% {
+    transform: rotate(180deg) scale(0.95);
+  }
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes orbit-rotate-3 {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(-360deg);
+  }
+}
+
+.animate-orbit-1 {
+  animation: orbit-rotate-1 4.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.animate-orbit-2 {
+  animation: orbit-rotate-2 6s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+}
+
+.animate-orbit-3 {
+  animation: orbit-rotate-3 8s linear infinite;
+}
+
 /* High-Tech Loading Animations */
 @keyframes scan {
   0% {

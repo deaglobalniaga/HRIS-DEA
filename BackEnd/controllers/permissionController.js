@@ -79,7 +79,7 @@ exports.post_permissions = async (req, res) => {
 
         if (error) throw error;
 
-        await notifyRole('hr', 'Pengajuan Izin', `${emp.nama_lengkap} mengajukan ${type || 'Izin'}.`);
+        await notifyRole('hr', 'Pengajuan Izin', `${emp.nama_lengkap} mengajukan ${type || 'Izin'}.`, 'leave_request', '/attendance-hub');
 
         res.status(201).json({ message: 'Pengajuan izin berhasil dibuat', data });
     } catch (err) {
@@ -108,7 +108,9 @@ exports.put_permissions_id_status = async (req, res) => {
             await createNotification({
                 userId: empData.user_id,
                 title: 'Status Pengajuan Izin',
-                message: `Pengajuan ${data.leave_type} Anda telah diubah statusnya menjadi ${status}.`
+                message: `Pengajuan ${data.leave_type} Anda telah diubah statusnya menjadi ${status}.`,
+                type: status === 'Rejected' ? 'leave_rejected' : 'leave_approved',
+                link: '/attendance-hub'
             });
         }
 

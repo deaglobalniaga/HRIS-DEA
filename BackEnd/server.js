@@ -134,6 +134,18 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
     console.error('Unhandled Application Error:', err);
+
+    if (err.name === 'MulterError') {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+            return res.status(400).json({ error: 'Ukuran file terlalu besar! Maksimal ukuran file adalah 15MB.' });
+        }
+        return res.status(400).json({ error: `Gagal mengunggah file: ${err.message}` });
+    }
+
+    if (err.message && (err.message.includes('Tipe berkas') || err.message.includes('Hanya file'))) {
+        return res.status(400).json({ error: err.message });
+    }
+
     res.status(500).json({ error: 'Terjadi kesalahan pada server. Permintaan telah diamankan.' });
 });
 

@@ -145,7 +145,79 @@ const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
     }
 };
 
+/**
+ * Sends MFA 2-Factor Authentication OTP code via email
+ */
+const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
+    const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+            <div style="text-align: center; margin-bottom: 24px;">
+                <div style="display: inline-block; background: #fee2e2; border: 1px solid #fca5a5; width: 48px; height: 48px; border-radius: 12px; line-height: 48px; font-size: 22px;">
+                    🛡️
+                </div>
+                <h2 style="color: #0f172a; font-size: 20px; font-weight: 800; margin: 12px 0 4px 0;">Verifikasi Masuk 2-Langkah (MFA)</h2>
+                <p style="color: #64748b; font-size: 13px; margin: 0;">Sistem Keamanan HRIS PT DEA GLOBAL NIAGA</p>
+            </div>
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
+                <p style="color: #334155; font-size: 13px; margin: 0 0 12px 0;">Gunakan kode verifikasi berikut untuk menyelesaikan proses masuk:</p>
+                <div style="background: #ffffff; border: 2px dashed #dc2626; border-radius: 10px; padding: 14px 20px; display: inline-block; letter-spacing: 8px; font-size: 30px; font-weight: 900; color: #991b1b; font-family: monospace;">
+                    ${otpCode}
+                </div>
+                <p style="color: #64748b; font-size: 11px; margin: 12px 0 0 0;">
+                    Kode ini berlaku selama <strong>${minutesValid} menit</strong>.
+                </p>
+            </div>
+
+            <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 12px 16px; margin-bottom: 20px;">
+                <p style="color: #991b1b; font-size: 11px; margin: 0; line-height: 1.4; font-weight: 600;">
+                    ⚠️ <strong>Keamanan:</strong> Jangan bagikan kode ini kepada siapapun termasuk pihak yang mengatasnamakan HR atau Tim IT.
+                </p>
+            </div>
+
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                Email ini dibuat secara otomatis oleh Sistem Keamanan HRIS PT DEA GLOBAL NIAGA.
+            </p>
+        </div>
+    `;
+
+    console.log(`\n========================================`);
+    console.log(`🛡️ [MFA EMAIL OTP] To: ${to}`);
+    console.log(`🔢 OTP Code: ${otpCode}`);
+    console.log(`⏱️ Valid for: ${minutesValid} Minutes`);
+    console.log(`========================================\n`);
+
+    if (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'smtp.ethereal.email') {
+        try {
+            const info = await transporter.sendMail({
+                from: '"HRIS DGN Security" <security@deaglobalniaga.com>',
+                to: to,
+                subject: `[HRIS DGN] Kode Verifikasi 2-Langkah (MFA): ${otpCode}`,
+                html: htmlContent
+            });
+            console.log('MFA Email preview URL:', nodemailer.getTestMessageUrl(info));
+        } catch (e) {
+            console.log('Local mailer simulated (MFA OTP logged to console).');
+        }
+        return { success: true, simulated: true };
+    }
+
+    try {
+        const info = await transporter.sendMail({
+            from: '"HRIS DGN Security" <no-reply@deaglobalniaga.com>',
+            to: to,
+            subject: `[HRIS DGN] Kode Verifikasi 2-Langkah (MFA): ${otpCode}`,
+            html: htmlContent
+        });
+        return { success: true, messageId: info.messageId };
+    } catch (err) {
+        console.error('Failed to send MFA OTP email:', err);
+        return { success: false, error: err.message };
+    }
+};
+
 module.exports = {
     sendRequestNotification,
-    sendPasswordResetOtpEmail
+    sendPasswordResetOtpEmail,
+    sendMfaOtpEmail
 };

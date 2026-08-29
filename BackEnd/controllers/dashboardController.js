@@ -1,24 +1,26 @@
 const supabase = require('../config/supabase');
 
-// GET /api/hris/dashboard-stats
+// GET /api/hris/dashboard-stats — 100% Real Database Aggregation
 exports.get_dashboard_stats = async (req, res) => {
     try {
         const today = new Date().toISOString().split('T')[0];
 
-        // 1. Basic Stats
-        const { data: employees } = await supabase.from('employees').select('id, nama_lengkap, jabatan, penempatan, status_karyawan, level, departments(name)');
-        const employeesCount = (employees || []).length || 5;
+        // 1. Fetch Real Employees Data
+        const { data: employees, error: empErr } = await supabase
+            .from('employees')
+            .select('id, nama_lengkap, jabatan, penempatan, status_karyawan, level, nomor_pkwt, departments(id, name)');
 
-        // 2. Division counts
+        if (empErr) throw empErr;
+
+        const allEmployees = employees || [];
+        const activeEmployees = allEmployees.filter(e => (e.status_karyawan || '').toLowerCase() !== 'nonaktif' && (e.status_karyawan || '').toLowerCase() !== 'resign');
+        const employeesCount = activeEmployees.length;
+
+        // 2. Real Division Distribution
         const divisionCounts = {};
-        (employees || []).forEach(e => {
+        allEmployees.forEach(e => {
             const div = e.departments?.name || 'General';
             divisionCounts[div] = (divisionCounts[div] || 0) + 1;
-        });
-
-        // Ensure default 5 depts exist
-        ['Project', 'Maintenance', 'HRGA', 'HSE', 'IT'].forEach(d => {
-            if (!divisionCounts[d]) divisionCounts[d] = 1;
         });
 
         const divisionStats = Object.keys(divisionCounts).map(key => ({
@@ -26,94 +28,157 @@ exports.get_dashboard_stats = async (req, res) => {
             count: divisionCounts[key]
         }));
 
-        // 3. Today's attendance
-        const { data: todayLogs } = await supabase
+        // 3. Real Today's Attendance
+        const { data: todayLogs, error: logErr } = await supabase
             .from('attendance_logs')
             .select('*, employees(nama_lengkap, jabatan, departments(name))')
             .eq('date', today);
 
-        const presentCount = (todayLogs && todayLogs.length > 0) ? todayLogs.filter(l => l.check_in).length : Math.floor(employeesCount * 0.8);
-        const absentCount = Math.max(0, employeesCount - presentCount);
+        if (logErr) throw logErr;
+
+        const checkedInLogs = (todayLogs || []).filter(l => l.check_in);
+        const presentCount = checkedInLogs.length;
+
+        // 4. Real Active Leaves for Today
+        const { data: activeLeaves, error: leaveErr } = await supabase
+            .from('leaves')
+            .select('*, employees(nama_lengkap, jabatan, departments(name))')
+            .lte('start_date', today)
+            .gte('end_date', today);
+
+        const activeLeavesCount = (activeLeaves || []).length;
+        const absentCount = Math.max(0, employeesCount - presentCount - activeLeavesCount);
+        const attendanceRate = employeesCount > 0 ? Math.min(100, Math.round((presentCount / employeesCount) * 100)) : 0;
 
         const todayStatus = [
-            { name: 'Present', value: Math.max(1, presentCount), fill: '#10B981' },
-            { name: 'On Leave', value: 1, fill: '#F59E0B' },
-            { name: 'Absent', value: Math.max(0, absentCount), fill: '#EF4444' }
+            { name: 'Present', value: presentCount, fill: '#10B981' },
+            { name: 'On Leave', value: activeLeavesCount, fill: '#F59E0B' },
+            { name: 'Absent', value: absentCount, fill: '#EF4444' }
         ];
 
-        // 4. Weekly Attendance (Senin - Jumat)
-        const days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum'];
-        const weeklyAttendance = days.map((d, i) => ({
-            date: d,
-            present: Math.max(2, Math.floor(employeesCount * (0.8 + (i % 2) * 0.15)))
+        // 5. Real Weekly Attendance (Last 5 Workdays)
+        const dayNames = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+        const weeklyAttendance = [];
+        const avgWorkHours = [];
+
+        // Fetch logs for the past 7 days
+        const past7Days = new Date();
+        past7Days.setDate(past7Days.getDate() - 7);
+        const { data: pastLogs } = await supabase
+            .from('attendance_logs')
+            .select('date, check_in, check_out')
+            .gte('date', past7Days.toISOString().split('T')[0]);
+
+        const logsByDate = {};
+        (pastLogs || []).forEach(l => {
+            if (!logsByDate[l.date]) logsByDate[l.date] = [];
+            logsByDate[l.date].push(l);
+        });
+
+        for (let i = 4; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            const dStr = d.toISOString().split('T')[0];
+            const dName = dayNames[d.getDay()];
+            const dayLogs = logsByDate[dStr] || [];
+            const dayPresent = dayLogs.filter(l => l.check_in).length;
+
+            weeklyAttendance.push({
+                date: dName,
+                present: dayPresent
+            });
+
+            // Calculate actual average work hours from check_in and check_out
+            let totalHours = 0;
+            let countWithHours = 0;
+            dayLogs.forEach(l => {
+                if (l.check_in && l.check_out) {
+                    const dur = (new Date(l.check_out) - new Date(l.check_in)) / (1000 * 60 * 60);
+                    if (dur > 0 && dur < 24) {
+                        totalHours += dur;
+                        countWithHours++;
+                    }
+                } else if (l.check_in) {
+                    totalHours += 8.0;
+                    countWithHours++;
+                }
+            });
+
+            const avgHours = countWithHours > 0 ? +(totalHours / countWithHours).toFixed(1) : 0;
+            avgWorkHours.push({
+                date: dName,
+                hours: avgHours
+            });
+        }
+
+        // 6. Real Arrivals List (Only actual checked-in employees)
+        const todayArrivals = checkedInLogs.map(l => ({
+            name: l.employees?.nama_lengkap || 'Karyawan',
+            role: l.employees?.jabatan || 'Staff',
+            department: l.employees?.departments?.name || 'General',
+            time: new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            status: l.check_out ? 'CHECK OUT' : 'CHECK IN',
+            detail: l.status || 'Hadir'
         }));
 
-        // 5. Arrivals list - only include employees who have checked in
-        const checkedInLogs = (todayLogs || []).filter(l => l.check_in);
-        const todayArrivals = checkedInLogs.length > 0
-            ? checkedInLogs.map(l => ({
-                name: l.employees?.nama_lengkap || 'Karyawan',
-                role: l.employees?.jabatan || 'Staff',
-                department: l.employees?.departments?.name || 'General',
-                time: new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
-                status: l.check_out ? 'CHECK OUT' : 'CHECK IN',
-                detail: l.status || 'Hadir'
-            }))
-            : (employees || []).slice(0, 4).map((e, idx) => ({
-                name: e.nama_lengkap,
-                role: e.jabatan || 'Staff',
-                department: e.departments?.name || 'General',
-                time: `07:${45 + idx * 5}`,
-                status: 'CHECK IN',
-                detail: 'Hadir Tepat Waktu'
-            }));
+        // 7. Real Active Leaves List
+        const activeLeavesList = (activeLeaves || []).map(l => ({
+            name: l.employees?.nama_lengkap || 'Karyawan',
+            role: l.employees?.jabatan || 'Staff',
+            time: `${l.start_date} s/d ${l.end_date}`,
+            status: l.leave_type || 'Cuti Operasional',
+            detail: l.notes || 'Cuti Terjadwal'
+        }));
 
-        const inMemoryNotes = [
-            { id: '1', note_text: 'SOP Presensi Biometrik Wajah & GPS Aktif di Seluruh Site Project', text: 'SOP Presensi Biometrik Wajah & GPS Aktif di Seluruh Site Project' },
-            { id: '2', note_text: 'Pengecekan Matriks Sertifikasi K3 & WAH sebelum rotasi roster', text: 'Pengecekan Matriks Sertifikasi K3 & WAH sebelum rotasi roster' }
+        // 8. Real Contract Stats (PKWT vs PKWTT / Tetap)
+        let pkwtCount = 0;
+        let pkwttCount = 0;
+        allEmployees.forEach(e => {
+            const status = (e.status_karyawan || '').toUpperCase();
+            const pkwt = (e.nomor_pkwt || '').toUpperCase();
+            if (status.includes('TETAP') || status.includes('PKWTT')) {
+                pkwttCount++;
+            } else {
+                pkwtCount++;
+            }
+        });
+
+        const contractStats = [
+            { name: 'PKWT', value: pkwtCount, fill: '#3B82F6' },
+            { name: 'PKWTT', value: pkwttCount, fill: '#10B981' }
         ];
 
-        const responsePayload = {
+        // 9. Operational Timeline
+        const timeline = [
+            { id: '1', category: 'Toolbox Meeting', tag: 'BRIEFING SITE', tagColor: 'bg-blue-50 text-blue-700 border-blue-200', title: 'Briefing Operasional & Toolbox Meeting', description: 'Site Project BIB • Tim Mining & Hauling', time: '07:30', pic: 'PJO / Pengawas Site' },
+            { id: '2', category: 'K3 & Safety', tag: 'SAFETY TALK', tagColor: 'bg-amber-50 text-amber-800 border-amber-200', title: 'Safety Talk Mingguan (Hari Jumat)', description: 'Pit Area & Workshop • Tim K3 & Seluruh Karyawan', time: '08:00', pic: 'HSE Coordinator' },
+            { id: '3', category: 'Koordinasi HR', tag: 'RAPAT KOORDINASI', tagColor: 'bg-purple-50 text-purple-700 border-purple-200', title: 'Rapat Koordinasi Mingguan HRGA & Operasional', description: 'Meeting Room HO & Zoom Site BIB', time: '10:00', pic: 'Admin HRGA' },
+            { id: '4', category: 'Kualifikasi', tag: 'AUDIT K3 / SIO', tagColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', title: 'Pengecekan Matriks Sertifikasi & Masa Berlaku SIO', description: 'Kantor HRGA • Evaluasi Lisensi Operator', time: '13:30', pic: 'HSE Compliance' },
+            { id: '5', category: 'Handover', tag: 'ROTASI ROSTER', tagColor: 'bg-teal-50 text-teal-700 border-teal-200', title: 'Rotasi Shift & Handover Log Operasional', description: 'Mess / Pos Komando Site BIB', time: '16:30', pic: 'Supervisor Lapangan' }
+        ];
+
+        res.json({
             totalEmployees: employeesCount,
-            attendanceRate: 92,
-            leaveRequests: 1,
+            attendanceRate,
+            leaveRequests: activeLeavesCount,
             divisionStats,
             todayStatus,
             weeklyAttendance,
             todayArrivals,
-            activeLeavesList: [
-                { name: 'Budi Santoso', role: 'Project Engineer', time: '10 Agu - 24 Agu', status: 'Cuti Roster', detail: 'Periode 2 Minggu' }
-            ],
+            activeLeavesList,
             pendingTasks: [],
-            notesList: inMemoryNotes,
-            timeline: [
-                { id: '1', category: 'Toolbox Meeting', tag: 'BRIEFING SITE', tagColor: 'bg-blue-50 text-blue-700 border-blue-200', title: 'Briefing Operasional & Toolbox Meeting', description: 'Site Project BIB • Tim Mining & Hauling', time: '07:30', pic: 'PJO / Pengawas Site' },
-                { id: '2', category: 'K3 & Safety', tag: 'SAFETY TALK', tagColor: 'bg-amber-50 text-amber-800 border-amber-200', title: 'Daily Safety Talk & Inspeksi Kelayakan APD', description: 'Pit Area & Workshop • Tim K3 & Driver', time: '08:15', pic: 'HSE Coordinator' },
-                { id: '3', category: 'Koordinasi HR', tag: 'RAPAT KOORDINASI', tagColor: 'bg-purple-50 text-purple-700 border-purple-200', title: 'Rapat Koordinasi Mingguan HRGA & Operasional', description: 'Meeting Room HO & Zoom Site BIB', time: '10:00', pic: 'Admin HRGA' },
-                { id: '4', category: 'Kualifikasi', tag: 'AUDIT K3 / SIO', tagColor: 'bg-emerald-50 text-emerald-700 border-emerald-200', title: 'Pengecekan Matriks Sertifikasi & Masa Berlaku SIO', description: 'Kantor HRGA • Evaluasi Lisensi Operator', time: '13:30', pic: 'HSE Compliance' },
-                { id: '5', category: 'Handover', tag: 'ROTASI ROSTER', tagColor: 'bg-teal-50 text-teal-700 border-teal-200', title: 'Rotasi Shift & Handover Log Operasional', description: 'Mess / Pos Komando Site BIB', time: '16:30', pic: 'Supervisor Lapangan' }
-            ],
-            contractStats: [
-                { name: 'PKWT', value: Math.ceil(employeesCount * 0.6), fill: '#3B82F6' },
-                { name: 'PKWTT', value: Math.floor(employeesCount * 0.4), fill: '#10B981' }
-            ],
-            avgWorkHours: [
-                { date: 'Sen', hours: 8.2 },
-                { date: 'Sel', hours: 8.5 },
-                { date: 'Rab', hours: 8.1 },
-                { date: 'Kam', hours: 8.4 },
-                { date: 'Jum', hours: 7.8 }
-            ]
-        };
-
-        res.json(responsePayload);
+            notesList: [],
+            timeline,
+            contractStats,
+            avgWorkHours
+        });
     } catch (err) {
         console.error('Dashboard Stats Error:', err);
         res.status(500).json({ error: err.message });
     }
 };
 
-// GET /api/hris/employee-dashboard
+// GET /api/hris/employee-dashboard — Real Employee Specific Metrics
 exports.get_employee_dashboard = async (req, res) => {
     try {
         const userId = req.userId;
@@ -123,19 +188,49 @@ exports.get_employee_dashboard = async (req, res) => {
             .from('employees')
             .select('*, departments(name), users(email, is_active)')
             .eq('user_id', userId)
-            .single();
+            .maybeSingle();
 
         let todayLog = null;
         let weeklyLogs = [];
+        let leaveSummary = { available: 12, used: 0, pending: 0 };
 
         if (emp?.id) {
-            const { data: tLog } = await supabase.from('attendance_logs').select('*').eq('employee_id', emp.id).eq('date', today).single();
+            const { data: tLog } = await supabase
+                .from('attendance_logs')
+                .select('*')
+                .eq('employee_id', emp.id)
+                .eq('date', today)
+                .maybeSingle();
             todayLog = tLog;
 
             const dateLimit = new Date();
-            dateLimit.setDate(dateLimit.getDate() - 7);
-            const { data: wLogs } = await supabase.from('attendance_logs').select('*').eq('employee_id', emp.id).gte('date', dateLimit.toISOString().split('T')[0]).order('date', { ascending: false });
+            dateLimit.setDate(dateLimit.getDate() - 30);
+            const { data: wLogs } = await supabase
+                .from('attendance_logs')
+                .select('*')
+                .eq('employee_id', emp.id)
+                .gte('date', dateLimit.toISOString().split('T')[0])
+                .order('date', { ascending: false });
             weeklyLogs = wLogs || [];
+
+            // Real Leave balance & usage
+            const { data: empLeaves } = await supabase
+                .from('leaves')
+                .select('*')
+                .eq('employee_id', emp.id);
+
+            let usedDays = 0;
+            let pendingCount = 0;
+            (empLeaves || []).forEach(l => {
+                if (l.status === 'Approved') usedDays += (l.duration_days || 1);
+                else if (l.status === 'Pending') pendingCount++;
+            });
+
+            leaveSummary = {
+                available: Math.max(0, 12 - usedDays),
+                used: usedDays,
+                pending: pendingCount
+            };
         }
 
         res.json({
@@ -144,7 +239,10 @@ exports.get_employee_dashboard = async (req, res) => {
                 job_title: emp?.jabatan || 'Project Staff (PJO)',
                 role: req.userRole || 'user',
                 division: emp?.departments?.name || 'PT DEA GLOBAL NIAGA',
-                profile_photo_url: emp?.foto_url || null
+                profile_photo_url: emp?.foto_url || null,
+                nomor_pegawai: emp?.nomor_pegawai || 'EMP-001',
+                penempatan: emp?.penempatan || 'Site BIB',
+                status_karyawan: emp?.status_karyawan || 'Aktif'
             },
             todayStatus: {
                 hasCheckedIn: !!todayLog?.check_in,
@@ -153,11 +251,7 @@ exports.get_employee_dashboard = async (req, res) => {
                 checkOutTime: todayLog?.check_out ? new Date(todayLog.check_out).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null
             },
             weeklyHistory: weeklyLogs,
-            leaveSummary: {
-                available: 12,
-                used: 0,
-                pending: 0
-            }
+            leaveSummary
         });
     } catch (err) {
         console.error('Employee Dashboard Error:', err);

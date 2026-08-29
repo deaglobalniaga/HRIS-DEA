@@ -384,30 +384,36 @@ const CompanySettings = () => {
   const mapCenter = [activeLocation.lat, activeLocation.lng];
 
   return (
-    <div className="w-full bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden font-sans">
+    <div className="w-full bg-white/80 backdrop-blur-2xl rounded-[32px] shadow-xl shadow-slate-200/50 border border-white/80 ring-1 ring-slate-900/5 overflow-hidden font-sans">
       {/* Top Tabs Navigation */}
-      <div className="border-b border-slate-100 p-4 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3">
+      <div className="border-b border-slate-200/60 p-4 bg-white/40 backdrop-blur-md flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-1.5">
           <button
             onClick={() => setActiveTab('geofencing')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'geofencing' ? 'bg-red-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'geofencing'
+                ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             <MapPin size={15} /> Peta Lokasi & Geofencing
           </button>
           <button
             onClick={() => setActiveTab('identity')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'identity' ? 'bg-red-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'identity'
+                ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             <Building2 size={15} /> Identitas & Kontak
           </button>
           <button
             onClick={() => setActiveTab('attendance_policy')}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-              activeTab === 'attendance_policy' ? 'bg-red-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+            className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+              activeTab === 'attendance_policy'
+                ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
             }`}
           >
             <Clock size={15} /> Kebijakan Jam Kerja
@@ -415,8 +421,10 @@ const CompanySettings = () => {
           {isSuperAdmin && (
             <button
               onClick={() => setActiveTab('jwt_security')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                activeTab === 'jwt_security' ? 'bg-red-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'jwt_security'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Key size={15} /> Keamanan JWT & TTL Sesi
@@ -425,8 +433,10 @@ const CompanySettings = () => {
           {isSuperAdmin && (
             <button
               onClick={() => setActiveTab('device_whitelist')}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${
-                activeTab === 'device_whitelist' ? 'bg-red-700 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
+              className={`px-4 py-2 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-2 ${
+                activeTab === 'device_whitelist'
+                  ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
               <Smartphone size={15} /> Whitelist Perangkat
@@ -437,7 +447,7 @@ const CompanySettings = () => {
         <button
           onClick={handleSave}
           disabled={loading}
-          className="px-5 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-2"
+          className="px-5 py-2 bg-red-700 hover:bg-red-800 disabled:opacity-50 text-white text-xs font-black rounded-xl shadow-md shadow-red-900/20 transition-all flex items-center gap-2 cursor-pointer"
         >
           <Save size={15} /> {loading ? 'Menyimpan...' : 'Simpan Pengaturan'}
         </button>
@@ -699,51 +709,6 @@ const CompanySettings = () => {
 
                   <div className="absolute bottom-3 right-3 z-[1000] bg-white/90 backdrop-blur-md px-3 py-1 rounded-lg border border-slate-200 text-[10px] font-mono font-bold text-slate-700 shadow-md">
                     Lat: {activeLocation.lat}, Lng: {activeLocation.lng} (Radius {activeLocation.radius}m)
-                  </div>
-                </div>
-
-                {/* Office WiFi / Network Enforcement Toggle */}
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 flex items-center justify-between mt-4">
-                  <div className="space-y-0.5 pr-4">
-                    <div className="flex items-center gap-2">
-                      <Wifi size={16} className="text-red-700" />
-                      <span className="text-xs font-bold text-slate-800">Wajibkan Presensi Terhubung WiFi / Jaringan Kantor</span>
-                    </div>
-                    <p className="text-[11px] text-slate-500">
-                      Jika diaktifkan, karyawan kantor wajib terhubung ke WiFi/IP kantor untuk presensi. Karyawan lapangan/site otomatis mendapatkan izin bypass presensi langsung.
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
-                    <input
-                      type="checkbox"
-                      checked={settings.wifi_enforced === true || settings.wifi_enforced === 'true'}
-                      onChange={(e) => setSettings({ ...settings, wifi_enforced: e.target.checked })}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-700"></div>
-                  </label>
-                </div>
-
-                <div className="pt-3">
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="block text-slate-800 font-bold text-xs flex items-center gap-1.5">
-                        <Server size={15} className="text-red-700" /> IP Public Kantor / Subnet Whitelist
-                      </label>
-                      <span className="text-[10px] text-slate-400 font-mono">
-                        Contoh: 36.83.26.5, 36.83.26.0/24
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      placeholder="0.0.0.0/0 (Pisahkan dengan koma jika ada beberapa line internet)"
-                      value={settings.allowed_ips || ''}
-                      onChange={(e) => setSettings({ ...settings, allowed_ips: e.target.value })}
-                      className="w-full px-3.5 py-2.5 bg-white rounded-xl border border-slate-200 focus:ring-2 focus:ring-red-900/20 focus:border-red-900 outline-none text-xs font-mono font-bold"
-                    />
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      💡 <strong>Catatan Teknis:</strong> Masukkan <strong>IP Public / WAN</strong> kantor (bukan IP lokal 192.168.x.x) agar server cloud dapat memvalidasi jaringan kantor secara akurat. Tambahkan subnet <code>/24</code> jika provider internet menggunakan IP dinamis.
-                    </p>
                   </div>
                 </div>
               </div>

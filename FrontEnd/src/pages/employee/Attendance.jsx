@@ -54,6 +54,9 @@ const Attendance = () => {
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [recognizedEmployee, setRecognizedEmployee] = useState(null);
   const [matchScore, setMatchScore] = useState(null);
+  const [faceMismatchError, setFaceMismatchError] = useState(null);
+  const isRecognizingRef = useRef(false);
+  const noFaceCountRef = useRef(0);
 
   // Fetch Company Settings from Superadmin
   const fetchSettings = async () => {
@@ -236,12 +239,12 @@ const Attendance = () => {
     return () => stopCamera();
   }, [fetchLocation, stopCamera, isCameraDisabled]);
 
-  // Real-time Face AI Scanning Loop (Every 350ms for instant face-lock)
+  // Real-time Face AI Scanning Loop (Continuous face-lock)
   useEffect(() => {
     if (isCameraDisabled || !streamActive || !videoRef.current || !modelsLoaded) return;
 
     const interval = setInterval(async () => {
-      if (videoRef.current && videoRef.current.readyState === 4 && !recognizing) {
+      if (videoRef.current && videoRef.current.readyState === 4) {
         const video = videoRef.current;
         const canvas = overlayCanvasRef.current;
 
@@ -251,22 +254,39 @@ const Attendance = () => {
           const ctx = canvas.getContext('2d');
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+          // Fast & accurate 416px detector
           const detection = await faceapi
-            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.30 }))
             .withFaceLandmarks()
             .withFaceDescriptor();
 
           if (detection) {
+            noFaceCountRef.current = 0;
             const resized = faceapi.resizeResults(detection, { width: video.videoWidth, height: video.videoHeight });
             
-            // Draw clean bounding frame
+            // Draw clean bounding frame with futuristic corners
             const { x, y, width, height } = resized.detection.box;
-            ctx.strokeStyle = recognizedEmployee ? '#16a34a' : '#dc2626';
+            ctx.strokeStyle = recognizedEmployee ? '#10b981' : '#ef4444';
             ctx.lineWidth = 3;
             ctx.strokeRect(x, y, width, height);
 
-            // Auto recognize if descriptor available
-            if (detection.descriptor) {
+            // Optional subtle landmark dot overlay for visual verification
+            if (resized.landmarks) {
+              ctx.fillStyle = recognizedEmployee ? 'rgba(16, 185, 129, 0.7)' : 'rgba(239, 68, 68, 0.7)';
+              const positions = resized.landmarks.positions;
+              // Draw select anchor points (eyes, nose, jaw contour)
+              [36, 39, 42, 45, 30, 33, 8].forEach(ptIdx => {
+                if (positions[ptIdx]) {
+                  ctx.beginPath();
+                  ctx.arc(positions[ptIdx].x, positions[ptIdx].y, 2.5, 0, 2 * Math.PI);
+                  ctx.fill();
+                }
+              });
+            }
+
+            // Auto recognize if descriptor available and not already in flight
+            if (detection.descriptor && !isRecognizingRef.current) {
+              isRecognizingRef.current = true;
               setRecognizing(true);
               try {
                 const descriptorArray = Array.from(detection.descriptor);
@@ -277,29 +297,38 @@ const Attendance = () => {
                 if (res.data && res.data.recognized) {
                   setRecognizedEmployee(res.data.employee);
                   setMatchScore(res.data.confidence);
+                  setFaceMismatchError(null);
                 } else {
                   setRecognizedEmployee(null);
                   setMatchScore(null);
+                  setCountdown(null);
+                  if (res.data?.message) {
+                    setFaceMismatchError(res.data.message);
+                  }
                 }
               } catch (e) {
-                setRecognizedEmployee(null);
-                setMatchScore(null);
+                // Ignore transient network errors
               } finally {
+                isRecognizingRef.current = false;
                 setRecognizing(false);
               }
             }
           } else {
-            // No face in frame - immediately revoke verified state & cancel countdown
-            setRecognizedEmployee(null);
-            setMatchScore(null);
-            setCountdown(null);
+            noFaceCountRef.current += 1;
+            // Only clear state after 3 consecutive frames with no face to avoid flicker
+            if (noFaceCountRef.current >= 3) {
+              setRecognizedEmployee(null);
+              setMatchScore(null);
+              setCountdown(null);
+              setFaceMismatchError(null);
+            }
           }
         }
       }
     }, 350);
 
     return () => clearInterval(interval);
-  }, [isCameraDisabled, streamActive, modelsLoaded, recognizing]);
+  }, [isCameraDisabled, streamActive, modelsLoaded]);
 
   // Execute Clock In / Out (Strict Continuous Face Verification & Live Descriptor Snapshot - NO PHOTO SAVED)
   const handleClockAction = async (forcedType) => {
@@ -320,7 +349,7 @@ const Attendance = () => {
 
       // Instant real-time frame snapshot verification at the exact millisecond of click
       const instantDetection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ scoreThreshold: 0.5 }))
+        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.35 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
 
@@ -355,6 +384,8 @@ const Attendance = () => {
     try {
       const res = await api.post('/hris/attendance/clock', {
         employee_id: empId,
+        type: actionType,
+        action: actionType === 'in' ? 'Clock In' : 'Clock Out',
         face_descriptor: liveFaceDescriptor,
         latitude: location.lat || -3.42436,
         longitude: location.lng || 115.99267,
@@ -409,7 +440,7 @@ const Attendance = () => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [recognizedEmployee, attendanceMode, isCameraDisabled, loading, autoTriggered]);
+  }, [recognizedEmployee?.id, attendanceMode, isCameraDisabled, loading, autoTriggered]);
 
   const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   const formattedDateBadge = `${currentTime.getDate()} ${monthNames[currentTime.getMonth()]} ${currentTime.getFullYear()}`;
@@ -467,6 +498,15 @@ const Attendance = () => {
           </div>
         </div>
 
+        {/* Logged in User Account Pill */}
+        <div className="bg-black/60 backdrop-blur-md px-3.5 py-1.5 rounded-2xl text-[11px] font-bold text-slate-200 border border-white/15 flex items-center justify-between shadow-md">
+          <span className="flex items-center gap-1.5 truncate">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0"></span>
+            Akun Login: <strong className="text-white truncate">{user?.nama_lengkap || user?.nama || user?.username}</strong>
+          </span>
+          <span className="text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-lg bg-white/10 text-emerald-300 font-black shrink-0 border border-white/10">{user?.role || 'Karyawan'}</span>
+        </div>
+
         {/* Schedule Mode Warning Banner */}
         <div className={`p-2.5 rounded-2xl flex items-center gap-2 text-[11px] font-bold shadow-lg backdrop-blur-md border transition-all ${
           attendanceMode === 'in'
@@ -499,24 +539,76 @@ const Attendance = () => {
             <div className={`absolute -bottom-1.5 -left-1.5 w-6 h-6 border-b-4 border-l-4 rounded-bl-2xl transition-colors ${recognizedEmployee ? 'border-emerald-400' : 'border-red-500'}`} />
             <div className={`absolute -bottom-1.5 -right-1.5 w-6 h-6 border-b-4 border-r-4 rounded-br-2xl transition-colors ${recognizedEmployee ? 'border-emerald-400' : 'border-red-500'}`} />
 
-            {/* Scanning Status Badge */}
-            {!recognizedEmployee && (
+            {/* Scanning Status Badge or Mismatch Warning */}
+            {faceMismatchError && !recognizedEmployee && (
+              <div className="absolute -bottom-16 left-0 right-0 mx-auto w-[92%] bg-red-950/95 backdrop-blur-md px-3 py-2 rounded-xl text-[10px] font-bold text-red-200 border border-red-500/60 shadow-2xl text-center leading-snug animate-in fade-in">
+                ⚠️ {faceMismatchError}
+              </div>
+            )}
+            {!recognizedEmployee && !faceMismatchError && (
               <div className="absolute bottom-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-bold text-white/90 border border-white/20 animate-pulse">
                 Posisikan Wajah Anda
               </div>
             )}
 
-            {/* Hands-Free Automated Countdown Overlay */}
+            {/* Hands-Free Automated Countdown Overlay with Circular Ring & Instant Buttons */}
             {countdown !== null && (
-              <div className="absolute inset-0 z-30 rounded-[46px] flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
-                <div className="w-20 h-20 rounded-full border-4 border-emerald-400 bg-emerald-950/90 flex flex-col items-center justify-center shadow-2xl animate-pulse">
-                  <span className="text-3xl font-black text-emerald-300 font-mono leading-none">{countdown}</span>
-                  <span className="text-[8px] uppercase tracking-wider font-bold text-emerald-400 mt-0.5">Detik</span>
+              <div className="absolute inset-0 z-30 rounded-[46px] flex flex-col items-center justify-center bg-black/75 backdrop-blur-md p-4 animate-in fade-in">
+                {/* Circular Progress Ring */}
+                <div className="relative w-24 h-24 flex items-center justify-center mb-2">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      className="text-white/10"
+                      strokeWidth="7"
+                      stroke="currentColor"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="42"
+                      className="text-emerald-400 transition-all duration-1000 ease-linear"
+                      strokeWidth="7"
+                      strokeDasharray={264}
+                      strokeDashoffset={264 - (264 * (3 - countdown)) / 3}
+                      strokeLinecap="round"
+                      stroke="currentColor"
+                      fill="transparent"
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center">
+                    <span className="text-3xl font-black text-emerald-300 font-mono leading-none">{countdown}</span>
+                    <span className="text-[8px] uppercase tracking-wider font-bold text-emerald-400 mt-0.5">Detik</span>
+                  </div>
                 </div>
-                <p className="text-xs font-black text-white mt-2.5 text-center drop-shadow-md">
-                  {attendanceMode === 'in' ? 'Otomatis Absen Masuk...' : 'Otomatis Absen Pulang...'}
+
+                <p className="text-xs font-black text-white text-center drop-shadow-md">
+                  {attendanceMode === 'in' ? 'Otomatis Presensi Masuk...' : 'Otomatis Presensi Pulang...'}
                 </p>
-                <p className="text-[10px] text-emerald-300">Wajah Terverifikasi • Jangan Bergerak</p>
+                <p className="text-[10px] text-emerald-300 font-bold mt-0.5">
+                  {recognizedEmployee?.nama_lengkap} ({Math.round((matchScore || 0.95) * 100)}%)
+                </p>
+
+                {/* Instant Skip or Cancel Controls */}
+                <div className="flex items-center gap-2 mt-4 pointer-events-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleClockAction(attendanceMode)}
+                    className="px-3.5 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[11px] rounded-xl shadow-lg transition active:scale-95 flex items-center gap-1"
+                  >
+                    <Sparkles size={13} /> Presensi Langsung
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCountdown(null)}
+                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-bold text-[11px] rounded-xl transition"
+                  >
+                    Batal
+                  </button>
+                </div>
               </div>
             )}
           </div>

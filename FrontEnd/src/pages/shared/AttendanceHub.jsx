@@ -16,12 +16,12 @@ const AttendanceHub = () => {
 
   const location = useLocation();
   const [activeTab, setActiveTab] = useState(location.state?.tab || 'attendance');
+  const [lastStateTab, setLastStateTab] = useState(location.state?.tab);
 
-  useEffect(() => {
-    if (location.state?.tab && canViewTabs) {
-      setActiveTab(location.state.tab);
-    }
-  }, [location.state, canViewTabs]);
+  if (location.state?.tab && location.state.tab !== lastStateTab && canViewTabs) {
+    setLastStateTab(location.state.tab);
+    setActiveTab(location.state.tab);
+  }
 
   // For Superadmin or regular Employee/User, render pure Attendance Scanner directly
   if (!canViewTabs) {

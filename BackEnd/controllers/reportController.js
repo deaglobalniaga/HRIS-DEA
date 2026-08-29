@@ -90,13 +90,39 @@ exports.get_attendance_monthly = async (req, res) => {
             });
 
             const absentDays = Math.max(0, totalWorkDays - hadirDays - cutiDays - sakitDays - izinDays);
+            let totalHours = 0;
+            const mappedLogs = empLogs.map(l => {
+                let dur = 8.0;
+                if (l.check_in && l.check_out) {
+                    const diff = (new Date(l.check_out) - new Date(l.check_in)) / (1000 * 60 * 60);
+                    dur = (diff > 0 && diff < 24) ? +diff.toFixed(1) : 8.0;
+                }
+                totalHours += dur;
+                return {
+                    id: l.id,
+                    date: l.date,
+                    checkIn: l.check_in,
+                    checkOut: l.check_out,
+                    check_in_time: l.check_in ? new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+                    check_out_time: l.check_out ? new Date(l.check_out).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null,
+                    status: l.status || (l.late_minutes > 0 ? 'Terlambat' : 'Tepat Waktu'),
+                    hours: dur,
+                    late_minutes: l.late_minutes || 0,
+                    device_info: l.device_info || 'Presensi Biometrik Wajah AI',
+                    notes: l.notes || '',
+                    created_at: l.created_at || l.check_in
+                };
+            }).sort((a, b) => new Date(b.date) - new Date(a.date));
+
+            totalHours = +totalHours.toFixed(1);
             const attendancePercentage = totalWorkDays > 0 ? Math.min(100, Math.round((hadirDays / totalWorkDays) * 100)) : 0;
-            const totalHours = hadirDays * 8;
+            const lastLog = mappedLogs.length > 0 ? mappedLogs[0] : null;
 
             return {
                 id: emp.id,
                 full_name: emp.nama_lengkap,
                 name: emp.nama_lengkap,
+                nip: emp.nomor_pegawai || emp.nik || '-',
                 nik_internal: emp.nomor_pegawai || emp.nik || '-',
                 division: emp.departments?.name || 'Operasional',
                 jabatan: emp.jabatan,
@@ -108,7 +134,9 @@ exports.get_attendance_monthly = async (req, res) => {
                 izin: izinDays,
                 alpa: absentDays,
                 terlambat: lateCount,
-                persentase: attendancePercentage
+                persentase: attendancePercentage,
+                last_log: lastLog,
+                logs: mappedLogs
             };
         });
 

@@ -325,15 +325,31 @@ const Navbar = ({ toggleSidebar }) => {
                         ) : (
                             notifications.slice(0, 5).map(notification => (
                                 <div key={notification.id} 
-                                    onClick={() => { 
+                                    onClick={async () => { 
                                         setShowNotifications(false); 
-                                        const title = notification.title.toLowerCase();
-                                        if (title.includes('cuti') || title.includes('izin') || title.includes('sakit')) {
-                                            navigate('/attendance-hub', { state: { tab: 'permissions' } });
-                                        } else if (title.includes('karyawan')) {
-                                            navigate('/employees');
+                                        if (!notification.is_read) {
+                                            try {
+                                                await api.put(`/hris/notifications/${notification.id}/read`);
+                                                setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
+                                            } catch (e) {
+                                                console.error(e);
+                                            }
+                                        }
+                                        if (notification.link) {
+                                            navigate(notification.link);
                                         } else {
-                                            navigate('/notifications');
+                                            const title = (notification.title || '').toLowerCase();
+                                            if (title.includes('sertifikat') || title.includes('sertifikasi')) {
+                                                navigate('/personal-certifications');
+                                            } else if (title.includes('cuti') || title.includes('izin') || title.includes('sakit')) {
+                                                navigate('/attendance-hub', { state: { tab: 'permissions' } });
+                                            } else if (title.includes('karyawan') || title.includes('akun') || title.includes('role')) {
+                                                navigate('/organization');
+                                            } else if (title.includes('agenda') || title.includes('kalender')) {
+                                                navigate('/calendar');
+                                            } else {
+                                                navigate('/notifications');
+                                            }
                                         }
                                     }}
                                     className={`p-3 rounded-xl mb-1 flex items-start gap-3 transition-all cursor-pointer hover:scale-[1.01] ${notification.is_read ? 'hover:bg-slate-50' : 'bg-red-50/60 hover:bg-red-50'}`}>

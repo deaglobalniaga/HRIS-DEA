@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
     Award, Upload, Trash2, Search, FileText, Plus, Eye, CheckCircle2, 
-    AlertTriangle, X, RefreshCw, Filter, ShieldCheck, Download
+    AlertTriangle, X, RefreshCw, Filter, ShieldCheck, Download,
+    ExternalLink, Building, Calendar, Check, HelpCircle
 } from 'lucide-react';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
@@ -12,7 +14,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const { user } = useAuth();
     const { addToast } = useToast();
     const role = (user?.role || '').toLowerCase();
-    const canManage = ['admin', 'superadmin', 'super_admin'].includes(role);
+    const canManage = ['admin', 'superadmin', 'super_admin', 'hse_admin'].includes(role) || role.includes('admin') || role.includes('hse');
 
     const [certifications, setCertifications] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -21,17 +23,48 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterType, setFilterType] = useState('ALL');
     const [showUploadModal, setShowUploadModal] = useState(false);
+    const [showAddTypeModal, setShowAddTypeModal] = useState(false);
+    const [newTypeName, setNewTypeName] = useState('');
+    const [newTypeCategory, setNewTypeCategory] = useState('K3/HSE');
+    const [customCategory, setCustomCategory] = useState('');
+    const [savingType, setSavingType] = useState(false);
+
+    // Pagination State
+    const [currentPage, setCurrentPage] = useState(1);
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm, filterType]);
+
     const [previewDoc, setPreviewDoc] = useState(null);
     const [uploading, setUploading] = useState(false);
+    const [certToDelete, setCertToDelete] = useState(null);
+    const [deletingCert, setDeletingCert] = useState(false);
     
-    const [activeTab, setActiveTab] = useState('matrix'); // 'matrix' | 'pending'
+    const getInitialSubtab = () => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('subtab') || 'matrix';
+    };
+
+    const [activeTab, setActiveTab] = useState(getInitialSubtab()); // 'matrix' | 'pending'
     const [actionLoading, setActionLoading] = useState(null);
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const sub = params.get('subtab');
+        if (sub && sub !== activeTab) {
+            setActiveTab(sub);
+        }
+    }, [window.location.search]);
     
-    // Form state
+    // LinkedIn-Style Form state
     const [selectedUserId, setSelectedUserId] = useState('');
     const [namaSertifikat, setNamaSertifikat] = useState('');
     const [certNumber, setCertNumber] = useState('');
     const [institusi, setInstitusi] = useState('');
+    const [credentialUrl, setCredentialUrl] = useState('');
+    const [notes, setNotes] = useState('');
     const [tglTerbit, setTglTerbit] = useState('');
     const [tglExpired, setTglExpired] = useState('');
     const [isLifetime, setIsLifetime] = useState(false);
@@ -75,6 +108,38 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         fetchData();
     }, []);
 
+    const handleCreateNewType = async (e) => {
+        e.preventDefault();
+        if (!newTypeName.trim()) {
+            addToast('Nama jenis sertifikasi wajib diisi!', 'error');
+            return;
+        }
+        const finalCategory = newTypeCategory === 'Lainnya' && customCategory.trim()
+            ? customCategory.trim()
+            : (newTypeCategory || 'K3/HSE');
+
+        setSavingType(true);
+        try {
+            const res = await api.post('/hris/certificate-types', {
+                name: newTypeName.trim(),
+                category: finalCategory
+            });
+            const created = res.data;
+            addToast(`Jenis sertifikasi "${created.name}" berhasil didaftarkan!`, 'success');
+            setCertTypes(prev => [...prev.filter(t => t.id !== created.id), created]);
+            setNamaSertifikat(created.name);
+            setShowAddTypeModal(false);
+            setNewTypeName('');
+            setCustomCategory('');
+            setNewTypeCategory('K3/HSE');
+        } catch (err) {
+            console.error('Create cert type error:', err);
+            addToast(err.response?.data?.error || 'Gagal mendaftarkan jenis sertifikasi baru', 'error');
+        } finally {
+            setSavingType(false);
+        }
+    };
+
     const handleUploadSubmit = async (e) => {
         e.preventDefault();
         if (!selectedUserId) {
@@ -92,6 +157,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         formData.append('nama_sertifikat', namaSertifikat);
         formData.append('nomor_sertifikat', certNumber || `CERT-${Date.now().toString().slice(-6)}`);
         formData.append('institusi_penerbit', institusi || 'Lembaga Resmi K3');
+        if (credentialUrl) formData.append('credential_url', credentialUrl);
+        if (notes) formData.append('notes', notes);
         formData.append('tanggal_diterbitkan', tglTerbit || new Date().toISOString().split('T')[0]);
         formData.append('is_lifetime', isLifetime ? 'true' : 'false');
         if (!isLifetime && tglExpired) {
@@ -119,15 +186,22 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         }
     };
 
-    const handleDelete = async (id) => {
-        if (!window.confirm('Yakin ingin menghapus sertifikat ini?')) return;
+    const confirmDeleteCert = async () => {
+        if (!certToDelete) return;
+        setDeletingCert(true);
         try {
-            await api.delete(`/hris/certifications/${id}`);
-            addToast('Sertifikat berhasil dihapus', 'success');
+            await api.delete(`/hris/certifications/${certToDelete.id}`);
+            addToast(`Sertifikat "${certToDelete.nama_sertifikat || certToDelete.name}" milik ${certToDelete.employeeName || 'karyawan'} berhasil dihapus.`, 'success');
+            setCertToDelete(null);
+            if (previewDoc && previewDoc.id === certToDelete.id) {
+                setPreviewDoc(null);
+            }
             fetchData();
         } catch (err) {
             console.error(err);
             addToast('Gagal menghapus sertifikat', 'error');
+        } finally {
+            setDeletingCert(false);
         }
     };
 
@@ -165,6 +239,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         setNamaSertifikat('');
         setCertNumber('');
         setInstitusi('');
+        setCredentialUrl('');
+        setNotes('');
         setTglTerbit('');
         setTglExpired('');
         setIsLifetime(false);
@@ -173,11 +249,11 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     };
 
     const getStatusIndicator = (cert) => {
-        if (cert.status === 'Pending' || cert.is_approved === false) {
-            return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: 'Menunggu Verifikasi HSE' };
-        }
-        if (cert.status === 'Rejected') {
+        if (cert.status === 'Rejected' || cert.notes?.includes('[STATUS:REJECTED]')) {
             return { color: 'bg-rose-100 text-rose-800 border-rose-300', text: 'Ditolak HSE' };
+        }
+        if (cert.status === 'Pending' || cert.notes?.includes('[STATUS:PENDING]')) {
+            return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: 'Menunggu Verifikasi HSE' };
         }
         if (cert.is_lifetime || !cert.tanggal_kadaluarsa) {
             return { color: 'bg-green-100 text-green-800 border-green-300', text: 'Seumur Hidup' };
@@ -225,7 +301,9 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     };
 
     const displayRows = getDisplayRows();
-    const pendingCerts = certifications.filter(c => c.status === 'Pending' || c.is_approved === false);
+    const totalPages = Math.max(1, Math.ceil(displayRows.length / itemsPerPage));
+    const paginatedRows = displayRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+    const pendingCerts = certifications.filter(c => c.status === 'Pending');
 
     return (
         <div className="w-full flex flex-col gap-5 relative font-sans">
@@ -358,8 +436,22 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                             {cert.file_url || cert.file_path ? (
                                                 <button
                                                     type="button"
-                                                    onClick={() => setPreviewDoc(cert)}
-                                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center gap-1"
+                                                    onClick={() => {
+                                                        const userCerts = certifications.filter(c => 
+                                                            (c.karyawan && (c.karyawan.id === emp.id || c.karyawan.nama_lengkap === emp.nama_lengkap || c.karyawan.nama === emp.nama)) ||
+                                                            c.user_id === emp.id || 
+                                                            c.employee_id === emp.id ||
+                                                            c.id === cert.id
+                                                        );
+                                                        setPreviewDoc({ 
+                                                            id: cert.id,
+                                                            url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
+                                                            name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
+                                                            userCerts: userCerts,
+                                                            karyawan: emp
+                                                        });
+                                                    }}
+                                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer"
                                                 >
                                                     <Eye size={13} /> Pratinjau Berkas
                                                 </button>
@@ -427,6 +519,68 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                         </div>
                     </div>
 
+                    {/* LEGENDA STATUS & KATEGORI SERTIFIKASI K3 - WHITE WITH SOFT ROSE GRADIENT */}
+                    <div className="bg-gradient-to-r from-white via-rose-50/70 to-red-50/60 text-slate-800 rounded-2xl p-4.5 shadow-sm border border-red-200/80">
+                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 mb-2.5 border-b border-rose-200/70">
+                            <div className="flex items-center gap-2">
+                                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
+                                <h4 className="text-xs font-black text-red-950 uppercase tracking-wider flex items-center gap-1.5">
+                                    <ShieldCheck size={15} className="text-red-700" /> Legenda Standar Sertifikasi & Lisensi K3 Minerba
+                                </h4>
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-bold bg-white/90 px-3 py-1 rounded-full border border-rose-200/70 shadow-2xs">
+                                Standar Kepmen ESDM 1827 K/30/MEM/2018 & Kemnaker RI
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2.5 text-[11px]">
+                            {/* Aktif */}
+                            <div className="flex items-center gap-2.5 bg-white/95 border border-emerald-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                                <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 shrink-0"></span>
+                                <div>
+                                    <strong className="text-emerald-700 block font-black text-xs">Aktif / Valid</strong>
+                                    <span className="text-[10px] text-slate-500">Masa berlaku &gt; 60 hari</span>
+                                </div>
+                            </div>
+
+                            {/* Segera Habis */}
+                            <div className="flex items-center gap-2.5 bg-white/95 border border-amber-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                                <span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50 shrink-0"></span>
+                                <div>
+                                    <strong className="text-amber-700 block font-black text-xs">Segera Habis</strong>
+                                    <span className="text-[10px] text-slate-500">&le; 60 hari (Perpanjang)</span>
+                                </div>
+                            </div>
+
+                            {/* Kedaluwarsa */}
+                            <div className="flex items-center gap-2.5 bg-white/95 border border-rose-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                                <span className="w-3 h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50 shrink-0"></span>
+                                <div>
+                                    <strong className="text-rose-700 block font-black text-xs">Kedaluwarsa</strong>
+                                    <span className="text-[10px] text-slate-500">Lisensi tidak aktif / non-valid</span>
+                                </div>
+                            </div>
+
+                            {/* Seumur Hidup */}
+                            <div className="flex items-center gap-2.5 bg-white/95 border border-teal-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                                <span className="w-3 h-3 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50 shrink-0"></span>
+                                <div>
+                                    <strong className="text-teal-700 block font-black text-xs">Seumur Hidup</strong>
+                                    <span className="text-[10px] text-slate-500">Tanpa tanggal kedaluwarsa</span>
+                                </div>
+                            </div>
+
+                            {/* Menunggu Verifikasi */}
+                            <div className="flex items-center gap-2.5 bg-white/95 border border-purple-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
+                                <span className="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50 shrink-0"></span>
+                                <div>
+                                    <strong className="text-purple-700 block font-black text-xs">Verifikasi User</strong>
+                                    <span className="text-[10px] text-slate-500">Menunggu ACC Admin HSE</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Matrix Table */}
                     <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
                         <div className="overflow-x-auto">
@@ -448,12 +602,12 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                 <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat matriks sertifikasi...
                                             </td>
                                         </tr>
-                                    ) : displayRows.length === 0 ? (
+                                    ) : paginatedRows.length === 0 ? (
                                         <tr>
                                             <td colSpan="6" className="p-8 text-center text-slate-400 font-bold">Tidak ada data sertifikasi ditemukan.</td>
                                         </tr>
                                     ) : (
-                                        displayRows.map((row, idx) => {
+                                        paginatedRows.map((row, idx) => {
                                             const emp = row.employee;
                                             
                                             if (row.type === 'empty') {
@@ -547,21 +701,48 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
                                                     {/* Aksi */}
                                                     <td className="p-3.5 text-center">
-                                                        <div className="flex items-center justify-center gap-1.5">
-                                                            {hasFile && (
+                                                        <div className="flex items-center justify-center gap-2">
+                                                            {hasFile ? (
                                                                 <button
-                                                                    onClick={() => setPreviewDoc(cert)}
-                                                                    className="p-1.5 hover:bg-blue-50 text-blue-600 rounded-lg transition-colors"
-                                                                    title="Lihat Berkas"
+                                                                    onClick={() => {
+                                                                        const empCerts = certifications.filter(c => 
+                                                                            (c.karyawan && (c.karyawan.id === emp.id || c.karyawan.nama_lengkap === emp.nama_lengkap || c.karyawan.nama === emp.nama)) ||
+                                                                            c.user_id === emp.id || 
+                                                                            c.employee_id === emp.id
+                                                                        );
+                                                                        setPreviewDoc({ 
+                                                                            id: cert.id,
+                                                                            url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
+                                                                            name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
+                                                                            userCerts: empCerts,
+                                                                            karyawan: emp
+                                                                        });
+                                                                    }}
+                                                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm border border-red-200 cursor-pointer"
+                                                                    title="Lihat & Pratinjau Berkas Sertifikat"
                                                                 >
-                                                                    <Eye size={15} />
+                                                                    <Eye size={13} /> Preview
                                                                 </button>
+                                                            ) : (
+                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">
+                                                                    Kosong
+                                                                </span>
                                                             )}
                                                             {canManage && (
                                                                 <button
-                                                                    onClick={() => handleDelete(cert.id)}
-                                                                    className="p-1.5 hover:bg-red-50 text-red-600 rounded-lg transition-colors"
-                                                                    title="Hapus Sertifikat"
+                                                                    onClick={() => setCertToDelete({
+                                                                        id: cert.id,
+                                                                        nama_sertifikat: cert.nama_sertifikat || cert.certificate_name,
+                                                                        nomor_sertifikat: cert.nomor_sertifikat || cert.certificate_number,
+                                                                        institusi_penerbit: cert.institusi_penerbit,
+                                                                        tanggal_kadaluarsa: cert.tanggal_kadaluarsa,
+                                                                        is_lifetime: cert.is_lifetime,
+                                                                        employeeName: emp.nama || emp.nama_lengkap,
+                                                                        employeeDept: emp.department || emp.departments?.name,
+                                                                        employeeNip: emp.nomor_pegawai
+                                                                    })}
+                                                                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                                                    title="Hapus Sertifikat Ini"
                                                                 >
                                                                     <Trash2 size={15} />
                                                                 </button>
@@ -575,31 +756,160 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 </tbody>
                             </table>
                         </div>
+
+                        {/* Pagination Controls */}
+                        {!loading && displayRows.length > 0 && (
+                            <div className="p-4 border-t border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
+                                <div className="flex items-center gap-4">
+                                    <span className="text-xs font-bold text-slate-500">
+                                        Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, displayRows.length)} dari {displayRows.length} Data Sertifikasi
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-500">Tampilkan:</span>
+                                        <select
+                                            value={itemsPerPage}
+                                            onChange={(e) => {
+                                                setItemsPerPage(Number(e.target.value));
+                                                setCurrentPage(1);
+                                            }}
+                                            className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 rounded-lg p-1.5 outline-none cursor-pointer"
+                                        >
+                                            <option value={10}>10</option>
+                                            <option value={25}>25</option>
+                                            <option value={50}>50</option>
+                                            <option value={100}>100</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                        disabled={currentPage === 1}
+                                        className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                                    >
+                                        Prev
+                                    </button>
+                                    
+                                    <div className="flex items-center gap-1">
+                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                            let pageNum;
+                                            if (totalPages <= 5) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage <= 3) {
+                                                pageNum = i + 1;
+                                            } else if (currentPage >= totalPages - 2) {
+                                                pageNum = totalPages - 4 + i;
+                                            } else {
+                                                pageNum = currentPage - 2 + i;
+                                            }
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setCurrentPage(pageNum)}
+                                                    className={`w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                                        currentPage === pageNum
+                                                            ? 'bg-red-700 text-white shadow-xs font-black'
+                                                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                                    }`}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+
+                                    <button
+                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                        disabled={currentPage === totalPages}
+                                        className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                                    >
+                                        Next
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </div>
             )}
 
-            {/* UPLOAD MODAL */}
-            {showUploadModal && (
-                <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+            {/* LEGENDA & KETERANGAN MATRIKS SERTIFIKASI K3 */}
+            <div className="mt-6 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm animate-in fade-in">
+                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 flex-wrap gap-2">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold">
+                            <Award size={18} />
+                        </div>
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900">Keterangan & Legenda Sertifikasi Kompetensi K3</h3>
+                            <p className="text-[11px] text-slate-500 font-medium">Daftar kode & warna lisensi resmi operasional PT DEA GLOBAL NIAGA.</p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => setShowAddTypeModal(true)}
+                        className="px-3.5 py-1.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-700 hover:text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                    >
+                        <Plus size={13} /> Tambah Jenis Sertifikasi Baru
+                    </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                    {[
+                        { code: 'POP', name: 'Pengawas Operasional Pertama', color: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
+                        { code: 'POM', name: 'Pengawas Operasional Madya', color: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
+                        { code: 'POU', name: 'Pengawas Operasional Utama', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
+                        { code: 'AK3U', name: 'Ahli K3 Umum (Kemnaker/BNSP)', color: 'bg-red-50 text-red-700 border-red-300' },
+                        { code: 'AK3 Listrik', name: 'Ahli K3 Spesialis Listrik', color: 'bg-amber-50 text-amber-700 border-amber-300' },
+                        { code: 'Teknisi Listrik', name: 'Teknisi K3 Listrik & Daya', color: 'bg-orange-50 text-orange-700 border-orange-300' },
+                        { code: 'CSMS', name: 'Contractor Safety Management', color: 'bg-purple-50 text-purple-700 border-purple-300' },
+                        { code: 'SMKP', name: 'SMKP Minerba Audit', color: 'bg-rose-50 text-rose-700 border-rose-300' },
+                        { code: 'WAH / TKPK', name: 'Working at Height / Ketinggian', color: 'bg-sky-50 text-sky-700 border-sky-300' },
+                        { code: 'P3K / First Aid', name: 'Pertolongan Pertama (P3K)', color: 'bg-green-50 text-green-700 border-green-300' },
+                        { code: 'LOTOTO', name: 'Lock Out Tag Out Try Out', color: 'bg-violet-50 text-violet-700 border-violet-300' },
+                        { code: 'Pilot Drone', name: 'Sertifikasi Pilot Drone', color: 'bg-slate-50 text-slate-700 border-slate-300' },
+                        { code: 'Fiber Optic (FO)', name: 'Instalasi & Splicing FO', color: 'bg-blue-50 text-blue-700 border-blue-300' },
+                        { code: 'MTCNA/MTCRE', name: 'MikroTik Certified Network', color: 'bg-teal-50 text-teal-700 border-teal-300' },
+                        { code: 'Ubiquiti', name: 'Ubiquiti Enterprise Wireless', color: 'bg-blue-50 text-blue-700 border-blue-300' },
+                        { code: 'Doc Control', name: 'Document Control Administrasi', color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-300' },
+                    ].map((item, idx) => (
+                        <div key={idx} className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100 flex flex-col gap-1 hover:bg-slate-50 transition">
+                            <div className="flex items-center justify-between">
+                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${item.color}`}>
+                                    {item.code}
+                                </span>
+                            </div>
+                            <span className="text-xs font-bold text-slate-800 line-clamp-1">{item.name}</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* PORTALED LINKEDIN-STYLE UPLOAD MODAL */}
+            {showUploadModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
                         <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
-                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                                <Award size={18} className="text-red-700" /> Upload & Daftarkan Sertifikat K3
-                            </h3>
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-700 flex items-center justify-center">
+                                    <Award size={22} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900">Upload & Daftarkan Lisensi K3</h3>
+                                    <p className="text-[11px] text-slate-400 font-medium">Form lengkap sertifikasi kompetensi standar industri</p>
+                                </div>
+                            </div>
                             <button onClick={() => setShowUploadModal(false)} className="p-1 rounded-full hover:bg-slate-100 text-slate-400">
                                 <X size={18} />
                             </button>
                         </div>
 
-                        <form onSubmit={handleUploadSubmit} className="space-y-3.5 text-xs font-medium">
+                        <form onSubmit={handleUploadSubmit} className="space-y-4 text-xs font-medium">
                             <div>
-                                <label className="block text-slate-700 font-bold mb-1">Pilih Karyawan Target *</label>
+                                <label className="block text-slate-700 font-bold mb-1">Pilih Karyawan Target <span className="text-red-600">*</span></label>
                                 <select
                                     value={selectedUserId}
                                     onChange={e => setSelectedUserId(e.target.value)}
                                     required
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-900/20"
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-900/20"
                                 >
                                     <option value="">-- Pilih Karyawan --</option>
                                     {employees.map(emp => (
@@ -610,17 +920,26 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 </select>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 <div>
-                                    <label className="block text-slate-700 font-bold mb-1">Jenis / Nama Sertifikat *</label>
+                                    <div className="flex items-center justify-between mb-1">
+                                        <label className="text-slate-700 font-bold">Jenis / Nama Sertifikat <span className="text-red-600">*</span></label>
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAddTypeModal(true)}
+                                            className="text-[10px] text-red-700 hover:text-red-800 font-black flex items-center gap-0.5 cursor-pointer"
+                                        >
+                                            <Plus size={12} /> Tambah Jenis Baru
+                                        </button>
+                                    </div>
                                     <input
                                         type="text"
                                         list="certTypesList"
-                                        placeholder="Contoh: POP, WAH, AK3U"
+                                        placeholder="Pilih atau ketik jenis sertifikasi..."
                                         value={namaSertifikat}
                                         onChange={e => setNamaSertifikat(e.target.value)}
                                         required
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 font-bold"
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 font-bold"
                                     />
                                     <datalist id="certTypesList">
                                         {certTypes.map(c => <option key={c.id} value={c.name} />)}
@@ -629,42 +948,65 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                         <option value="Working at Height (WAH)" />
                                         <option value="Ahli K3 Umum (AK3U)" />
                                         <option value="Contractor Safety Management System (CSMS)" />
+                                        <option value="Ahli K3 Listrik" />
                                         <option value="Teknisi Listrik" />
+                                        <option value="First Aid / P3K" />
+                                        <option value="SMKP Minerba" />
+                                        <option value="Pilot Drone" />
+                                        <option value="Lock Out Tag Out Try Out (LOTOTO)" />
+                                        <option value="Fiber Optic (FO)" />
+                                        <option value="MikroTik Certified Network Associate (MTCNA)" />
                                         <option value="Ubiquiti Certified" />
                                     </datalist>
                                 </div>
 
                                 <div>
-                                    <label className="block text-slate-700 font-bold mb-1">Nomor Registrasi / Sertifikat</label>
+                                    <label className="block text-slate-700 font-bold mb-1">ID Kredensial / No. Registrasi <span className="text-red-600">*</span></label>
                                     <input
                                         type="text"
+                                        required
                                         placeholder="Contoh: CERT/DGN/WAH/001"
                                         value={certNumber}
                                         onChange={e => setCertNumber(e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 font-mono"
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 font-mono font-bold"
                                     />
                                 </div>
                             </div>
 
-                            <div>
-                                <label className="block text-slate-700 font-bold mb-1">Lembaga / Institusi Penerbit</label>
-                                <input
-                                    type="text"
-                                    placeholder="Contoh: BNSP / Kementerian ESDM / Kemnaker"
-                                    value={institusi}
-                                    onChange={e => setInstitusi(e.target.value)}
-                                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20"
-                                />
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                <div>
+                                    <label className="block text-slate-700 font-bold mb-1">Lembaga / Organisasi Penerbit <span className="text-red-600">*</span></label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Contoh: BNSP / Kementerian ESDM / Kemnaker"
+                                        value={institusi}
+                                        onChange={e => setInstitusi(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20"
+                                    />
+                                </div>
+
+                                <div>
+                                    <label className="block text-slate-700 font-bold mb-1">URL Kredensial (Verifikasi Online)</label>
+                                    <input
+                                        type="url"
+                                        placeholder="https://..."
+                                        value={credentialUrl}
+                                        onChange={e => setCredentialUrl(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20"
+                                    />
+                                </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                                 <div>
-                                    <label className="block text-slate-700 font-bold mb-1">Tanggal Diterbitkan</label>
+                                    <label className="block text-slate-700 font-bold mb-1">Tanggal Diterbitkan <span className="text-red-600">*</span></label>
                                     <input
                                         type="date"
+                                        required
                                         value={tglTerbit}
                                         onChange={e => setTglTerbit(e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20"
+                                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 font-bold"
                                     />
                                 </div>
 
@@ -675,21 +1017,21 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                         disabled={isLifetime}
                                         value={tglExpired}
                                         onChange={e => setTglExpired(e.target.value)}
-                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 disabled:opacity-40"
+                                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20 disabled:opacity-40 font-bold"
                                     />
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 pt-1">
+                            <div className="flex items-center gap-2.5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
                                 <input
                                     type="checkbox"
-                                    id="isLifetime"
+                                    id="isLifetimeHSE"
                                     checked={isLifetime}
                                     onChange={e => setIsLifetime(e.target.checked)}
-                                    className="rounded border-slate-300 accent-red-700"
+                                    className="w-4 h-4 text-red-700 rounded accent-red-700 focus:ring-red-900"
                                 />
-                                <label htmlFor="isLifetime" className="text-slate-700 text-xs font-bold cursor-pointer">
-                                    Sertifikat berlaku seumur hidup (Lifetime)
+                                <label htmlFor="isLifetimeHSE" className="text-slate-700 text-xs font-bold cursor-pointer">
+                                    Sertifikat / Lisensi ini berlaku Seumur Hidup (Lifetime)
                                 </label>
                             </div>
 
@@ -700,38 +1042,202 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                     ref={fileInputRef}
                                     accept=".pdf,.jpg,.jpeg,.png,.webp"
                                     onChange={e => setFile(e.target.files[0])}
-                                    className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 cursor-pointer"
+                                    className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 border border-slate-200 rounded-2xl p-1.5 cursor-pointer"
                                 />
                             </div>
 
-                            <div className="flex justify-end gap-2 pt-4">
+                            <div>
+                                <label className="block text-slate-700 font-bold mb-1">Keterangan / Catatan Tambahan (Opsional)</label>
+                                <textarea
+                                    rows="2"
+                                    placeholder="Contoh: Terakreditasi BNSP, mencakup kompetensi pengawasan operasional tambang..."
+                                    value={notes}
+                                    onChange={e => setNotes(e.target.value)}
+                                    className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-red-900/20"
+                                />
+                            </div>
+
+                            <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                                 <button
                                     type="button"
                                     onClick={() => setShowUploadModal(false)}
-                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer"
                                 >
                                     Batal
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={uploading}
-                                    className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-1.5"
+                                    className="px-5 py-2.5 bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
                                 >
-                                    <Upload size={14} /> {uploading ? 'Menyimpan...' : 'Simpan & Upload'}
+                                    <Upload size={14} /> {uploading ? 'Menyimpan...' : 'Simpan & Upload Sertifikat'}
                                 </button>
                             </div>
                         </form>
                     </div>
-                </div>
+                </div>,
+                document.body
+            )}
+
+            {/* MODAL TAMBAH JENIS SERTIFIKASI BARU */}
+            {showAddTypeModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[10000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
+                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                <Award size={18} className="text-red-700" /> Tambah Jenis Sertifikasi Baru
+                            </h3>
+                            <button onClick={() => setShowAddTypeModal(false)} className="p-1 rounded-full hover:bg-slate-100 text-slate-400">
+                                <X size={18} />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleCreateNewType} className="space-y-3.5 text-xs font-medium">
+                            <div>
+                                <label className="block text-slate-700 font-bold mb-1">Nama Jenis Sertifikasi *</label>
+                                <input
+                                    type="text"
+                                    required
+                                    placeholder="Contoh: Ahli K3 Kimia / Welder 6G"
+                                    value={newTypeName}
+                                    onChange={e => setNewTypeName(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-900/20"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-slate-700 font-bold mb-1">Kategori / Bidang</label>
+                                <select
+                                    value={newTypeCategory}
+                                    onChange={e => setNewTypeCategory(e.target.value)}
+                                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-900/20 cursor-pointer"
+                                >
+                                    <option value="K3/HSE">K3 / HSE (Keselamatan Kerja)</option>
+                                    <option value="Teknis & Operasional">Teknis & Operasional</option>
+                                    <option value="IT & Jaringan">IT & Jaringan</option>
+                                    <option value="Manajemen & Administrasi">Manajemen & Administrasi</option>
+                                    <option value="Lingkungan Hidup (LH)">Lingkungan Hidup (LH)</option>
+                                    <option value="Geologi & Eksplorasi">Geologi & Eksplorasi</option>
+                                    <option value="Logistik & Supply Chain">Logistik & Supply Chain</option>
+                                    <option value="Legalitas & Kepatuhan">Legalitas & Kepatuhan</option>
+                                    <option value="Lainnya">+ Tulis Kategori Kustom Baru...</option>
+                                </select>
+                            </div>
+
+                            {newTypeCategory === 'Lainnya' && (
+                                <div className="animate-in fade-in slide-in-from-top-1 duration-150">
+                                    <label className="block text-slate-700 font-bold mb-1">Tulis Kategori Baru <span className="text-red-600">*</span></label>
+                                    <input
+                                        type="text"
+                                        required
+                                        placeholder="Contoh: Keuangan, HRGA, Mining HSE, dll"
+                                        value={customCategory}
+                                        onChange={e => setCustomCategory(e.target.value)}
+                                        className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold outline-none focus:ring-2 focus:ring-red-900/20"
+                                    />
+                                </div>
+                            )}
+
+                            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => setShowAddTypeModal(false)}
+                                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={savingType}
+                                    className="px-5 py-2 bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    <Plus size={14} /> {savingType ? 'Mendaftarkan...' : 'Daftarkan Jenis Baru'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>,
+                document.body
             )}
 
             {/* FULL-PAGE IN-WEB PREVIEW MODAL */}
             {previewDoc && (
                 <PdfViewerModal
-                    url={previewDoc}
-                    fileName="Sertifikat K3 / Lisensi Karyawan"
+                    url={previewDoc?.url || previewDoc}
+                    fileName={previewDoc?.name || "Sertifikat K3 / Lisensi Karyawan"}
+                    allCertificates={previewDoc?.userCerts || (previewDoc ? [previewDoc] : [])}
+                    activeId={previewDoc?.id}
                     onClose={() => setPreviewDoc(null)}
+                    onDelete={canManage ? (doc) => setCertToDelete({
+                        id: doc.id,
+                        nama_sertifikat: doc.title || doc.nama_sertifikat,
+                        nomor_sertifikat: doc.certNumber,
+                        institusi_penerbit: doc.issuer,
+                        tanggal_kadaluarsa: doc.expiry,
+                        is_lifetime: doc.isLifetime,
+                        employeeName: doc.employeeName,
+                        employeeDept: doc.employeeDept,
+                        employeeNip: doc.employeeNip
+                    }) : null}
                 />
+            )}
+
+            {/* MODAL KONFIRMASI HAPUS SERTIFIKAT SPESIFIK */}
+            {certToDelete && createPortal(
+                <div className="fixed inset-0 z-[999999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95">
+                        <div className="flex items-center gap-3 mb-4">
+                            <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                                <Trash2 size={20} />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-black text-slate-900">Hapus Sertifikat Ini?</h3>
+                                <p className="text-xs text-slate-500">Konfirmasi penghapusan sertifikat spesifik</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-2 mb-4">
+                            <div>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Pemilik Sertifikat</span>
+                                <p className="text-xs font-bold text-slate-900">{certToDelete.employeeName || 'Karyawan'} {certToDelete.employeeDept ? `(${certToDelete.employeeDept})` : ''}</p>
+                            </div>
+                            <div>
+                                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Jenis Sertifikat</span>
+                                <p className="text-xs font-bold text-red-700">{certToDelete.nama_sertifikat}</p>
+                            </div>
+                            {certToDelete.nomor_sertifikat && certToDelete.nomor_sertifikat !== '-' && (
+                                <div>
+                                    <span className="text-[10px] uppercase font-bold tracking-wider text-slate-400">Nomor Sertifikat</span>
+                                    <p className="text-xs font-mono font-bold text-slate-700">{certToDelete.nomor_sertifikat}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200/80 mb-5 text-[11px] text-amber-900 leading-relaxed">
+                            ⚠️ <strong>Catatan:</strong> Hanya sertifikat spesifik di atas yang akan dihapus dari sistem. Sertifikat dan data lainnya milik karyawan ini tetap aman dan tidak terpengaruh.
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2.5">
+                            <button
+                                type="button"
+                                onClick={() => setCertToDelete(null)}
+                                disabled={deletingCert}
+                                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+                            >
+                                Batal
+                            </button>
+                            <button
+                                type="button"
+                                onClick={confirmDeleteCert}
+                                disabled={deletingCert}
+                                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-black rounded-xl transition flex items-center gap-1.5 shadow-md shadow-rose-600/20 cursor-pointer"
+                            >
+                                {deletingCert ? 'Menghapus...' : 'Hapus Sertifikat Ini Saja'}
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
             )}
         </div>
     );

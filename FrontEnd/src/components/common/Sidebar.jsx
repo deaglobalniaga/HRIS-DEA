@@ -1,9 +1,10 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { LayoutDashboard, Calendar, Users, Clock, Activity, Briefcase, LogOut, Calculator, FileText, ShieldCheck, Award, Building2, User, Settings, Shield } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, setIsOpen }) => {
   const { logout, user } = useAuth();
+  const location = useLocation();
   const role = (user?.role || '').toLowerCase();
   const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
   const jabatan = (user?.jabatan || '').toLowerCase();
@@ -36,19 +37,19 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       ];
     }
 
-    // 2. HSE Admin Menu (Focus on K3, Keselamatan Kerja & Operasional)
+    // 2. HSE Admin Menu (Focus on K3, Keselamatan Kerja, Absensi & Personel)
     if (isHSEAdmin) {
       return [
         {
           title: 'K3 & Keselamatan Kerja',
           items: [
             { name: 'Dashboard HSE', path: '/dashboard', icon: LayoutDashboard },
-            { name: 'Matriks Sertifikasi K3', path: '/organization', icon: Award },
-            { name: 'Sertifikasi Saya', path: '/personal-certifications', icon: ShieldCheck },
+            { name: 'Struktur & Matriks K3', path: '/organization', icon: Award },
+            { name: 'Sertifikasi Pribadi', path: '/personal-certifications', icon: ShieldCheck },
           ]
         },
         {
-          title: 'Operasional & Waktu Kerja',
+          title: 'Operasional & Kehadiran',
           items: [
             { name: 'Pusat Kehadiran', path: '/attendance-hub', icon: Clock },
             { name: 'Jam Kerja (Timesheet)', path: '/timesheet', icon: Calculator },
@@ -59,7 +60,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       ];
     }
 
-    // 3. HRGA Admin Full Sidebar (HR, GA, Kepegawaian, Operasional)
+    // 3. HRGA Admin Full Sidebar (HR, GA, Kepegawaian & Operasional)
     if (isAdmin) {
       return [
         {
@@ -87,7 +88,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           items: [
             { name: 'Agenda Kerja', path: '/performance', icon: Activity },
             { name: 'Kalender Tim', path: '/calendar', icon: Calendar },
-            { name: 'Sertifikasi & Lisensi', path: '/personal-certifications', icon: Award },
+            { name: 'Sertifikasi Saya', path: '/personal-certifications', icon: ShieldCheck },
           ]
         }
       ];
@@ -116,7 +117,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const menuSections = getMenuSections();
 
   return (
-    <aside className={`w-64 bg-white/95 backdrop-blur-xl border-r border-slate-200/90 h-screen flex flex-col fixed left-0 top-0 z-50 transform transition-transform duration-300 ease-in-out shadow-lg shadow-slate-200/40 ${isOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0`}>
+    <aside className={`w-64 bg-white/95 backdrop-blur-xl border-r border-slate-200/90 h-screen flex flex-col fixed left-0 top-0 ${isOpen ? 'z-40 translate-x-0' : 'z-30 -translate-x-full'} lg:translate-x-0 lg:z-30 transform transition-transform duration-300 ease-in-out shadow-lg shadow-slate-200/40`}>
       {/* Logo */}
       <div className="h-24 flex items-center justify-center px-4 border-b border-slate-100/80">
         <img src="/dea.png" alt="PT DEA GLOBAL NIAGA" className="h-20 w-auto object-contain transition-transform duration-300 hover:scale-105" onError={(e) => { e.target.style.display = 'none' }} />
@@ -140,12 +141,16 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   key={item.name}
                   to={item.path}
                   onClick={() => setIsOpen?.(false)}
-                  className={({ isActive }) =>
-                    `group relative flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 ${isActive
+                  className={({ isActive }) => {
+                    const isCustomActive = item.path.includes('?')
+                      ? (location.pathname + location.search) === item.path
+                      : (location.pathname === item.path && !location.search);
+                    const active = item.path.includes('?') ? isCustomActive : isActive;
+                    return `group relative flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 ${active
                       ? 'bg-gradient-to-r from-red-800 to-rose-800 text-white shadow-md shadow-red-900/25 translate-x-1'
                       : 'text-slate-600 hover:bg-red-50/70 hover:text-red-900 hover:translate-x-1.5 hover:shadow-sm'
-                    }`
-                  }
+                    }`;
+                  }}
                 >
                   <item.icon size={17} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:scale-115" />
                   <span className="truncate tracking-tight">{item.name}</span>

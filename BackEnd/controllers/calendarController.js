@@ -79,7 +79,7 @@ exports.post_event = async (req, res) => {
             });
         }
         
-        await notifyRole('all', 'Agenda Baru', 'Sebuah agenda operasional baru telah ditambahkan ke kalender.');
+        await notifyRole('all', 'Agenda Baru', 'Sebuah agenda operasional baru telah ditambahkan ke kalender.', 'info', '/calendar');
 
         res.status(201).json({ message: 'Event berhasil ditambahkan', data: req.body });
     } catch (err) {

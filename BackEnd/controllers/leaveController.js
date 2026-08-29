@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { notifyRole } = require('./notificationController');
+const { uploadToSupabaseStorage } = require('../utils/storage');
 
 // GET /api/hris/leaves / get_leave_status
 // Pure log recorder & monitoring calendar — no approval workflow
@@ -69,57 +70,65 @@ exports.get_leave_status = async (req, res) => {
 };
 
 // POST /api/hris/leaves
-// (Admin Only) Record leave period (e.g. 2-week leave/roster block)
+// (Admin Only) Record leave period (e.g. 2-week leave/roster block, 13/1 off day, etc.)
 exports.post_leaves = async (req, res) => {
     try {
         const { employee_id, leave_type, start_date, end_date, duration_days, notes } = req.body;
 
         if (!employee_id || !start_date || !end_date) {
-            return res.status(400).json({ message: 'Employee ID, start date, and end date are required' });
+            return res.status(400).json({ message: 'Pilih karyawan, tanggal mulai, dan tanggal selesai secara lengkap.' });
         }
 
         let documentUrl = null;
         if (req.file) {
-            documentUrl = `/uploads/documents/${req.file.filename}`;
+            documentUrl = await uploadToSupabaseStorage(req.file, 'documents');
         }
 
         // Calculate days if not provided
-        let calcDays = duration_days;
+        let calcDays = duration_days ? parseInt(duration_days) : null;
         if (!calcDays && start_date && end_date) {
             const d1 = new Date(start_date);
             const d2 = new Date(end_date);
             calcDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
         }
 
+        const normalizedLeaveType = leave_type || 'Cuti Roster (2 Minggu)';
+
         const { data, error } = await supabase
             .from('leaves')
             .insert({
                 employee_id,
-                leave_type: leave_type || 'Cuti Roster (2 Minggu)',
+                leave_type: normalizedLeaveType,
                 start_date,
                 end_date,
-                duration_days: calcDays || 14,
-                notes: notes || 'Pencatatan Cuti Roster',
+                duration_days: calcDays || (normalizedLeaveType.includes('13/1') ? 1 : 14),
+                notes: notes || 'Pencatatan Kehadiran / Cuti',
                 document_url: documentUrl
             })
             .select('*')
             .single();
 
-        if (error) throw error;
+        if (error) {
+            console.error('Supabase insert leave error:', error);
+            return res.status(500).json({ message: error.message || 'Gagal menyimpan data cuti ke database.' });
+        }
 
-        // Fetch user info for notification
-        const { data: empData } = await supabase.from('employees').select('nama_lengkap').eq('id', employee_id).single();
-        const empName = empData?.nama_lengkap || 'Karyawan';
-
-        await notifyRole('hr', 'Pengajuan Cuti', `${empName} telah mengajukan ${leave_type || 'cuti'}. Silakan periksa.`);
+        // Fetch user info for notification safely
+        try {
+            const { data: empData } = await supabase.from('employees').select('nama_lengkap').eq('id', employee_id).single();
+            const empName = empData?.nama_lengkap || 'Karyawan';
+            await notifyRole('hr', 'Pencatatan Cuti / Roster', `${empName} telah dicatat ${normalizedLeaveType} (${start_date} s/d ${end_date}).`, 'leave_request', '/calendar');
+        } catch (notifErr) {
+            console.warn('Notify leave error (non-fatal):', notifErr.message);
+        }
 
         res.status(201).json({
-            message: 'Pencatatan cuti/roster karyawan berhasil disimpan ke kalender',
+            message: 'Pencatatan cuti/roster karyawan berhasil disimpan ke kalender operasional',
             data
         });
     } catch (err) {
         console.error('Post leaves error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ message: err.message || 'Gagal menyimpan data cuti.' });
     }
 };
 

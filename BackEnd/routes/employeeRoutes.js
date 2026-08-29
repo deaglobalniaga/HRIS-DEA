@@ -35,6 +35,17 @@ router.get('/employees/:id', verifyToken, controller.get_employee_by_id);
 
 // GET Departments
 router.get('/departments', verifyToken, controller.get_departments);
+router.post('/departments', verifyToken, isAdmin, controller.create_department);
+router.put('/departments/:id', verifyToken, isAdmin, controller.update_department);
+router.delete('/departments/:id', verifyToken, isAdmin, controller.delete_department);
+
+// Organization Hierarchy & History
+router.get('/organization/history', verifyToken, controller.get_organization_history);
+router.post('/organization/history', verifyToken, isAdmin, controller.save_organization_chart);
+
+// Bulk Operations (HRGA / Admin)
+router.post('/employees/bulk', verifyToken, isAdmin, controller.bulk_create_employees);
+router.delete('/employees/bulk', verifyToken, isAdmin, controller.bulk_delete_employees);
 
 // POST New Employee (HRGA / Admin)
 router.post('/employees', verifyToken, isAdmin, upload.any(), controller.create_employee);
@@ -59,8 +70,10 @@ router.get('/role-requests', verifyToken, controller.get_role_requests);
 router.post('/role-requests', verifyToken, isAdmin, controller.create_role_request);
 router.put('/role-requests/:id/review', verifyToken, controller.review_role_request);
 
-// POST Save Face Samples (for Face Recognition enrollment)
+// Biometric Face Recognition (Multi-Sample Database Preview & Enrollment)
+router.get('/employees/:id/face-samples', verifyToken, controller.get_face_samples);
 router.post('/employees/:id/face-samples', verifyToken, controller.save_face_samples);
+router.delete('/employees/:id/face-samples/:index', verifyToken, controller.delete_single_face_sample);
 
 // GET Export Employees to Excel
 router.get('/employees/export/excel', verifyToken, isAdmin, controller.export_employees_excel);

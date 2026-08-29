@@ -113,13 +113,13 @@ const Performance = () => {
                         <Activity className="text-red-700" size={24} /> Agenda Kerja & Manajemen Roster Site
                     </h2>
                     <p className="text-xs text-slate-500 font-medium mt-1">
-                        Siklus kerja rotasi 8/2 dan 6/2 serta monitoring wajib off (13/1) personel operasional PT DEA GLOBAL NIAGA.
+                        Siklus kerja rotasi 8/2 dan 6/2 serta monitoring wajib off (13/1) karyawan operasional PT DEA GLOBAL NIAGA.
                     </p>
                 </div>
                 <div className="flex gap-2">
                     <button 
                         onClick={fetchRosterStats} 
-                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-sm hover:bg-slate-50 transition"
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl shadow-sm hover:bg-slate-50 transition cursor-pointer"
                     >
                         <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh
                     </button>
@@ -129,11 +129,11 @@ const Performance = () => {
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><User size={12} /> Total Personel</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><User size={12} /> Total Karyawan</span>
                     <span className="text-2xl font-black text-slate-800">{totalStaff}</span>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><CheckCircle size={12} className="text-green-500" /> Di Masa Kerja</span>
+                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><CheckCircle size={12} className="text-green-500" /> On Site</span>
                     <span className="text-2xl font-black text-slate-800">{workingCount}</span>
                 </div>
                 <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
@@ -227,21 +227,37 @@ const Performance = () => {
                     </table>
                 </div>
 
+                {/* Explanatory Calculation & Operational Notes */}
+                <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-col md:flex-row gap-4 items-start justify-between text-[11px] text-slate-600">
+                    <div className="space-y-1.5 flex-1">
+                        <h4 className="font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider text-[10px]">
+                            <ShieldAlert size={14} className="text-red-700" />
+                            Keterangan Penjelasan Perhitungan & Regulasi Roster Site:
+                        </h4>
+                        <ul className="list-disc pl-4 space-y-1 text-slate-600 font-medium">
+                            <li><strong>Siklus Roster 8/2 (Staff):</strong> 8 minggu masa kerja on-site di project site diikuti 2 minggu (14 hari) hak cuti roster.</li>
+                            <li><strong>Siklus Roster 6/2 (PJO / Khusus):</strong> 6 minggu masa tugas on-site diikuti 2 minggu cuti roster.</li>
+                            <li><strong>Siklus Wajib Off 13/1:</strong> Sesuai Kepmen ESDM No. 1827 K/30/MEM/2018 dan SOP K3/Fatigue Management, personel site yang telah bekerja 13 hari berturut-turut wajib diberikan 1 hari off penuh untuk pemulihan fisik.</li>
+                            <li><strong>Kalkulasi Man-Power:</strong> Status "On Site" mencerminkan kesiapan regu harian setelah dikurangi personel Cuti Roster dan Off 13/1.</li>
+                        </ul>
+                    </div>
+                </div>
+
                 {/* Pagination */}
-                <div className="p-3 border-t border-slate-100 bg-slate-50 flex items-center justify-between text-xs">
-                    <span className="text-slate-500 font-medium">Halaman {currentPage} dari {totalPages}</span>
+                <div className="p-3 border-t border-slate-100 bg-white flex items-center justify-between text-xs">
+                    <span className="text-slate-500 font-medium">Halaman {currentPage} dari {totalPages} ({filteredStats.length} Total Karyawan Terfilter)</span>
                     <div className="flex gap-1.5">
                         <button
                             disabled={currentPage === 1}
                             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40 hover:bg-slate-100 transition"
+                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
                         >
                             Sebelumnya
                         </button>
                         <button
                             disabled={currentPage === totalPages}
                             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40 hover:bg-slate-100 transition"
+                            className="px-3 py-1 bg-white border border-slate-200 rounded-lg font-bold disabled:opacity-40 hover:bg-slate-100 transition cursor-pointer"
                         >
                             Selanjutnya
                         </button>

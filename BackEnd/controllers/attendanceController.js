@@ -25,18 +25,20 @@ function calculateFaceDistance(desc1, desc2) {
 }
 
 // POST /api/hris/attendance/recognize-face
-// Recognize face from camera and return matched employee details
+// Recognize face from camera and verify strictly against logged-in user's own account
 exports.recognize_face = async (req, res) => {
     try {
         const { face_descriptor } = req.body; // Array of 128 numbers
+        const loggedInUserId = req.userId;
 
         if (!face_descriptor || !Array.isArray(face_descriptor)) {
             return res.status(400).json({ message: 'Valid face descriptor array is required' });
         }
 
-        // Fetch all employees with enrolled faces (Cached in Redis for 10 minutes)
-        const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 600, async () => {
-            const { data, error } = await supabase
+        // Fetch logged in user's employee record
+        let selfEmp = null;
+        if (loggedInUserId) {
+            const { data: myEmp } = await supabase
                 .from('employees')
                 .select(`
                     id,
@@ -48,58 +50,128 @@ exports.recognize_face = async (req, res) => {
                     face_descriptor,
                     departments (name)
                 `)
+                .eq('user_id', loggedInUserId)
+                .maybeSingle();
+
+            if (myEmp) {
+                selfEmp = myEmp;
+            } else {
+                // Check if user has an employee record matched by username/email
+                const { data: userRec } = await supabase.from('users').select('username, email').eq('id', loggedInUserId).maybeSingle();
+                if (userRec) {
+                    const cleanName = (userRec.username || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+                    const { data: fallbackEmp } = await supabase.from('employees').select(`
+                        id,
+                        user_id,
+                        nama_lengkap,
+                        nomor_pegawai,
+                        jabatan,
+                        penempatan,
+                        face_descriptor,
+                        departments (name)
+                    `).or(`nama_lengkap.ilike.%${cleanName}%,nomor_pegawai.ilike.%${userRec.username}%`).maybeSingle();
+                    if (fallbackEmp) {
+                        selfEmp = fallbackEmp;
+                        await supabase.from('employees').update({ user_id: loggedInUserId }).eq('id', fallbackEmp.id);
+                    }
+                }
+            }
+        }
+
+        if (!selfEmp) {
+            return res.status(400).json({
+                recognized: false,
+                message: 'Data profil karyawan untuk akun login Anda tidak ditemukan di sistem.'
+            });
+        }
+
+        if (!selfEmp.face_descriptor) {
+            return res.json({
+                recognized: false,
+                message: `Data biometrik wajah untuk akun Anda (${selfEmp.nama_lengkap}) belum didaftarkan di sistem.`
+            });
+        }
+
+        const THRESHOLD = 0.58; // Calibrated for facial variation (glasses, lighting, angle, APD)
+        const storedRaw = typeof selfEmp.face_descriptor === 'string' ? JSON.parse(selfEmp.face_descriptor) : selfEmp.face_descriptor;
+        let selfSamples = [];
+
+        if (storedRaw && typeof storedRaw === 'object' && !Array.isArray(storedRaw) && Array.isArray(storedRaw.descriptors)) {
+            selfSamples = storedRaw.descriptors;
+        } else if (Array.isArray(storedRaw)) {
+            selfSamples = Array.isArray(storedRaw[0]) ? storedRaw : [storedRaw];
+        }
+
+        let lowestDistance = 1.0;
+        for (const sample of selfSamples) {
+            const distance = calculateFaceDistance(face_descriptor, sample);
+            if (distance < lowestDistance) {
+                lowestDistance = distance;
+            }
+        }
+
+        console.log(`[Face AI] User: ${selfEmp.nama_lengkap} (${selfEmp.nomor_pegawai}), Samples: ${selfSamples.length}, Lowest Dist: ${lowestDistance.toFixed(4)}, Threshold: ${THRESHOLD}, Matched: ${lowestDistance <= THRESHOLD}`);
+
+        // 1. Matches the logged-in user's own face
+        if (lowestDistance <= THRESHOLD) {
+            const normalizedConfidence = Math.max(0.80, Math.min(0.99, 1.0 - (lowestDistance / THRESHOLD) * 0.18));
+
+            return res.json({
+                recognized: true,
+                isOwnAccount: true,
+                confidence: +normalizedConfidence.toFixed(2),
+                distance: lowestDistance.toFixed(4),
+                employee: {
+                    id: selfEmp.id,
+                    user_id: selfEmp.user_id,
+                    nama_lengkap: selfEmp.nama_lengkap,
+                    nomor_pegawai: selfEmp.nomor_pegawai,
+                    jabatan: selfEmp.jabatan,
+                    penempatan: selfEmp.penempatan,
+                    department: selfEmp.departments?.name || 'General'
+                }
+            });
+        }
+
+        // 2. Face does NOT match the logged-in user - Check if it belongs to someone else to give clear feedback
+        const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 600, async () => {
+            const { data, error } = await supabase
+                .from('employees')
+                .select(`id, nama_lengkap, face_descriptor`)
                 .not('face_descriptor', 'is', null);
 
             if (error) throw error;
             return data || [];
         });
 
-        let bestMatch = null;
-        let lowestDistance = 1.0;
-        const THRESHOLD = 0.40; // Strict Face recognition distance threshold (Zero tolerance for unknown faces)
-
+        let otherMatch = null;
         for (const emp of enrolledEmployees) {
+            if (emp.id === selfEmp.id) continue;
             try {
-                const storedData = JSON.parse(emp.face_descriptor);
-                // storedData can be a single descriptor array or an array of sample descriptors
-                const samples = Array.isArray(storedData[0]) ? storedData : [storedData];
-
-                for (const sample of samples) {
-                    const distance = calculateFaceDistance(face_descriptor, sample);
-                    if (distance < lowestDistance) {
-                        lowestDistance = distance;
-                        if (distance <= THRESHOLD) {
-                            bestMatch = emp;
-                        }
+                const otherRaw = typeof emp.face_descriptor === 'string' ? JSON.parse(emp.face_descriptor) : emp.face_descriptor;
+                let otherSamples = (otherRaw && Array.isArray(otherRaw.descriptors)) ? otherRaw.descriptors : (Array.isArray(otherRaw) ? (Array.isArray(otherRaw[0]) ? otherRaw : [otherRaw]) : []);
+                for (const s of otherSamples) {
+                    if (calculateFaceDistance(face_descriptor, s) <= THRESHOLD) {
+                        otherMatch = emp;
+                        break;
                     }
                 }
-            } catch (parseErr) {
-                // Ignore invalid JSON
-            }
+                if (otherMatch) break;
+            } catch (e) {}
         }
 
-        if (bestMatch) {
-            return res.json({
-                recognized: true,
-                confidence: (1 - lowestDistance).toFixed(2),
-                distance: lowestDistance.toFixed(4),
-                employee: {
-                    id: bestMatch.id,
-                    user_id: bestMatch.user_id,
-                    nama_lengkap: bestMatch.nama_lengkap,
-                    nomor_pegawai: bestMatch.nomor_pegawai,
-                    jabatan: bestMatch.jabatan,
-                    penempatan: bestMatch.penempatan,
-                    department: bestMatch.departments?.name || 'General'
-                }
-            });
-        } else {
+        if (otherMatch) {
             return res.json({
                 recognized: false,
-                lowest_distance: lowestDistance.toFixed(4),
-                message: 'Wajah tidak dikenali dalam sistem (Wajib sesuai database)'
+                isMismatch: true,
+                message: `Wajah yang terdeteksi adalah ${otherMatch.nama_lengkap}, BUKAN akun yang sedang login (${selfEmp.nama_lengkap}). Presensi ditolak karena hanya dapat dilakukan oleh akun pemilik wajah masing-masing.`
             });
         }
+
+        return res.json({
+            recognized: false,
+            message: `Wajah tidak cocok dengan data biometrik akun Anda (${selfEmp.nama_lengkap}).`
+        });
     } catch (err) {
         console.error('Face recognition error:', err);
         res.status(500).json({ error: err.message });
@@ -112,127 +184,105 @@ exports.clock_in_out = async (req, res) => {
     try {
         const { validateGPSCoordinates, calculateDistanceMeters } = require('../utils/sanitizer');
         const { employee_id, latitude, longitude, accuracy, is_mock, device_info, notes, timestamp } = req.body;
-        let targetEmployeeId = employee_id;
+        const loggedInUserId = req.userId;
 
-        // IDOR Prevention: Ensure regular users cannot clock for other employees
-        if (req.userRole === 'user' || !targetEmployeeId) {
-            const { data: selfEmp } = await supabase
-                .from('employees')
-                .select('id, user_id')
-                .eq('user_id', req.userId)
-                .single();
+        // STRICT ACCOUNT OWNERSHIP: Ensure attendance is ALWAYS processed for the logged-in user's own employee record
+        let { data: selfEmp } = await supabase
+            .from('employees')
+            .select('id, user_id, camera_access, gps_access, wifi_access, face_descriptor, nama_lengkap, penempatan')
+            .eq('user_id', loggedInUserId)
+            .maybeSingle();
 
-            if (!selfEmp) {
-                return res.status(400).json({ message: 'Data karyawan Anda belum terhubung dengan akun login.' });
+        if (!selfEmp) {
+            const { data: userRec } = await supabase.from('users').select('username, email').eq('id', loggedInUserId).maybeSingle();
+            if (userRec) {
+                const cleanName = (userRec.username || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
+                const { data: fallbackEmp } = await supabase.from('employees').select('id, user_id, camera_access, gps_access, wifi_access, face_descriptor, nama_lengkap, penempatan')
+                    .or(`nama_lengkap.ilike.%${cleanName}%,nomor_pegawai.ilike.%${userRec.username}%`).maybeSingle();
+                if (fallbackEmp) {
+                    selfEmp = fallbackEmp;
+                    await supabase.from('employees').update({ user_id: loggedInUserId }).eq('id', fallbackEmp.id);
+                }
             }
-
-            if (targetEmployeeId && targetEmployeeId !== selfEmp.id && req.userRole === 'user') {
-                return res.status(403).json({ message: 'Akses ditolak: Anda tidak dapat melakukan presensi untuk akun karyawan lain (IDOR Protected).' });
-            }
-            targetEmployeeId = selfEmp.id;
         }
 
-        // Anti-Fake GPS Checks & Validation
-        if (is_mock === true) {
-            return res.status(400).json({
-                message: 'Presensi ditolak: Terdeteksi penggunaan Fake GPS / Mock Location!'
+        if (!selfEmp) {
+            return res.status(400).json({ message: 'Data karyawan Anda belum terhubung dengan akun login.' });
+        }
+
+        if (employee_id && employee_id !== selfEmp.id) {
+            return res.status(403).json({
+                message: `Presensi ditolak: Presensi hanya dapat dilakukan oleh akun Anda sendiri (${selfEmp.nama_lengkap}). Anda tidak dapat melakukan presensi untuk akun karyawan lain.`
             });
         }
 
-        const gpsValidation = validateGPSCoordinates({
-            lat: latitude,
-            lng: longitude,
-            accuracy,
-            timestamp
-        });
-
-        if (!gpsValidation.valid) {
-            return res.status(400).json({ message: `Presensi ditolak: ${gpsValidation.error}` });
-        }
-
-        // Server-Side Geofencing Verification against Database Locations
-        const { data: locData } = await supabase
-            .from('settings')
-            .select('setting_value')
-            .eq('setting_key', 'locations')
-            .maybeSingle();
-
-        const activeLocations = (locData && Array.isArray(locData.setting_value)) ? locData.setting_value : [
-            { id: 1, name: 'Head Office Banjarbaru', lat: -3.42436, lng: 115.99267, radius: 50 },
-            { id: 2, name: 'Project Site Batulicin', lat: -3.45678, lng: 116.01234, radius: 200 }
-        ];
-
-        let isWithinAnyGeofence = false;
-        let nearestSiteName = '';
-        let minDistanceMeters = Infinity;
-
-        for (const loc of activeLocations) {
-            const dist = calculateDistanceMeters(gpsValidation.lat, gpsValidation.lng, loc.lat, loc.lng);
-            if (dist < minDistanceMeters) {
-                minDistanceMeters = dist;
-                nearestSiteName = loc.name;
-            }
-            // Allow defined radius + 50m GPS variance buffer
-            const allowedRadius = (loc.radius || 100) + 50;
-            if (dist <= allowedRadius) {
-                isWithinAnyGeofence = true;
-                break;
-            }
-        }
-
-        // Fetch employee hardware access permissions & biometric face descriptor
-        const { data: empRecord } = await supabase
-            .from('employees')
-            .select('id, camera_access, gps_access, wifi_access, face_descriptor, nama_lengkap, penempatan')
-            .eq('id', targetEmployeeId)
-            .maybeSingle();
+        const targetEmployeeId = selfEmp.id;
+        const empRecord = selfEmp;
 
         const isGpsRequired = empRecord ? (empRecord.gps_access !== false) : true;
         const isCameraRequired = empRecord ? (empRecord.camera_access !== false) : true;
 
-        // WiFi Office Network Enforcement:
-        // Mandatory for ALL employees, unless Super Admin explicitly set wifi_access === false (Bypass Lapangan)
-        const isWifiBypassed = empRecord?.wifi_access === false;
-
-        if (!isWifiBypassed) {
-            const { data: ipData } = await supabase
-                .from('settings')
-                .select('setting_value')
-                .eq('setting_key', 'allowed_ips')
-                .maybeSingle();
-
-            const allowedIps = (ipData?.setting_value || '').split(',').map(s => s.trim()).filter(Boolean);
-            let rawClientIp = req.headers['cf-connecting-ip']
-                || req.headers['x-real-ip']
-                || (req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : (req.ip || req.socket.remoteAddress || '127.0.0.1'));
-
-            if (rawClientIp.startsWith('::ffff:')) {
-                rawClientIp = rawClientIp.replace('::ffff:', '');
+        // Anti-Fake GPS Checks & Geofence Validation (Only if GPS is required)
+        if (isGpsRequired) {
+            if (is_mock === true) {
+                return res.status(400).json({
+                    message: 'Presensi ditolak: Terdeteksi penggunaan Fake GPS / Mock Location!'
+                });
             }
 
-            const isIpAllowed = allowedIps.length > 0 && allowedIps.some(allowed => {
-                const cleanAllowed = allowed.trim();
-                if (!cleanAllowed) return false;
-                if (cleanAllowed === '0.0.0.0/0' || cleanAllowed === '*') return true;
-                if (cleanAllowed === rawClientIp) return true;
-
-                // Subnet prefix check (e.g. 36.83.26.0/24 matches 36.83.26.x)
-                if (cleanAllowed.includes('/24')) {
-                    const baseSubnet = cleanAllowed.split('/')[0].split('.').slice(0, 3).join('.');
-                    if (rawClientIp.startsWith(baseSubnet + '.')) return true;
-                }
-                if (cleanAllowed.includes('/16')) {
-                    const baseSubnet = cleanAllowed.split('/')[0].split('.').slice(0, 2).join('.');
-                    if (rawClientIp.startsWith(baseSubnet + '.')) return true;
-                }
-                // Partial IP prefix matching
-                if (rawClientIp === cleanAllowed || rawClientIp.startsWith(cleanAllowed)) return true;
-                return false;
+            const gpsValidation = validateGPSCoordinates({
+                lat: latitude,
+                lng: longitude,
+                accuracy,
+                timestamp
             });
 
-            if (!isIpAllowed) {
+            if (!gpsValidation.valid) {
+                return res.status(400).json({ message: `Presensi ditolak: ${gpsValidation.error || 'Koordinat GPS wajib diisi'}` });
+            }
+
+            // Server-Side Geofencing Verification against Database Locations
+            const { data: locData } = await supabase
+                .from('settings')
+                .select('setting_value')
+                .eq('setting_key', 'locations')
+                .maybeSingle();
+
+            let activeLocations = [
+                { id: 1, name: 'Head Office Banjarbaru', lat: -3.42436, lng: 115.99267, radius: 50 },
+                { id: 2, name: 'DEA Site Angsana', lat: -3.70968, lng: 115.60683, radius: 50 }
+            ];
+
+            if (locData && locData.setting_value) {
+                try {
+                    const parsed = typeof locData.setting_value === 'string' ? JSON.parse(locData.setting_value) : locData.setting_value;
+                    if (Array.isArray(parsed) && parsed.length > 0) activeLocations = parsed;
+                } catch (e) {
+                    console.error('Locations parse error:', e);
+                }
+            }
+
+            let isWithinAnyGeofence = false;
+            let nearestSiteName = '';
+            let minDistanceMeters = Infinity;
+
+            for (const loc of activeLocations) {
+                const dist = calculateDistanceMeters(gpsValidation.lat, gpsValidation.lng, loc.lat, loc.lng);
+                if (dist < minDistanceMeters) {
+                    minDistanceMeters = dist;
+                    nearestSiteName = loc.name;
+                }
+                // Allow defined radius + 100m GPS variance buffer
+                const allowedRadius = (loc.radius || 50) + 100;
+                if (dist <= allowedRadius) {
+                    isWithinAnyGeofence = true;
+                    break;
+                }
+            }
+
+            if (!isWithinAnyGeofence) {
                 return res.status(400).json({
-                    message: `Presensi ditolak: Anda terhubung dari jaringan IP (${rawClientIp}) di luar jaringan WiFi Kantor resmi PT DEA GLOBAL NIAGA (${allowedIps.join(', ')}). Anda wajib terhubung ke WiFi kantor resmi untuk presensi, terkecuali hak akses Anda telah diubah menjadi "Bypass Lapangan" oleh Super Admin.`
+                    message: `Presensi ditolak: Anda berada di luar radius geofence resmi (${Math.round(minDistanceMeters)}m dari ${nearestSiteName}). Silakan mendekat ke lokasi kantor/site.`
                 });
             }
         }
@@ -252,14 +302,21 @@ exports.clock_in_out = async (req, res) => {
             }
 
             try {
-                const storedData = JSON.parse(empRecord.face_descriptor);
-                const samples = Array.isArray(storedData[0]) ? storedData : [storedData];
+                const storedRaw = typeof empRecord.face_descriptor === 'string' ? JSON.parse(empRecord.face_descriptor) : empRecord.face_descriptor;
+                let samples = [];
+
+                if (storedRaw && typeof storedRaw === 'object' && Array.isArray(storedRaw.descriptors)) {
+                    samples = storedRaw.descriptors;
+                } else if (Array.isArray(storedRaw)) {
+                    samples = Array.isArray(storedRaw[0]) ? storedRaw : [storedRaw];
+                }
+
                 let minFaceDist = 1.0;
                 for (const sample of samples) {
                     const dist = calculateFaceDistance(incomingFaceDesc, sample);
                     if (dist < minFaceDist) minFaceDist = dist;
                 }
-                if (minFaceDist > 0.40) {
+                if (minFaceDist > 0.56) {
                     return res.status(400).json({
                         message: `Presensi ditolak: Wajah di depan kamera (${empRecord.nama_lengkap}) tidak sesuai dengan data biometrik yang tersimpan di sistem. Presensi dikunci demi keamanan.`
                     });
@@ -270,13 +327,6 @@ exports.clock_in_out = async (req, res) => {
                     message: 'Presensi ditolak: Terjadi kesalahan saat memverifikasi struktur biometrik wajah.'
                 });
             }
-        }
-
-        // Check if employee has GPS validation active or if within geofence
-        if (isGpsRequired && !isWithinAnyGeofence) {
-            return res.status(400).json({
-                message: `Presensi ditolak: Anda berada di luar radius geofence resmi (${Math.round(minDistanceMeters)}m dari ${nearestSiteName}). Silakan mendekat ke lokasi kantor/site.`
-            });
         }
 
         // Fetch company schedule & shift window settings
@@ -336,10 +386,72 @@ exports.clock_in_out = async (req, res) => {
             .eq('date', today)
             .maybeSingle();
 
-        let actionType = 'Clock In';
+        const reqType = (req.body.type || req.body.action_type || req.body.action || '').toLowerCase();
+        
+        // Determine whether this action is Clock Out vs Clock In:
+        // 1. Explicitly requested 'out' / 'clock out'
+        // 2. OR current time is inside/after checkout start time (>= outStartMin)
+        // 3. OR already has an active check-in record without check_out
+        const isClockOutMode = reqType === 'out' || reqType.includes('out') || reqType.includes('pulang') || currentTotalMinutes >= outStartMin || (existingLog && !existingLog.check_out);
+
+        let actionType = isClockOutMode ? 'Clock Out' : 'Clock In';
         let resultLog = null;
 
-        if (!existingLog) {
+        if (isClockOutMode) {
+            // CLOCK OUT SCHEDULE WINDOW VALIDATION
+            if (currentTotalMinutes < outStartMin) {
+                return res.status(400).json({
+                    message: `Presensi pulang ditolak: Belum memasuki jadwal jam kepulangan kantor (Jadwal pulang buka mulai jam ${checkOutStart} WITA, waktu saat ini: ${currentTimeDisplay}).`
+                });
+            }
+
+            if (currentTotalMinutes > outEndMin) {
+                return res.status(400).json({
+                    message: `Presensi pulang ditolak: Batas waktu jam kepulangan kantor telah berakhir (Batas jam ${checkOutEnd} WITA, waktu saat ini: ${currentTimeDisplay}). Harap hubungi HRGA.`
+                });
+            }
+
+            // 2. CHECK-IN MANDATORY VALIDATION: Must have checked in today first!
+            if (!existingLog || !existingLog.check_in) {
+                return res.status(400).json({
+                    message: `Presensi pulang ditolak: Anda belum melakukan Presensi Masuk (Check-In) hari ini. Presensi Pulang tidak dapat diproses tanpa data Check-In agar total jam kerja dapat terhitung dengan benar. Silakan hubungi HRGA untuk pengajuan penyesuaian kehadiran.`
+                });
+            }
+
+            if (existingLog.check_out) {
+                return res.status(400).json({
+                    message: 'Anda sudah menyelesaikan presensi pulang hari ini.'
+                });
+            }
+
+            // 3. Update existing morning check-in log with checkout time
+            actionType = 'Clock Out';
+            const { data, error } = await supabase
+                .from('attendance_logs')
+                .update({
+                    check_out: now,
+                    notes: existingLog.notes ? `${existingLog.notes} | Out: ${currentTimeDisplay}` : `Out: ${currentTimeDisplay}`
+                })
+                .eq('id', existingLog.id)
+                .select('*')
+                .single();
+
+            if (error) throw error;
+            resultLog = data;
+        } else {
+            // CLOCK IN MODE
+            if (existingLog) {
+                if (existingLog.check_in && !existingLog.check_out) {
+                    return res.status(400).json({
+                        message: 'Anda sudah melakukan presensi masuk hari ini. Saat ini menunggu jadwal jam pulang kantor.'
+                    });
+                } else if (existingLog.check_in && existingLog.check_out) {
+                    return res.status(400).json({
+                        message: 'Anda sudah menyelesaikan seluruh presensi masuk dan pulang untuk hari ini.'
+                    });
+                }
+            }
+
             // CLOCK IN SCHEDULE WINDOW VALIDATION
             if (currentTotalMinutes < inStartMin) {
                 return res.status(400).json({
@@ -373,37 +485,6 @@ exports.clock_in_out = async (req, res) => {
 
             if (error) throw error;
             resultLog = data;
-        } else if (!existingLog.check_out) {
-            // CLOCK OUT SCHEDULE WINDOW VALIDATION
-            if (currentTotalMinutes < outStartMin) {
-                return res.status(400).json({
-                    message: `Presensi pulang ditolak: Belum memasuki jadwal jam kepulangan kantor (Jadwal pulang buka mulai jam ${checkOutStart} WITA, waktu saat ini: ${currentTimeDisplay}).`
-                });
-            }
-
-            if (currentTotalMinutes > outEndMin) {
-                return res.status(400).json({
-                    message: `Presensi pulang ditolak: Batas waktu jam kepulangan kantor telah berakhir (Batas jam ${checkOutEnd} WITA, waktu saat ini: ${currentTimeDisplay}). Harap hubungi HRGA.`
-                });
-            }
-
-            actionType = 'Clock Out';
-            const { data, error } = await supabase
-                .from('attendance_logs')
-                .update({
-                    check_out: now,
-                    notes: existingLog.notes ? `${existingLog.notes} | Out: ${currentTimeDisplay}` : `Out: ${currentTimeDisplay}`
-                })
-                .eq('id', existingLog.id)
-                .select('*')
-                .single();
-
-            if (error) throw error;
-            resultLog = data;
-        } else {
-            return res.status(400).json({
-                message: 'Anda sudah menyelesaikan seluruh presensi masuk dan pulang untuk hari ini.'
-            });
         }
 
         await invalidateCache(`attendance:summary:${today}`);

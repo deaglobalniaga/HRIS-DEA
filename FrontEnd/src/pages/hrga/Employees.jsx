@@ -45,7 +45,14 @@ const customSelectStyles = {
     })
 };
 
-const Employees = () => {
+const Employees = ({ readOnly = false }) => {
+    const { user } = useAuth();
+    const role = (user?.role || '').toLowerCase();
+    const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+    const isHSEAdmin = role === 'hse_admin' || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3');
+    const isHRAdmin = !isHSEAdmin && !readOnly && ['admin', 'hr', 'hrga_admin', 'superadmin', 'super_admin'].includes(role);
+    const isReadOnly = isHSEAdmin || readOnly;
+
     const { addToast } = useToast();
     const [employees, setEmployees] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -69,8 +76,37 @@ const Employees = () => {
     const [submitting, setSubmitting] = useState(false);
     const [showPdfModal, setShowPdfModal] = useState(false);
     const [selectedPdfUrl, setSelectedPdfUrl] = useState('');
+    const [previewDocsState, setPreviewDocsState] = useState({
+        documents: [],
+        initialIndex: 0,
+        title: 'Dokumen Karyawan'
+    });
     const [message, setMessage] = useState('');
     const [wizardStep, setWizardStep] = useState(1);
+
+    const handlePreviewEmployeeDoc = (emp, docType) => {
+        const docItems = [
+            emp.ktp_file_url && { title: `KTP (${emp.nama_lengkap || emp.nama})`, url: getFileUrl(emp.ktp_file_url), type: 'KTP' },
+            emp.kk_file_url && { title: `Kartu Keluarga (${emp.nama_lengkap || emp.nama})`, url: getFileUrl(emp.kk_file_url), type: 'KK' },
+            emp.npwp_file_url && { title: `NPWP (${emp.nama_lengkap || emp.nama})`, url: getFileUrl(emp.npwp_file_url), type: 'NPWP' },
+            emp.ijazah_file_url && { title: `Ijazah (${emp.nama_lengkap || emp.nama})`, url: getFileUrl(emp.ijazah_file_url), type: 'IJAZAH' },
+            ...(emp.documents || []).map(d => ({ 
+                title: `${d.document_type || 'Dokumen'} (${emp.nama_lengkap || emp.nama})`, 
+                url: getFileUrl(d.file_url), 
+                type: d.document_type 
+            }))
+        ].filter(Boolean);
+
+        let idx = docItems.findIndex(d => d.type === docType);
+        if (idx < 0) idx = 0;
+
+        setPreviewDocsState({
+            documents: docItems,
+            initialIndex: idx,
+            title: `Dokumen Berkas - ${emp.nama_lengkap || emp.nama}`
+        });
+        setShowPdfModal(true);
+    };
 
     // Bulk Delete State
     const [selectedIds, setSelectedIds] = useState([]);
@@ -662,11 +698,6 @@ const Employees = () => {
         }
     };
 
-    const { user } = useAuth();
-    const userRole = (user?.role || '').toLowerCase();
-    const isHRAdmin = ['superadmin', 'super_admin', 'admin', 'hrga_admin', 'hr'].includes(userRole) ||
-        userRole.includes('admin') || userRole.includes('hr');
-
     // Functional Filter States
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
     const [selectedPlacementFilter, setSelectedPlacementFilter] = useState('ALL');
@@ -822,26 +853,34 @@ const Employees = () => {
 
                     {/* Action Buttons: Import CSV & Tambah Karyawan next to filter */}
                     <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-                        {isHRAdmin && selectedIds.length > 0 && (
+                        {isReadOnly && (
+                            <span className="text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs">
+                                👁️ Mode Tinjauan (HSE Read-Only)
+                            </span>
+                        )}
+
+                        {!isReadOnly && isHRAdmin && selectedIds.length > 0 && (
                             <button
                                 onClick={handleBulkDelete}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 transition rounded-xl font-bold text-xs border border-red-200"
+                                className="flex items-center gap-1.5 px-3 py-2 bg-red-100 text-red-700 hover:bg-red-200 transition rounded-xl font-bold text-xs border border-red-200 cursor-pointer"
                             >
                                 <Trash2 size={14} /> Hapus ({selectedIds.length})
                             </button>
                         )}
 
-                        <button
-                            onClick={() => setShowBulkModal(true)}
-                            className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl shadow-sm transition"
-                        >
-                            <Upload size={14} /> Import CSV
-                        </button>
+                        {!isReadOnly && (
+                            <button
+                                onClick={() => setShowBulkModal(true)}
+                                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-black text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+                            >
+                                <Upload size={14} /> Import CSV
+                            </button>
+                        )}
 
-                        {isHRAdmin && (
+                        {!isReadOnly && isHRAdmin && (
                             <button
                                 onClick={() => { setShowAddModal(true); setWizardStep(1); }}
-                                className="flex items-center gap-1.5 px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-black text-xs rounded-xl shadow-md transition"
+                                className="flex items-center gap-1.5 px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-black text-xs rounded-xl shadow-md transition cursor-pointer"
                             >
                                 <UserPlus size={14} /> Tambah Karyawan
                             </button>
@@ -921,7 +960,7 @@ const Employees = () => {
                                                 </td>
                                             )}
                                             <td className={`p-4 text-sm font-bold text-slate-700 whitespace-nowrap sticky z-10 bg-white group-hover:bg-slate-50 w-[50px] min-w-[50px] max-w-[50px] outline outline-1 outline-white group-hover:outline-slate-50 ${isHRAdmin && activeTab === 'all' ? 'left-[40px]' : 'left-0'}`}>{(currentPage - 1) * itemsPerPage + index + 1}</td>
-                                            <td className={`p-4 text-sm font-bold text-slate-700 whitespace-nowrap sticky z-10 bg-white group-hover:bg-slate-50 w-[150px] min-w-[150px] max-w-[150px] outline outline-1 outline-white group-hover:outline-slate-50 ${isHRAdmin && activeTab === 'all' ? 'left-[90px]' : 'left-[50px]'}`}>{emp.nomor_pkwt || '-'}</td>
+                                            <td className={`p-4 text-sm font-bold text-slate-700 whitespace-nowrap sticky z-10 bg-white group-hover:bg-slate-50 w-[150px] min-w-[150px] max-w-[150px] outline outline-1 outline-white group-hover:outline-slate-50 ${isHRAdmin && activeTab === 'all' ? 'left-[90px]' : 'left-[50px]'}`}>{emp.nomor_pkwt || emp.no_pkwt || emp.nomor_kontrak || '-'}</td>
                                             <td className={`p-4 whitespace-nowrap sticky z-10 bg-white group-hover:bg-slate-50 w-[250px] min-w-[250px] max-w-[250px] shadow-[10px_0_15px_-3px_rgba(0,0,0,0.05)] border-r border-slate-100 outline outline-1 outline-white group-hover:outline-slate-50 ${isHRAdmin && activeTab === 'all' ? 'left-[240px]' : 'left-[200px]'}`}>
                                                 <div className="flex items-center gap-3">
                                                     <div className="w-10 h-10 min-w-[40px] rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-500 shadow-sm border border-slate-200 shrink-0 aspect-square">
@@ -946,15 +985,15 @@ const Employees = () => {
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.level || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.status_karyawan || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.nomor_pegawai || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-700 whitespace-nowrap">{emp.nik || emp.nik_internal || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.tempat_lahir || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.tanggal_lahir ? new Date(emp.tanggal_lahir).toLocaleDateString('id-ID') : '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 min-w-[250px] break-words">{emp.alamat || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.pendidikan || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.jurusan || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-700 whitespace-nowrap">{emp.nik || emp.nik_internal || emp.no_ktp || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.tempat_lahir || emp.birth_place || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.tanggal_lahir ? new Date(emp.tanggal_lahir).toLocaleDateString('id-ID') : (emp.birth_date ? new Date(emp.birth_date).toLocaleDateString('id-ID') : '-')}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 min-w-[250px] break-words">{emp.alamat || emp.address || emp.alamat_domisili || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.pendidikan || emp.pendidikan_terakhir || emp.education || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.jurusan || emp.major || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.status_perkawinan || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.agama || '-'}</td>
-                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.no_handphone || '-'}</td>
+                                            <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.no_handphone || emp.no_hp || emp.phone || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.status_pajak || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.kontak_darurat || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.hubungan || '-'}</td>
@@ -969,16 +1008,40 @@ const Employees = () => {
 
                                             {/* File Upload Links */}
                                             <td className="p-4 whitespace-nowrap">
-                                                {emp.ktp_file_url ? <button onClick={(e) => { e.stopPropagation(); setSelectedPdfUrl(getFileUrl(emp.ktp_file_url)); setShowPdfModal(true); }} className="px-3 py-1 bg-red-50 text-red-700 font-bold text-xs rounded hover:bg-red-100 flex items-center gap-1 w-fit">📄 Lihat KTP</button> : <span className="text-slate-400 text-xs">-</span>}
+                                                {emp.ktp_file_url ? (
+                                                    <button onClick={(e) => { e.stopPropagation(); handlePreviewEmployeeDoc(emp, 'KTP'); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl flex items-center gap-1.5 w-fit shadow-sm border border-red-200 transition">
+                                                        📄 Lihat KTP
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400">Kosong</span>
+                                                )}
                                             </td>
                                             <td className="p-4 whitespace-nowrap">
-                                                {emp.kk_file_url ? <button onClick={(e) => { e.stopPropagation(); setSelectedPdfUrl(`${emp.kk_file_url}`); setShowPdfModal(true); }} className="px-3 py-1 bg-red-50 text-red-700 font-bold text-xs rounded hover:bg-red-100 flex items-center gap-1 w-fit">📄 Lihat KK</button> : <span className="text-slate-400 text-xs">-</span>}
+                                                {emp.kk_file_url ? (
+                                                    <button onClick={(e) => { e.stopPropagation(); handlePreviewEmployeeDoc(emp, 'KK'); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl flex items-center gap-1.5 w-fit shadow-sm border border-red-200 transition">
+                                                        📄 Lihat KK
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400">Kosong</span>
+                                                )}
                                             </td>
                                             <td className="p-4 whitespace-nowrap">
-                                                {emp.npwp_file_url ? <button onClick={(e) => { e.stopPropagation(); setSelectedPdfUrl(`${emp.npwp_file_url}`); setShowPdfModal(true); }} className="px-3 py-1 bg-red-50 text-red-700 font-bold text-xs rounded hover:bg-red-100 flex items-center gap-1 w-fit">📄 Lihat NPWP</button> : <span className="text-slate-400 text-xs">-</span>}
+                                                {emp.npwp_file_url ? (
+                                                    <button onClick={(e) => { e.stopPropagation(); handlePreviewEmployeeDoc(emp, 'NPWP'); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl flex items-center gap-1.5 w-fit shadow-sm border border-red-200 transition">
+                                                        📄 Lihat NPWP
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400">Kosong</span>
+                                                )}
                                             </td>
                                             <td className="p-4 whitespace-nowrap">
-                                                {emp.ijazah_file_url ? <button onClick={(e) => { e.stopPropagation(); setSelectedPdfUrl(`${emp.ijazah_file_url}`); setShowPdfModal(true); }} className="px-3 py-1 bg-red-50 text-red-700 font-bold text-xs rounded hover:bg-red-100 flex items-center gap-1 w-fit">📄 Lihat Ijazah</button> : <span className="text-slate-400 text-xs">-</span>}
+                                                {emp.ijazah_file_url ? (
+                                                    <button onClick={(e) => { e.stopPropagation(); handlePreviewEmployeeDoc(emp, 'IJAZAH'); }} className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 font-bold text-xs rounded-xl flex items-center gap-1.5 w-fit shadow-sm border border-red-200 transition">
+                                                        📄 Lihat Ijazah
+                                                    </button>
+                                                ) : (
+                                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-400">Kosong</span>
+                                                )}
                                             </td>
 
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.nama_rekening || '-'}</td>
@@ -1855,11 +1918,12 @@ const Employees = () => {
                 </div>
             )}
 
-            {/* FULL-PAGE PDF / DOCUMENT VIEWER */}
-            {showPdfModal && selectedPdfUrl && (
+            {/* FULL-PAGE MULTI-DOCUMENT VIEWER */}
+            {showPdfModal && previewDocsState.documents.length > 0 && (
                 <PdfViewerModal
-                    url={getFileUrl(selectedPdfUrl)}
-                    fileName="Dokumen Karyawan"
+                    documents={previewDocsState.documents}
+                    initialIndex={previewDocsState.initialIndex}
+                    fileName={previewDocsState.title}
                     onClose={() => setShowPdfModal(false)}
                 />
             )}

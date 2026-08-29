@@ -26,6 +26,7 @@ import {
 } from './pages';
 import PushManager from './components/common/PushManager';
 import UniversalErrorPage from './components/common/UniversalErrorPage';
+import SplashPreloader from './components/common/SplashPreloader';
 
 import { useAuth } from './context/AuthContext';
 
@@ -39,6 +40,7 @@ function AppRoutes() {
 
   return (
     <>
+      <SplashPreloader />
       <PushManager />
       <Routes>
         {/* Public Routes */}
@@ -81,7 +83,7 @@ function AppRoutes() {
           <Route path="organization" element={canAccessOrg ? <Organization /> : <OrganizationTree />} />
           <Route path="timesheet" element={canAccessOrg ? <Timesheet /> : <AttendanceHub />} />
           <Route path="reports" element={canAccessOrg ? <Reports /> : <Navigate to="/dashboard" replace />} />
-          <Route path="certifications" element={<Navigate to="/organization" replace />} />
+          <Route path="certifications" element={canAccessOrg ? <Navigate to="/organization?tab=certifications" replace /> : <Navigate to="/personal-certifications" replace />} />
 
           {/* Aliases & Fallbacks */}
           <Route path="leave-timeline" element={<Navigate to="/calendar" replace />} />
@@ -89,6 +91,8 @@ function AppRoutes() {
           <Route path="attendance" element={<Navigate to="/attendance-hub" replace />} />
           <Route path="employees" element={<Navigate to={canAccessOrg ? "/organization" : "/organization-tree"} replace />} />
           <Route path="departments" element={<Navigate to={canAccessOrg ? "/organization" : "/organization-tree"} replace />} />
+          <Route path="inbox" element={<Navigate to="/notifications" replace />} />
+          <Route path="payroll" element={<Navigate to="/timesheet" replace />} />
           <Route path="*" element={<UniversalErrorPage code={404} />} />
         </Route>
         
