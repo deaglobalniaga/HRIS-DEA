@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     User, Lock, Shield, ShieldCheck, Smartphone, Key, RefreshCw, CheckCircle2, AlertCircle, Save, X,
     FileText, Award, Building2, Briefcase, Calendar, CreditCard, Hash, MapPin, Eye, Check,
-    Upload, Download, AlertTriangle, Trash2
+    Upload, Download, AlertTriangle, Trash2, Mail
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
