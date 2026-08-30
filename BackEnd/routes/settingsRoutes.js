@@ -4,6 +4,7 @@ const supabase = require('../config/supabase');
 const { verifyToken, isAdmin, isSuperAdmin } = require('../middlewares/authMiddleware');
 const { invalidateSecurityConfigCache } = require('../config/jwtSecret');
 const UAParser = require('ua-parser-js');
+const { parseDeviceDetails } = require('../utils/deviceParser');
 
 const defaultSettings = {
     // 1. Identitas & Kontak Perusahaan
@@ -264,14 +265,13 @@ router.delete('/audit-logs', verifyToken, isSuperAdmin, async (req, res) => {
 // GET /api/settings/my-devices (Active Sessions & Devices for Current User)
 router.get('/my-devices', verifyToken, async (req, res) => {
     try {
-        const parser = new UAParser(req.headers['user-agent'] || '');
-        const uaResult = parser.getResult();
-        const browserStr = `${uaResult.browser.name || 'Web Browser'} ${uaResult.browser.version ? uaResult.browser.version.split('.')[0] : ''}`.trim();
-        const osStr = `${uaResult.os.name || 'Windows'} ${uaResult.os.version || '10/11'}`.trim();
-        const deviceModel = uaResult.device.vendor ? `${uaResult.device.vendor} ${uaResult.device.model || ''}`.trim() : (uaResult.os.name === 'iOS' ? 'Apple iPhone' : (uaResult.os.name === 'Android' ? 'Android Smartphone' : 'Desktop Workstation'));
-        const deviceType = uaResult.device.type || (['iOS', 'Android'].includes(uaResult.os.name) ? 'Mobile' : 'Desktop');
-        const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-        const finalDeviceId = `dev_${Buffer.from(clientIp + (uaResult.os.name || '') + (uaResult.browser.name || '')).toString('hex').slice(0, 16)}`;
+        const parsed = parseDeviceDetails(req);
+        const browserStr = parsed.browser;
+        const osStr = parsed.os;
+        const deviceModel = parsed.deviceModel;
+        const deviceType = parsed.deviceType;
+        const clientIp = parsed.ip;
+        const finalDeviceId = parsed.deviceFingerprint;
 
         // Check and upsert current active device
         const { data: existing } = await supabase
@@ -290,6 +290,7 @@ router.get('/my-devices', verifyToken, async (req, res) => {
                 browser: browserStr,
                 os: osStr,
                 ip: clientIp,
+                location: parsed.location,
                 is_trusted: true,
                 is_active: true,
                 last_login: new Date().toISOString()

@@ -2,12 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
     User, Lock, Shield, ShieldCheck, Smartphone, Key, RefreshCw, CheckCircle2, AlertCircle, Save, X,
     FileText, Award, Building2, Briefcase, Calendar, CreditCard, Hash, MapPin, Eye, Check,
-    Upload, Download, AlertTriangle, Trash2, Mail
+    Upload, Download, AlertTriangle, Trash2, Mail, Laptop, Monitor, Tablet
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
+import { getClientDeviceInfo } from '../../utils/deviceDetector';
 
 const Settings = () => {
     const { user, login, token } = useAuth();
@@ -125,7 +126,12 @@ const Settings = () => {
 
     const fetchDevices = async () => {
         try {
-            const res = await api.get('/settings/my-devices');
+            const devInfo = await getClientDeviceInfo();
+            const res = await api.get('/settings/my-devices', {
+                headers: {
+                    'x-client-device': encodeURIComponent(JSON.stringify(devInfo))
+                }
+            });
             setDevices(res.data || []);
         } catch (e) {
             console.error('Fetch devices error:', e);
@@ -1144,46 +1150,63 @@ const Settings = () => {
                                             Belum ada data riwayat perangkat lain. Sesi saat ini aktif & aman.
                                         </div>
                                     ) : (
-                                        devices.map((dev, idx) => (
-                                            <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-red-50 text-red-700 flex items-center justify-center font-bold shrink-0">
-                                                        <Smartphone size={16} />
-                                                    </div>
-                                                    <div>
-                                                        <div className="flex items-center gap-2">
-                                                            <h5 className="font-bold text-slate-900">
-                                                                {dev.device_name || `${dev.os || 'OS'} (${dev.browser || 'Browser'})`}
-                                                            </h5>
-                                                            {idx === 0 && (
-                                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                                                    Sesi Aktif Saat Ini
-                                                                </span>
-                                                            )}
+                                        devices.map((dev, idx) => {
+                                            const type = (dev.device_type || '').toLowerCase();
+                                            const isLap = type === 'laptop' || (dev.device_name || '').toLowerCase().includes('laptop') || (dev.device_name || '').toLowerCase().includes('macbook');
+                                            const isTab = type === 'tablet' || (dev.device_name || '').toLowerCase().includes('ipad') || (dev.device_name || '').toLowerCase().includes('tablet');
+                                            const isMob = type === 'mobile' || (dev.device_name || '').toLowerCase().includes('iphone') || (dev.device_name || '').toLowerCase().includes('smartphone') || (dev.os || '').toLowerCase().includes('android') || (dev.os || '').toLowerCase().includes('ios');
+                                            
+                                            return (
+                                                <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs hover:border-slate-300 transition-all">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+                                                            {isLap ? <Laptop size={17} /> : isTab ? <Tablet size={17} /> : isMob ? <Smartphone size={17} /> : <Monitor size={17} />}
                                                         </div>
-                                                        <span className="text-[10px] text-slate-400 font-mono">
-                                                            {dev.os || 'OS'} • {dev.browser || 'Browser'} • IP: {dev.ip || '127.0.0.1'}
-                                                        </span>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <h5 className="font-black text-slate-900 text-xs">
+                                                                    {dev.device_name || (isLap ? 'Laptop' : isMob ? 'Smartphone' : 'Desktop PC')}
+                                                                </h5>
+                                                                {idx === 0 && (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                                        Sesi Aktif Saat Ini
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 text-[10px] text-slate-500 font-medium mt-0.5 flex-wrap">
+                                                                <span className="font-bold text-slate-700">{dev.os || 'Windows 11'}</span>
+                                                                <span>•</span>
+                                                                <span>{dev.browser || 'Web Browser'}</span>
+                                                                <span>•</span>
+                                                                <span className="font-mono text-slate-400">IP: {dev.ip || '127.0.0.1'}</span>
+                                                                {dev.location && (
+                                                                    <>
+                                                                        <span>•</span>
+                                                                        <span className="text-slate-400">{dev.location}</span>
+                                                                    </>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="text-right text-[10px] font-mono text-slate-400">
+                                                            {dev.last_login ? new Date(dev.last_login).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
+                                                        </div>
+                                                        {dev.id && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleDeleteDevice(dev.id)}
+                                                                title="Putuskan dan hapus perangkat ini"
+                                                                className="p-1.5 bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-all flex items-center gap-1 text-[10px] font-bold cursor-pointer"
+                                                            >
+                                                                <Trash2 size={13} />
+                                                                <span className="hidden sm:inline">Hapus</span>
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="flex items-center gap-3">
-                                                    <div className="text-right text-[10px] font-mono text-slate-400">
-                                                        {dev.last_login ? new Date(dev.last_login).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
-                                                    </div>
-                                                    {dev.id && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => handleDeleteDevice(dev.id)}
-                                                            title="Putuskan dan hapus perangkat ini"
-                                                            className="p-1.5 bg-slate-100 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-all flex items-center gap-1 text-[10px] font-bold"
-                                                        >
-                                                            <Trash2 size={13} />
-                                                            <span className="hidden sm:inline">Hapus</span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))
+                                            );
+                                        })
                                     )}
                                 </div>
                             </div>

@@ -5,6 +5,7 @@ import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import AuthTransitionOverlay from '../../components/common/AuthTransitionOverlay';
+import { getClientDeviceInfo } from '../../utils/deviceDetector';
 
 const Login = () => {
     const [credentials, setCredentials] = useState({ nama: '', password: '' });
@@ -174,10 +175,12 @@ const Login = () => {
 
         setLoading(true);
         try {
+            const devInfo = await getClientDeviceInfo();
             const payload = {
                 ...credentials,
                 mfaToken: mfaToken ? String(mfaToken).trim() : undefined,
-                deviceId: localStorage.getItem('hris_device_id') || undefined
+                deviceId: devInfo.deviceId,
+                deviceInfo: devInfo
             };
             const response = await api.post('/auth/login', payload);
             

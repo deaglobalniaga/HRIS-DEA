@@ -3,7 +3,7 @@ import {
   Building2, MapPin, Clock, ShieldCheck, Smartphone, Plus, Trash2,
   CheckCircle2, XCircle, RefreshCw, Save, Globe, Phone, Mail, FileText,
   Layers, Users, ShieldAlert, Wifi, Server, Search, Crosshair, Eye, EyeOff, Layers2, Edit, Check,
-  Key, Lock, Timer, Sliders, Sparkles, ChevronLeft, ChevronRight
+  Key, Lock, Timer, Sliders, Sparkles, ChevronLeft, ChevronRight, Laptop, Monitor, Tablet
 } from 'lucide-react';
 import api from '../../api/api';
 import { useToast } from '../../context/ToastContext';
@@ -1003,8 +1003,17 @@ const CompanySettings = () => {
                                 <span className="block text-[10px] text-slate-400 font-normal">{d.users?.roles?.name || 'user'}</span>
                               </td>
                               <td className="p-3.5">
-                                <span className="font-bold text-slate-800">{d.device_name || 'Browser'}</span>
-                                <span className="block text-[10px] text-slate-500">{d.browser || 'Chrome'} ({d.os || 'Windows'})</span>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-6 h-6 rounded-lg bg-red-50 text-red-700 flex items-center justify-center shrink-0">
+                                    {(d.device_type === 'Laptop' || (d.device_name || '').toLowerCase().includes('laptop') || (d.device_name || '').toLowerCase().includes('macbook')) ? <Laptop size={13} /> :
+                                     (d.device_type === 'Tablet' || (d.device_name || '').toLowerCase().includes('ipad') || (d.device_name || '').toLowerCase().includes('tablet')) ? <Tablet size={13} /> :
+                                     (d.device_type === 'Mobile' || (d.device_name || '').toLowerCase().includes('phone') || (d.os || '').toLowerCase().includes('android') || (d.os || '').toLowerCase().includes('ios')) ? <Smartphone size={13} /> : <Monitor size={13} />}
+                                  </div>
+                                  <div>
+                                    <span className="font-bold text-slate-800 block leading-tight">{d.device_name || 'Device'}</span>
+                                    <span className="text-[10px] text-slate-500 font-medium">{d.browser || 'Browser'} • {d.os || 'OS'}</span>
+                                  </div>
+                                </div>
                               </td>
                               <td className="p-3.5">
                                 <span className="font-mono text-[11px] font-bold text-slate-800 block">{cleanIp}</span>

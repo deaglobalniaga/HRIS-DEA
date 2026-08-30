@@ -8,6 +8,7 @@ const UAParser = require('ua-parser-js');
 const mailer = require('../utils/mailer');
 const { processUploadedFile } = require('../utils/fileStorage');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
+const { parseDeviceDetails } = require('../utils/deviceParser');
 
 // Utility to set HttpOnly Cookie with configurable dynamic TTL
 const setAuthCookie = (res, token, maxAgeMs = 5 * 60 * 60 * 1000) => {
@@ -355,22 +356,15 @@ exports.login = async (req, res) => {
             }
         }
 
-        // Track Device & Sesi Login
-        const parser = new UAParser(req.headers['user-agent'] || '');
-        const uaResult = parser.getResult();
-        const browserStr = `${uaResult.browser.name || 'Web Browser'} ${uaResult.browser.version ? uaResult.browser.version.split('.')[0] : ''}`.trim();
-        const osStr = `${uaResult.os.name || 'Unknown OS'} ${uaResult.os.version || ''}`.trim();
-        const deviceModel = uaResult.device.vendor ? `${uaResult.device.vendor} ${uaResult.device.model || ''}`.trim() : (uaResult.os.name === 'iOS' ? 'Apple iPhone' : (uaResult.os.name === 'Android' ? 'Android Smartphone' : 'Desktop Workstation'));
-        const deviceType = uaResult.device.type || (['iOS', 'Android'].includes(uaResult.os.name) ? 'Mobile' : 'Desktop');
-        let clientIp = req.headers['x-forwarded-for'] ? req.headers['x-forwarded-for'].split(',')[0].trim() : (req.ip || req.socket.remoteAddress || '127.0.0.1');
-        if (clientIp.startsWith('::ffff:')) {
-            clientIp = clientIp.replace('::ffff:', '');
-        }
-        if (clientIp === '::1') {
-            clientIp = '127.0.0.1';
-        }
-        const clientLocation = req.body.location || 'Kalimantan Selatan, ID';
-        const finalDeviceId = deviceId || `dev_${Buffer.from(clientIp + (uaResult.os.name || '') + (uaResult.browser.name || '')).toString('hex').slice(0, 16)}`;
+        // Track Device & Sesi Login (Accurate hardware model & OS)
+        const parsedDevice = parseDeviceDetails(req);
+        const browserStr = parsedDevice.browser;
+        const osStr = parsedDevice.os;
+        const deviceModel = parsedDevice.deviceModel;
+        const deviceType = parsedDevice.deviceType;
+        const clientIp = parsedDevice.ip;
+        const clientLocation = parsedDevice.location;
+        const finalDeviceId = parsedDevice.deviceFingerprint;
 
         try {
             // Check if device exists for this user (by device_fingerprint OR by matching device_name + os + browser)
