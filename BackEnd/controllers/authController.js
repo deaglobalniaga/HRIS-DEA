@@ -332,9 +332,11 @@ exports.login = async (req, res) => {
                             secret: user.mfa_secret,
                             encoding: 'base32',
                             token: String(mfaToken).trim(),
-                            window: 1
+                            window: 2
                         });
-                    } catch (totpErr) {}
+                    } catch (totpErr) {
+                        console.warn('Login TOTP Verify Error:', totpErr.message);
+                    }
                 }
 
                 // 2. Check Email OTP Code
@@ -791,17 +793,45 @@ exports.setupPassword = async (req, res) => {
 
 exports.requestMfa = async (req, res) => {
     try {
+        const { data: user, error: uErr } = await supabase
+            .from('users')
+            .select('id, username, email')
+            .eq('id', req.userId)
+            .single();
+
+        if (uErr || !user) {
+            return res.status(404).json({ error: 'Pengguna tidak ditemukan' });
+        }
+
+        // Generate a fresh unique random secret for this user
         const secret = speakeasy.generateSecret({ length: 20 });
-        const { data: user } = await supabase.from('users').select('username, email').eq('id', req.userId).single();
         
+        // Update this user's specific MFA secret
         await supabase.from('users').update({ mfa_secret: secret.base32 }).eq('id', req.userId);
         
-        const url = speakeasy.otpauthURL({ secret: secret.ascii, label: `HRIS:${user?.username || 'User'}`, issuer: 'PT DEA GLOBAL NIAGA' });
+        // Distinct account label in Authenticator app to prevent account conflicts
+        const accountLabel = user.email ? `${user.username} (${user.email})` : user.username;
+        const url = speakeasy.otpauthURL({ 
+            secret: secret.base32, 
+            label: `PT DEA GLOBAL NIAGA:${accountLabel}`, 
+            issuer: 'PT DEA GLOBAL NIAGA',
+            encoding: 'base32'
+        });
+
         QRCode.toDataURL(url, (err, data_url) => {
-            if (err) throw err;
-            res.json({ qrCodeUrl: data_url, secret: secret.base32, email: user?.email });
+            if (err) {
+                console.error('QR Code error:', err);
+                return res.status(500).json({ error: 'Gagal membuat QR Code MFA' });
+            }
+            res.json({ 
+                qrCodeUrl: data_url, 
+                secret: secret.base32, 
+                username: user.username,
+                email: user.email 
+            });
         });
     } catch (err) {
+        console.error('Request MFA error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -809,7 +839,7 @@ exports.requestMfa = async (req, res) => {
 // Send OTP code to user's registered email for 2-Factor Authentication
 exports.sendMfaEmailOtp = async (req, res) => {
     try {
-        const { username, email, userId } = req.body;
+        const { username, email, userId } = req.body || {};
         const targetUserId = req.userId || userId;
         
         let user = null;
@@ -817,7 +847,7 @@ exports.sendMfaEmailOtp = async (req, res) => {
             const { data } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', targetUserId).maybeSingle();
             user = data;
         } else if (username || email) {
-            const cleanIdent = (username || email).trim();
+            const cleanIdent = String(username || email).trim();
             const { data } = await supabase.from('users').select('id, username, email, recovery_email')
                 .or(`username.ilike.${cleanIdent},email.ilike.${cleanIdent}`)
                 .maybeSingle();
@@ -825,7 +855,7 @@ exports.sendMfaEmailOtp = async (req, res) => {
         }
 
         if (!user) {
-            return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan. Pastikan username atau email sesuai.' });
         }
 
         const targetEmail = user.email || user.recovery_email;
@@ -838,7 +868,8 @@ exports.sendMfaEmailOtp = async (req, res) => {
 
         await supabase.from('users').update({
             reset_otp: otpCode,
-            reset_otp_expires_at: expiresAt
+            reset_otp_expires_at: expiresAt,
+            last_otp_sent_at: new Date().toISOString()
         }).eq('id', user.id);
 
         const { sendMfaOtpEmail } = require('../utils/mailer');
@@ -863,25 +894,41 @@ exports.sendMfaEmailOtp = async (req, res) => {
 
 exports.verifyMfa = async (req, res) => {
     const { token } = req.body;
-    try {
-        const { data: user } = await supabase.from('users').select('mfa_secret, reset_otp, reset_otp_expires_at').eq('id', req.userId).single();
-        let verified = false;
+    if (!token || !String(token).trim()) {
+        return res.status(400).json({ message: 'Masukkan 6 digit kode verifikasi' });
+    }
 
-        // 1. Check Google Authenticator / TOTP
-        if (user?.mfa_secret && token) {
+    try {
+        const { data: user, error: uErr } = await supabase
+            .from('users')
+            .select('id, mfa_secret, reset_otp, reset_otp_expires_at')
+            .eq('id', req.userId)
+            .single();
+
+        if (uErr || !user) {
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan' });
+        }
+
+        let verified = false;
+        const cleanToken = String(token).trim();
+
+        // 1. Check Google Authenticator / TOTP (window: 2 to support +/- 60s time drift)
+        if (user?.mfa_secret && cleanToken.length === 6) {
             try {
                 verified = speakeasy.totp.verify({
                     secret: user.mfa_secret,
                     encoding: 'base32',
-                    token: String(token).trim(),
-                    window: 1
+                    token: cleanToken,
+                    window: 2
                 });
-            } catch (e) {}
+            } catch (e) {
+                console.warn('TOTP verify error:', e.message);
+            }
         }
 
         // 2. Check Email OTP
-        if (!verified && user?.reset_otp && user?.reset_otp_expires_at && token) {
-            const isOtpMatch = String(user.reset_otp).trim() === String(token).trim();
+        if (!verified && user?.reset_otp && user?.reset_otp_expires_at && cleanToken) {
+            const isOtpMatch = String(user.reset_otp).trim() === cleanToken;
             const isNotExpired = new Date() < new Date(user.reset_otp_expires_at);
             if (isOtpMatch && isNotExpired) {
                 verified = true;
@@ -893,9 +940,10 @@ exports.verifyMfa = async (req, res) => {
             await supabase.from('users').update({ mfa_enabled: true }).eq('id', req.userId);
             res.json({ message: 'Autentikasi 2-Langkah (MFA) berhasil diverifikasi dan diaktifkan!' });
         } else {
-            res.status(400).json({ message: 'Kode verifikasi salah atau telah kedaluwarsa' });
+            res.status(400).json({ message: 'Kode verifikasi salah atau telah kedaluwarsa. Pastikan jam di HP/perangkat sinkron.' });
         }
     } catch (err) {
+        console.error('Verify MFA error:', err);
         res.status(500).json({ error: err.message });
     }
 };

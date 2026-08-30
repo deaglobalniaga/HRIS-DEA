@@ -174,7 +174,12 @@ const Login = () => {
 
         setLoading(true);
         try {
-            const response = await api.post('/auth/login', credentials);
+            const payload = {
+                ...credentials,
+                mfaToken: mfaToken ? String(mfaToken).trim() : undefined,
+                deviceId: localStorage.getItem('hris_device_id') || undefined
+            };
+            const response = await api.post('/auth/login', payload);
             
             if (response.data?.requireMfa) {
                 setRequireMfa(true);
@@ -392,7 +397,7 @@ const Login = () => {
                                     </div>
                                 </div>
 
-                                <div className="pt-1">
+                                <div className="pt-1 space-y-2">
                                     <button
                                         type="button"
                                         disabled={emailOtpCooldown > 0 || sendingEmailOtp}
@@ -401,6 +406,16 @@ const Login = () => {
                                     >
                                         <Mail size={15} className="text-red-700" />
                                         {sendingEmailOtp ? 'Mengirim Kode OTP...' : emailOtpCooldown > 0 ? `Kirim Ulang (${emailOtpCooldown}s)` : 'Kirim Kode OTP ke Email'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setRequireMfa(false);
+                                            setMfaToken('');
+                                        }}
+                                        className="w-full text-center text-[11px] font-bold text-slate-500 hover:text-slate-800 transition py-1 cursor-pointer"
+                                    >
+                                        ← Kembali & Ganti Akun
                                     </button>
                                 </div>
                             </div>

@@ -308,7 +308,11 @@ const Settings = () => {
         if (mfaEmailCooldown > 0 || mfaSendingEmail) return;
         setMfaSendingEmail(true);
         try {
-            const res = await api.post('/auth/mfa/send-email-otp', {});
+            const res = await api.post('/auth/mfa/send-email-otp', {
+                userId: profileData?.id || user?.id,
+                username: profileData?.username || user?.username,
+                email: profileData?.email || user?.email
+            });
             setMfaEmailCooldown(60);
             addToast(res.data?.message || 'Kode OTP telah dikirim ke email terdaftar!', 'success');
         } catch(e) {

@@ -6,7 +6,7 @@ const multer = require('multer');
 const authController = require('../controllers/authController');
 
 // Middlewares
-const { verifyToken } = require('../middlewares/authMiddleware');
+const { verifyToken, optionalAuth } = require('../middlewares/authMiddleware');
 const verifyTurnstile = require('../middlewares/turnstileMiddleware');
 
 // MULTER CONFIG - Memory storage because we will upload to Supabase Bucket in controllers
@@ -44,7 +44,7 @@ router.patch('/profile', verifyToken, upload.any(), authController.updateProfile
 router.get('/mfa/generate', verifyToken, authController.requestMfa);
 router.post('/mfa/verify', verifyToken, authController.verifyMfa);
 router.post('/mfa/disable', verifyToken, authController.disableMfa);
-router.post('/mfa/send-email-otp', authController.sendMfaEmailOtp);
+router.post('/mfa/send-email-otp', optionalAuth, authController.sendMfaEmailOtp);
 router.patch('/recovery-email', verifyToken, authController.saveRecoveryEmail);
 
 // User Devices

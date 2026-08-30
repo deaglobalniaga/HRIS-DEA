@@ -122,8 +122,33 @@ const isSelfOrAdmin = (paramKey = 'id') => {
     };
 };
 
+// Optional Auth Guard: Populates req.user & req.userId if a valid token is provided, without failing if unauthenticated
+const optionalAuth = async (req, res, next) => {
+    let tokenString = null;
+    const authHeader = (typeof req.get === 'function' ? req.get('authorization') : null) || req.headers?.authorization || req.headers?.Authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        tokenString = authHeader.split(' ')[1];
+    }
+    if (!tokenString && req.cookies?.access_token) {
+        tokenString = req.cookies.access_token;
+    }
+    if (tokenString) {
+        try {
+            const secret = await getJwtSecret();
+            const decoded = jwt.verify(tokenString, secret);
+            if (decoded) {
+                req.user = decoded;
+                req.userId = decoded.id;
+                req.userRole = (decoded.role || 'user').toLowerCase();
+            }
+        } catch (e) {}
+    }
+    next();
+};
+
 module.exports = {
     verifyToken,
+    optionalAuth,
     isAdmin,
     isSuperAdmin,
     isHRGA,
