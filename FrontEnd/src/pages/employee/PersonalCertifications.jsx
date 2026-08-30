@@ -104,7 +104,7 @@ const PersonalCertifications = () => {
         try {
           const allCertsRes = await api.get('/hris/certifications');
           const allC = allCertsRes.data || [];
-          const pendingCount = allC.filter(c => c.status === 'Pending' || c.is_approved === false).length;
+          const pendingCount = allC.filter(c => (c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]')) && c.status !== 'Rejected').length;
           setPendingHSECount(pendingCount);
         } catch (e) {
           // ignore

@@ -98,7 +98,7 @@ const HSEDashboard = () => {
           jabatan: c.karyawan?.jabatan || '-',
           expiry: c.is_lifetime ? 'Seumur Hidup' : (c.tanggal_kadaluarsa || c.valid_until || c.expiry_date || 'Aktif'),
           is_lifetime: c.is_lifetime,
-          status: (c.status === 'Pending' || c.is_approved === false) ? 'Menunggu Verifikasi' : (c.status || 'Aman'),
+          status: (c.status === 'Pending' || (c.notes?.includes('[STATUS:PENDING]') && c.status !== 'Rejected')) ? 'Menunggu Verifikasi' : (c.status === 'Rejected' ? 'Ditolak' : (c.status || 'Aman')),
           file_url: c.file_url || c.file_path,
           created_at: c.created_at || c.tanggal_diterbitkan
         }));
