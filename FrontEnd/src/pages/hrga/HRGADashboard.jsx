@@ -424,43 +424,45 @@ const HRGADashboard = () => {
       {/* Row 3: 3 Cards (Status Divisi, Tren Kehadiran 7 Hari, Komposisi Hari Ini) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         {/* Card 1: Status Divisi (4 Cols) */}
-        <div className="lg:col-span-4 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 h-56 flex flex-col justify-between">
-          <div className="pb-2 border-b border-slate-100">
+        <div className="lg:col-span-4 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 h-56 flex flex-col">
+          <div className="pb-2 border-b border-slate-100 shrink-0">
             <h3 className="text-xs font-black text-slate-900">Status Divisi</h3>
           </div>
-          <div className="grid grid-cols-2 gap-2 flex-1 pt-2">
-            {(stats.divisionStats?.length > 0 ? stats.divisionStats.slice(0, 8) : [
-              { name: 'IT', count: 1 },
-              { name: 'HRGA', count: 7 },
-              { name: 'Direksi & Manajemen', count: 4 },
-              { name: 'Pengelola KO', count: 2 },
-              { name: 'Pengelola K3', count: 2 },
-              { name: 'Project BIB', count: 11 },
-              { name: 'Maintenance BIB', count: 15 },
-              { name: 'HSE', count: 1 }
-            ]).map((dept, i) => {
-              const styles = [
-                'bg-emerald-50 text-emerald-800 border-emerald-100',
-                'bg-blue-50 text-blue-800 border-blue-100',
-                'bg-amber-50 text-amber-800 border-amber-100',
-                'bg-slate-50 text-slate-700 border-slate-200/60'
-              ];
-              const s = styles[i % styles.length];
-              return (
-                <div 
-                  key={i} 
-                  onClick={() => navigate('/organization?tab=departments')}
-                  className={`${s} rounded-xl border p-1.5 flex flex-col items-center justify-center text-center transition-transform hover:scale-[1.03] cursor-pointer`}
-                >
-                  <span className="text-[11px] font-black leading-tight truncate w-full px-1">
-                    {dept.name}
-                  </span>
-                  <span className="text-[9px] font-bold opacity-75 mt-0.5">
-                    {dept.count} Karyawan
-                  </span>
-                </div>
-              );
-            })}
+          <div className="overflow-y-auto flex-1 pt-2 pr-0.5" style={{ scrollbarWidth: 'thin', scrollbarColor: '#e2e8f0 transparent' }}>
+            <div className="grid grid-cols-2 gap-2">
+              {(stats.divisionStats?.length > 0 ? stats.divisionStats : [
+                { name: 'IT', count: 1 },
+                { name: 'HRGA', count: 7 },
+                { name: 'Direksi & Manajemen', count: 4 },
+                { name: 'Pengelola KO', count: 2 },
+                { name: 'Pengelola K3', count: 2 },
+                { name: 'Project BIB', count: 11 },
+                { name: 'Maintenance BIB', count: 15 },
+                { name: 'HSE', count: 1 }
+              ]).map((dept, i) => {
+                const styles = [
+                  'bg-emerald-50 text-emerald-800 border-emerald-100',
+                  'bg-blue-50 text-blue-800 border-blue-100',
+                  'bg-amber-50 text-amber-800 border-amber-100',
+                  'bg-slate-50 text-slate-700 border-slate-200/60'
+                ];
+                const s = styles[i % styles.length];
+                return (
+                  <div 
+                    key={i} 
+                    onClick={() => navigate('/organization?tab=departments')}
+                    className={`${s} rounded-xl border p-1.5 flex flex-col items-center justify-center text-center transition-transform hover:scale-[1.03] cursor-pointer`}
+                  >
+                    <span className="text-[11px] font-black leading-tight truncate w-full px-1">
+                      {dept.name}
+                    </span>
+                    <span className="text-[9px] font-bold opacity-75 mt-0.5">
+                      {dept.count} Karyawan
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
