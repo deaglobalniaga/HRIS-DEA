@@ -373,7 +373,7 @@ const Timesheet = () => {
                                     onClick={handlePrint}
                                     className="w-full px-4 py-2.5 text-xs font-bold text-slate-900 hover:bg-slate-50 flex items-center gap-2.5 transition text-left cursor-pointer"
                                 >
-                                    <Printer size={15} className="text-red-700" /> Cetak PDF (Kop Surat Resmi)
+                                    <Printer size={15} className="text-red-700" /> Cetak PDF
                                 </button>
                             </div>
                         )}

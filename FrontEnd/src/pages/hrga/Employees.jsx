@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, MoreVertical, Briefcase, UserPlus, X, AlertCircle, Upload, Edit, Trash2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Search, Filter, MoreVertical, Briefcase, UserPlus, X, AlertCircle, Upload, Edit, Trash2, ArrowRight, ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -8,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import Certifications from '../hse/Certifications';
 import CreatableSelect from 'react-select/creatable';
 import PdfViewerModal from '../../components/PdfViewerModal';
+import { ImportEmployeeModal, ExportEmployeeModal } from './EmployeeImportExportModals';
 
 const customSelectStyles = {
     control: (base, state) => ({
@@ -108,13 +109,23 @@ const Employees = ({ readOnly = false }) => {
         setShowPdfModal(true);
     };
 
-    // Bulk Delete State
+    // Bulk Delete & Export & Import State
     const [selectedIds, setSelectedIds] = useState([]);
-
-    // Bulk Upload State
     const [showBulkModal, setShowBulkModal] = useState(false);
-    const [bulkData, setBulkData] = useState([]);
-    const [csvFile, setCsvFile] = useState(null);
+    const [showExportModal, setShowExportModal] = useState(false);
+
+    const handleBulkImportEmployees = async (importedList) => {
+        try {
+            const res = await api.post('/hris/employees/bulk', { employees: importedList });
+            addToast(res.data?.message || `${importedList.length} data karyawan berhasil diimport!`, 'success');
+            fetchEmployees();
+        } catch (err) {
+            console.error('Bulk Import Error:', err);
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Gagal mengimport data karyawan.';
+            addToast(msg, 'error');
+            throw err;
+        }
+    };
 
 
 
@@ -867,6 +878,13 @@ const Employees = ({ readOnly = false }) => {
                                 <Trash2 size={14} /> Hapus ({selectedIds.length})
                             </button>
                         )}
+
+                        <button
+                            onClick={() => setShowExportModal(true)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-700 hover:bg-emerald-800 text-white font-bold text-xs rounded-xl shadow-sm transition cursor-pointer"
+                        >
+                            <Download size={14} /> Export Data
+                        </button>
 
                         {!isReadOnly && (
                             <button
@@ -1834,17 +1852,23 @@ const Employees = ({ readOnly = false }) => {
                 </div>
             )}
 
-            {/* Bulk Upload Modal placeholder to avoid errors */}
-            {showBulkModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-[2rem] w-full max-w-lg overflow-hidden shadow-2xl p-6">
-                        <h2 className="text-xl font-black mb-4">Import Karyawan</h2>
-                        <input type="file" onChange={handleFileUpload} accept=".csv,.xlsx,.xls" className="mb-4" />
-                        <button onClick={handleBulkSubmit} className="bg-red-600 text-white px-4 py-2 rounded">Upload</button>
-                        <button onClick={() => setShowBulkModal(false)} className="ml-2 px-4 py-2">Batal</button>
-                    </div>
-                </div>
-            )}
+            {/* Full-Screen Portal Import Modal with Customizable Template */}
+            <ImportEmployeeModal
+                isOpen={showBulkModal}
+                onClose={() => setShowBulkModal(false)}
+                onImportSuccess={handleBulkImportEmployees}
+                addToast={addToast}
+            />
+
+            {/* Full-Screen Portal Export Modal with Row & Column Checklists */}
+            <ExportEmployeeModal
+                isOpen={showExportModal}
+                onClose={() => setShowExportModal(false)}
+                employees={employees}
+                filteredEmployees={filteredEmployees}
+                selectedIds={selectedIds}
+                addToast={addToast}
+            />
 
             {selectedHSEEmployee && (
                 <div className="fixed inset-0 z-50 flex justify-end">

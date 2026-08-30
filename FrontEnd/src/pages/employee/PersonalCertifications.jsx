@@ -324,9 +324,9 @@ const PersonalCertifications = () => {
 
           <button
             onClick={() => navigate('/organization?tab=certifications')}
-            className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-black rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-black rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
           >
-            Buka Matriks & Permohonan HSE <ArrowRight size={14} />
+            Matriks K3 <ArrowRight size={14} />
           </button>
         </div>
       )}

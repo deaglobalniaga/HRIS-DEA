@@ -489,6 +489,19 @@ const OrganizationChart = ({ readOnly = false }) => {
     setEditingNode(null);
   };
 
+  // Helper to normalize division names for accurate filtering matching
+  const normalizeDiv = (div) => {
+    const d = String(div || '').toLowerCase().trim();
+    if (d.includes('direksi') || d.includes('pimpinan') || d.includes('manajemen')) return 'direksi';
+    if (d.includes('hr') || d.includes('ga')) return 'hrga';
+    if (d.includes('pengelola ko') || d === 'ko') return 'ko';
+    if (d.includes('k3') || d.includes('safety') || d.includes('hse')) return 'k3';
+    if (d.includes('project') || d.includes('proyek')) return 'project';
+    if (d.includes('maint') || d.includes('perawatan')) return 'maintenance';
+    if (d === 'it' || d.includes('information')) return 'it';
+    return d;
+  };
+
   // Filtered Directory for Tab 2
   const filteredDirectory = directoryMembers.filter(m => {
     if (!m) return false;
@@ -504,7 +517,11 @@ const OrganizationChart = ({ readOnly = false }) => {
       title.includes(term) ||
       certs.some(c => String(c || '').toLowerCase().includes(term));
 
-    const matchDivision = selectedDivision === 'All' || m.division.toLowerCase() === selectedDivision.toLowerCase();
+    const matchDivision = selectedDivision === 'All' || 
+      normalizeDiv(m.division) === normalizeDiv(selectedDivision) ||
+      m.division.toLowerCase().includes(selectedDivision.toLowerCase()) ||
+      selectedDivision.toLowerCase().includes(m.division.toLowerCase());
+
     return matchSearch && matchDivision;
   });
 
@@ -638,7 +655,7 @@ const OrganizationChart = ({ readOnly = false }) => {
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Users size={14} /> Direktori Anggota ({ORG_DATA.length})
+              <Users size={14} /> Direktori Anggota ({directoryMembers.length})
             </button>
           </div>
         </div>
@@ -924,7 +941,7 @@ const OrganizationChart = ({ readOnly = false }) => {
         <div className="space-y-4 animate-in fade-in duration-300">
           {/* Category Filter Pills (Only visible in Directory View) */}
           <div className="flex flex-wrap gap-1.5 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm">
-            {['All', 'Direksi & Pimpinan', 'HRGA', 'Pengelola KO', 'Pengelola K3', 'Project', 'Maintenance'].map((div) => (
+            {['All', 'Direksi & Manajemen', 'HRGA', 'Pengelola KO', 'Pengelola K3', 'Project BIB', 'Maintenance BIB', 'IT', 'HSE'].map((div) => (
               <button
                 key={div}
                 onClick={() => setSelectedDivision(div)}
