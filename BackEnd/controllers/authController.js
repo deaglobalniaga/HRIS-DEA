@@ -493,7 +493,13 @@ exports.getProfile = async (req, res) => {
         let flattenedUser = { ...user, role: userRole };
         delete flattenedUser.password_hash;
         if (employeeData) {
-            flattenedUser = { ...flattenedUser, ...employeeData };
+            flattenedUser = { 
+                ...flattenedUser, 
+                ...employeeData,
+                id: user.id,
+                user_id: user.id,
+                employee_id: employeeData.id
+            };
             if (employeeData.departments) flattenedUser.department = employeeData.departments.name;
             if (employeeData.employee_details && employeeData.employee_details.length > 0) {
                 flattenedUser = { ...flattenedUser, ...(Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0] : employeeData.employee_details) };
@@ -833,23 +839,48 @@ exports.requestMfa = async (req, res) => {
 // Send OTP code to user's registered email for 2-Factor Authentication
 exports.sendMfaEmailOtp = async (req, res) => {
     try {
-        const { username, email, userId } = req.body || {};
-        const targetUserId = req.userId || userId;
-        
+        const { username, email, userId, recovery_email } = req.body || {};
         let user = null;
-        if (targetUserId) {
-            const { data } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', targetUserId).maybeSingle();
-            user = data;
-        } else if (username || email) {
-            const cleanIdent = String(username || email).trim();
-            const { data } = await supabase.from('users').select('id, username, email, recovery_email')
-                .or(`username.ilike.${cleanIdent},email.ilike.${cleanIdent}`)
-                .maybeSingle();
-            user = data;
+
+        // 1. Try finding by verified token user ID
+        if (req.userId) {
+            const { data } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', req.userId).maybeSingle();
+            if (data) user = data;
+        }
+
+        // 2. Try finding by explicitly provided userId (could be user_id or employee_id)
+        if (!user && userId) {
+            const { data: userById } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', userId).maybeSingle();
+            if (userById) {
+                user = userById;
+            } else {
+                // Check if userId is actually an employee ID
+                const { data: emp } = await supabase.from('employees').select('user_id').eq('id', userId).maybeSingle();
+                if (emp?.user_id) {
+                    const { data: userByEmp } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', emp.user_id).maybeSingle();
+                    if (userByEmp) user = userByEmp;
+                }
+            }
+        }
+
+        // 3. Try finding by username, email, or recovery email
+        if (!user && (username || email || recovery_email)) {
+            const searchTerms = [username, email, recovery_email].filter(Boolean).map(s => String(s).trim());
+            for (const term of searchTerms) {
+                const { data: userByTerm } = await supabase
+                    .from('users')
+                    .select('id, username, email, recovery_email')
+                    .or(`username.ilike.${term},email.ilike.${term},recovery_email.ilike.${term}`)
+                    .maybeSingle();
+                if (userByTerm) {
+                    user = userByTerm;
+                    break;
+                }
+            }
         }
 
         if (!user) {
-            return res.status(404).json({ message: 'Pengguna tidak ditemukan. Pastikan username atau email sesuai.' });
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan. Pastikan akun memiliki email terdaftar.' });
         }
 
         const targetEmail = user.email || user.recovery_email;

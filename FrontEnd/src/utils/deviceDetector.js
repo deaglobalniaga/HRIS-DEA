@@ -230,10 +230,10 @@ export const getClientDeviceInfo = async () => {
         if (isLaptop) {
             deviceModel = gpuInfo ? `Laptop Windows (${gpuInfo})` : 'Laptop Windows';
         } else {
-            deviceModel = gpuInfo ? `Desktop PC (${gpuInfo})` : 'Desktop PC Workstation';
+            deviceModel = gpuInfo ? `PC Desktop (${gpuInfo})` : 'Laptop / PC Windows';
         }
     } else {
-        deviceModel = isMobile ? 'Mobile Smartphone' : 'Desktop Workstation';
+        deviceModel = isMobile ? 'Smartphone' : 'Laptop / Desktop PC';
     }
 
     // 8. Generate / Retrieve Persistent Device Fingerprint
