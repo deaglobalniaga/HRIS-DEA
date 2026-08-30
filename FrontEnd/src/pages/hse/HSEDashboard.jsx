@@ -12,8 +12,29 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
 
+const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick }) => (
+  <div 
+    onClick={onClick}
+    className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 flex flex-col justify-between h-full hover:shadow-md hover:border-slate-300 transition-all ${
+      onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98] group' : ''
+    }`}
+  >
+    <div className="flex justify-between items-start mb-2">
+      <div className={`p-2 rounded-xl ${colorClass} bg-opacity-10 group-hover:scale-110 transition-transform`}>
+        <Icon size={20} className={colorClass} strokeWidth={2.5} />
+      </div>
+      <span className="text-2xl font-black text-slate-800 leading-none tracking-tight group-hover:text-red-700 transition-colors">{value}</span>
+    </div>
+    <div>
+      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 group-hover:text-slate-800 transition-colors">{title}</h4>
+      <p className="text-[10px] text-slate-400 font-medium leading-tight">{subtitle}</p>
+    </div>
+  </div>
+);
+
 const HSEDashboard = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [serverTime, setServerTime] = useState(new Date());
   const [recentLimit, setRecentLimit] = useState(10); // 10, 20, 30, or all
   const [searchRecent, setSearchRecent] = useState('');
