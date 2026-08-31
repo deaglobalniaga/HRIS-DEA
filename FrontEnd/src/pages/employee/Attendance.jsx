@@ -397,19 +397,31 @@ const Attendance = () => {
           const { x, y, width, height } = smoothedBoxRef.current;
           const isMatched = !!recognizedEmployee;
           const isMismatch = !!faceMismatchError;
-          const primaryColor = isMatched ? '#10b981' : isMismatch ? '#ef4444' : '#38bdf8';
-          const glowColor = isMatched ? 'rgba(16, 185, 129, 0.45)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.45)';
-          const dotColor = isMatched ? 'rgba(16, 185, 129, 0.9)' : isMismatch ? 'rgba(239, 68, 68, 0.9)' : 'rgba(56, 189, 248, 0.9)';
 
-          // 1. Draw Apple Face ID Dynamic Corner Framing Brackets
-          const bracketLen = Math.min(width, height) * 0.22;
-          const r = 12; // rounded corner radius
+          // Scanning: Glowing Cyan / Electric Blue (#00e5ff) | Matched: Emerald (#10b981) | Mismatch: Red (#ef4444)
+          const primaryColor = isMatched ? '#10b981' : isMismatch ? '#ef4444' : '#00e5ff';
+          const glowColor = isMatched ? 'rgba(16, 185, 129, 0.6)' : isMismatch ? 'rgba(239, 68, 68, 0.6)' : 'rgba(0, 229, 255, 0.65)';
+          const dotColor = isMatched ? 'rgba(16, 185, 129, 0.95)' : isMismatch ? 'rgba(239, 68, 68, 0.95)' : 'rgba(0, 229, 255, 0.95)';
+          const boxBgColor = isMatched ? 'rgba(16, 185, 129, 0.06)' : isMismatch ? 'rgba(239, 68, 68, 0.08)' : 'rgba(0, 229, 255, 0.07)';
+
+          // 1. Draw Full Translucent Face Detection Box
+          ctx.beginPath();
+          ctx.roundRect(x, y, width, height, 16);
+          ctx.fillStyle = boxBgColor;
+          ctx.fill();
+          ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.45)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(0, 229, 255, 0.5)';
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+
+          // 2. Draw 4 Prominent Glowing Apple Face ID Corner Brackets
+          const bracketLen = Math.min(width, height) * 0.24;
+          const r = 14; // rounded corner radius
           ctx.strokeStyle = primaryColor;
-          ctx.lineWidth = 3.5;
+          ctx.lineWidth = 4;
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
           ctx.shadowColor = glowColor;
-          ctx.shadowBlur = 10;
+          ctx.shadowBlur = 12;
 
           // Top-Left
           ctx.beginPath();
@@ -445,24 +457,24 @@ const Attendance = () => {
 
           ctx.shadowBlur = 0; // Reset shadow
 
-          // 2. Smooth 60 FPS Laser Scan Beam
-          const scanCycle = (Date.now() % 1600) / 1600;
+          // 3. Smooth 60 FPS Biometric Laser Scan Beam
+          const scanCycle = (Date.now() % 1400) / 1400;
           const scanY = y + height * scanCycle;
           const grad = ctx.createLinearGradient(x, scanY, x + width, scanY);
           grad.addColorStop(0, 'rgba(0,0,0,0)');
-          grad.addColorStop(0.5, isMatched ? 'rgba(16, 185, 129, 0.75)' : 'rgba(56, 189, 248, 0.75)');
+          grad.addColorStop(0.5, isMatched ? 'rgba(16, 185, 129, 0.85)' : 'rgba(0, 229, 255, 0.85)');
           grad.addColorStop(1, 'rgba(0,0,0,0)');
           ctx.fillStyle = grad;
-          ctx.fillRect(x + 6, scanY - 1.5, width - 12, 3);
+          ctx.fillRect(x + 4, scanY - 1.5, width - 8, 3);
 
-          // 3. Apple Face ID Biometric Mesh Overlay (Full 68 Landmark Contours)
+          // 4. Apple Face ID Biometric Mesh Overlay (Full 68 Landmark Contours)
           if (resized.landmarks && resized.landmarks.positions) {
             const pts = resized.landmarks.positions;
 
             const drawContour = (indices, isClosed = false) => {
               ctx.beginPath();
-              ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.5)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.4)';
-              ctx.lineWidth = 1.6;
+              ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.6)' : isMismatch ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 229, 255, 0.55)';
+              ctx.lineWidth = 1.8;
               indices.forEach((idx, i) => {
                 if (pts[idx]) {
                   if (i === 0) ctx.moveTo(pts[idx].x, pts[idx].y);
@@ -487,36 +499,36 @@ const Attendance = () => {
             // Lips
             drawContour([48,49,50,51,52,53,54,55,56,57,58,59], true);
 
-            // Draw Glowing Landmark Dots around face perimeter and key features
+            // Draw Glowing Landmark Dots around key feature points
             ctx.fillStyle = dotColor;
             pts.forEach((p, idx) => {
               if (idx % 2 === 0 || [30, 36, 39, 42, 45, 48, 54, 8].includes(idx)) {
                 ctx.beginPath();
-                ctx.arc(p.x, p.y, 2.2, 0, 2 * Math.PI);
+                ctx.arc(p.x, p.y, 2.4, 0, 2 * Math.PI);
                 ctx.fill();
               }
             });
           }
 
-          // 4. Floating Face ID Label Pill Above the Face Box
+          // 5. Floating Face ID Label Pill Above the Face Box
           const labelText = isMatched
             ? `✓ ${recognizedEmployee.nama_lengkap} (${Math.round((matchScore || 0.95) * 100)}%)`
             : isMismatch
-            ? `⚠️ Wajah Tidak Cocok`
-            : `🔍 Memindai Wajah...`;
+            ? `⚠️ Wajah Tidak Sesuai Akun`
+            : `🔍 Memindai Titik Biometrik...`;
 
-          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+          ctx.font = 'bold 12px Inter, system-ui, sans-serif';
           const textMetrics = ctx.measureText(labelText);
-          const pillW = textMetrics.width + 20;
-          const pillH = 22;
+          const pillW = textMetrics.width + 24;
+          const pillH = 26;
           const pillX = Math.max(10, Math.min(canvas.width - pillW - 10, x + width / 2 - pillW / 2));
-          const pillY = Math.max(28, y - pillH - 8);
+          const pillY = Math.max(28, y - pillH - 10);
 
-          ctx.fillStyle = isMatched ? 'rgba(6, 78, 59, 0.92)' : isMismatch ? 'rgba(136, 19, 55, 0.92)' : 'rgba(15, 23, 42, 0.92)';
+          ctx.fillStyle = isMatched ? 'rgba(6, 78, 59, 0.94)' : isMismatch ? 'rgba(136, 19, 55, 0.94)' : 'rgba(8, 47, 73, 0.94)';
           ctx.strokeStyle = primaryColor;
-          ctx.lineWidth = 1.2;
+          ctx.lineWidth = 1.5;
           ctx.beginPath();
-          ctx.roundRect(pillX, pillY, pillW, pillH, 11);
+          ctx.roundRect(pillX, pillY, pillW, pillH, 13);
           ctx.fill();
           ctx.stroke();
 

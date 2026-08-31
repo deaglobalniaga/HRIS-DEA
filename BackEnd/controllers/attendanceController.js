@@ -85,7 +85,7 @@ exports.recognize_face = async (req, res) => {
             });
         }
 
-        const THRESHOLD = 0.58; // Calibrated for facial variation (glasses, lighting, angle, APD)
+        const THRESHOLD = 0.52; // Strict precision threshold for accurate biometric authentication
 
         // 1. STRICT ANTI-IMPERSONATION: First check if this face matches ANY OTHER employee in the database
         const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 300, async () => {
@@ -336,7 +336,7 @@ exports.clock_in_out = async (req, res) => {
                     const oRaw = typeof otherEmp.face_descriptor === 'string' ? JSON.parse(otherEmp.face_descriptor) : otherEmp.face_descriptor;
                     let oSamples = (oRaw && Array.isArray(oRaw.descriptors)) ? oRaw.descriptors : (Array.isArray(oRaw) ? (Array.isArray(oRaw[0]) ? oRaw : [oRaw]) : []);
                     for (const s of oSamples) {
-                        if (calculateFaceDistance(incomingFaceDesc, s) <= 0.58) {
+                        if (calculateFaceDistance(incomingFaceDesc, s) <= 0.52) {
                             return res.status(403).json({
                                 message: `Presensi ditolak: Wajah di depan kamera adalah milik ${otherEmp.nama_lengkap}. Anda tidak dapat melakukan presensi untuk akun karyawan lain (${empRecord.nama_lengkap})!`
                             });
@@ -362,7 +362,7 @@ exports.clock_in_out = async (req, res) => {
                         const dist = calculateFaceDistance(incomingFaceDesc, sample);
                         if (dist < minFaceDist) minFaceDist = dist;
                     }
-                    if (minFaceDist > 0.58) {
+                    if (minFaceDist > 0.52) {
                         return res.status(400).json({
                             message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda (${empRecord.nama_lengkap}). Presensi dikunci demi keamanan.`
                         });
