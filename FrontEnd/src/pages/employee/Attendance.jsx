@@ -299,13 +299,13 @@ const Attendance = () => {
 
     let animId;
 
-    // 1. Background Asynchronous AI Detection Loop
+    // 1. Background Asynchronous AI Detection Loop (512px High Resolution, 0.15 Threshold for Dim Light & Accessories)
     const aiInterval = setInterval(async () => {
       if (isAiScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
       isAiScanningRef.current = true;
       try {
         const detection = await faceapi
-          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.30 }))
+          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
@@ -346,8 +346,8 @@ const Attendance = () => {
           }
         } else {
           noFaceCountRef.current += 1;
-          // Clear state if no face seen for 5 consecutive loops
-          if (noFaceCountRef.current >= 5) {
+          // Clear state if no face seen for 6 consecutive loops
+          if (noFaceCountRef.current >= 6) {
             lastDetectionRef.current = null;
             setRecognizedEmployee(null);
             setMatchScore(null);
@@ -360,7 +360,7 @@ const Attendance = () => {
       } finally {
         isAiScanningRef.current = false;
       }
-    }, 180);
+    }, 160);
 
     // 2. Continuous 60 FPS Render Loop (Zero-Flicker Synchronous Draw)
     const render = () => {
@@ -377,7 +377,7 @@ const Attendance = () => {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         const detection = lastDetectionRef.current;
-        const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 900);
+        const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 1200);
 
         if (isFresh && video.videoWidth > 0) {
           const resized = faceapi.resizeResults(detection, { width: video.videoWidth, height: video.videoHeight });
