@@ -1,9 +1,10 @@
 const supabase = require('../config/supabase');
+const { getWitaDateStr, getWitaTimeStr } = require('../utils/dateTime');
 
 // GET /api/hris/dashboard-stats — 100% Real Database Aggregation
 exports.get_dashboard_stats = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWitaDateStr();
 
         // 1. Fetch Real Employees Data
         const { data: employees, error: empErr } = await supabase
@@ -67,7 +68,7 @@ exports.get_dashboard_stats = async (req, res) => {
         const { data: pastLogs } = await supabase
             .from('attendance_logs')
             .select('date, check_in, check_out')
-            .gte('date', past7Days.toISOString().split('T')[0]);
+            .gte('date', getWitaDateStr(past7Days));
 
         const logsByDate = {};
         (pastLogs || []).forEach(l => {
@@ -78,7 +79,7 @@ exports.get_dashboard_stats = async (req, res) => {
         for (let i = 4; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            const dStr = d.toISOString().split('T')[0];
+            const dStr = getWitaDateStr(d);
             const dName = dayNames[d.getDay()];
             const dayLogs = logsByDate[dStr] || [];
             const dayPresent = dayLogs.filter(l => l.check_in).length;
@@ -111,12 +112,12 @@ exports.get_dashboard_stats = async (req, res) => {
             });
         }
 
-        // 6. Real Arrivals List (Only actual checked-in employees)
+        // 6. Real Arrivals List (Only actual checked-in employees for today in WITA)
         const todayArrivals = checkedInLogs.map(l => ({
             name: l.employees?.nama_lengkap || 'Karyawan',
             role: l.employees?.jabatan || 'Staff',
             department: l.employees?.departments?.name || 'General',
-            time: new Date(l.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+            time: getWitaTimeStr(l.check_in),
             status: l.check_out ? 'CHECK OUT' : 'CHECK IN',
             detail: l.status || 'Hadir'
         }));
@@ -200,7 +201,7 @@ exports.get_dashboard_stats = async (req, res) => {
 exports.get_employee_dashboard = async (req, res) => {
     try {
         const userId = req.userId;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWitaDateStr();
 
         const { data: emp } = await supabase
             .from('employees')
@@ -227,7 +228,7 @@ exports.get_employee_dashboard = async (req, res) => {
                 .from('attendance_logs')
                 .select('*')
                 .eq('employee_id', emp.id)
-                .gte('date', dateLimit.toISOString().split('T')[0])
+                .gte('date', getWitaDateStr(dateLimit))
                 .order('date', { ascending: false });
             weeklyLogs = wLogs || [];
 
@@ -265,8 +266,8 @@ exports.get_employee_dashboard = async (req, res) => {
             todayStatus: {
                 hasCheckedIn: !!todayLog?.check_in,
                 hasCheckedOut: !!todayLog?.check_out,
-                checkInTime: todayLog?.check_in ? new Date(todayLog.check_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null,
-                checkOutTime: todayLog?.check_out ? new Date(todayLog.check_out).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : null
+                checkInTime: todayLog?.check_in ? getWitaTimeStr(todayLog.check_in) : null,
+                checkOutTime: todayLog?.check_out ? getWitaTimeStr(todayLog.check_out) : null
             },
             weeklyHistory: weeklyLogs,
             leaveSummary

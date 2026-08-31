@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const { notifyRole } = require('./notificationController');
 const { uploadToSupabaseStorage } = require('../utils/storage');
+const { getWitaDateStr } = require('../utils/dateTime');
 
 // GET /api/hris/leaves / get_leave_status
 // Pure log recorder & monitoring calendar — no approval workflow
@@ -22,8 +23,7 @@ exports.get_leave_status = async (req, res) => {
 
         if (error) throw error;
 
-        const now = new Date();
-        const nowStr = now.toISOString().split('T')[0];
+        const nowStr = getWitaDateStr();
 
         const leaveData = {
             alreadyLeave: [],

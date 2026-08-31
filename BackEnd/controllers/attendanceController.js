@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
 const { createNotification, notifyRole } = require('./notificationController');
+const { getWitaDateStr, getWitaTimeStr } = require('../utils/dateTime');
 
 // Haversine formula to calculate distance in meters
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -615,7 +616,7 @@ exports.clock_in_out = async (req, res) => {
 // GET /api/hris/attendance/daily-status
 exports.get_daily_status = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWitaDateStr();
 
         // 1. Fetch all active employees
         const { data: allEmployees, error: empErr } = await supabase
@@ -671,9 +672,7 @@ exports.get_daily_status = async (req, res) => {
                 const formatTime = (ts) => {
                     if (!ts) return null;
                     try {
-                        const d = new Date(ts);
-                        if (isNaN(d.getTime())) return ts;
-                        return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+                        return getWitaTimeStr(ts);
                     } catch (e) {
                         return ts;
                     }
@@ -735,7 +734,7 @@ exports.get_daily_status = async (req, res) => {
 exports.get_my_attendance_today = async (req, res) => {
     try {
         const loggedInUserId = req.userId;
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWitaDateStr();
 
         let { data: selfEmp } = await supabase
             .from('employees')
@@ -772,7 +771,7 @@ exports.get_my_attendance_today = async (req, res) => {
 // GET /api/hris/attendance/today
 exports.get_attendance_today = async (req, res) => {
     try {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getWitaDateStr();
         const cacheKey = `attendance:summary:${today}`;
 
         const data = await getOrSetCache(cacheKey, 300, async () => {

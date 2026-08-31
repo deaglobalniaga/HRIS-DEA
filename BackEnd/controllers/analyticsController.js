@@ -1,4 +1,5 @@
 const supabase = require('../config/supabase');
+const { getWitaDateStr } = require('../utils/dateTime');
 
 // GET /api/hris/analytics/trend?months=6
 exports.get_trend = async (req, res) => {
@@ -24,7 +25,7 @@ exports.get_trend = async (req, res) => {
 
         const dateLimit = new Date();
         dateLimit.setMonth(dateLimit.getMonth() - monthCount);
-        const limitStr = dateLimit.toISOString().split('T')[0];
+        const limitStr = getWitaDateStr(dateLimit);
 
         const { data: logs } = await supabase
             .from('attendance_logs')
@@ -67,7 +68,7 @@ exports.get_heatmap = async (req, res) => {
         for (let i = 29; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
-            const dStr = d.toISOString().split('T')[0];
+            const dStr = getWitaDateStr(d);
             heatmapData[dStr] = {
                 date: dStr,
                 count: 0,
@@ -78,7 +79,7 @@ exports.get_heatmap = async (req, res) => {
 
         const dateLimit = new Date();
         dateLimit.setDate(dateLimit.getDate() - 30);
-        const limitStr = dateLimit.toISOString().split('T')[0];
+        const limitStr = getWitaDateStr(dateLimit);
 
         const { data: logs } = await supabase
             .from('attendance_logs')

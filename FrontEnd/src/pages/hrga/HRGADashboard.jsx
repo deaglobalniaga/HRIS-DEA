@@ -135,7 +135,7 @@ const HRGADashboard = () => {
             </span>
             <span className="w-1 h-1 bg-slate-300 rounded-full mx-1"></span>
             <span>
-              {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+              {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
             </span>
           </div>
         </div>
@@ -151,7 +151,7 @@ const HRGADashboard = () => {
             <div className="flex flex-col">
               <span className="text-xs font-black text-slate-800 leading-none">Sinkronisasi Data</span>
               <span className="text-[10px] font-medium text-slate-400 leading-none mt-1">
-                Terakhir: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                Terakhir: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
               </span>
             </div>
           </button>
