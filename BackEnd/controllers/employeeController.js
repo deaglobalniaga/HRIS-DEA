@@ -34,6 +34,7 @@ const formatEmployee = (emp) => {
         department_id: emp.department_id,
         cost_center: costCenter,
         role: roleName,
+        username: emp.users?.username || '',
         is_active: emp.users?.is_active ?? true,
         email: emp.users?.email || detail.email_office || '',
         email_office: detail.email_office || emp.users?.email || '',
@@ -130,12 +131,45 @@ exports.get_employee_by_id = async (req, res) => {
 
 // POST /api/hris/employees
 exports.create_employee = async (req, res) => {
+    let createdUserId = null;
     try {
         const payload = req.body;
+        const fullName = (payload.nama || payload.nama_lengkap || '').trim();
 
         // Validation
-        if (!payload.nama && !payload.nama_lengkap) {
+        if (!fullName) {
             return res.status(400).json({ message: 'Nama lengkap karyawan wajib diisi' });
+        }
+
+        // Check unique NIK if provided
+        const rawNik = (payload.nik || payload.no_ktp || '').trim();
+        if (rawNik) {
+            const { data: existingNik } = await supabase
+                .from('employees')
+                .select('id, nama_lengkap')
+                .eq('nik', rawNik)
+                .maybeSingle();
+
+            if (existingNik) {
+                return res.status(400).json({
+                    message: `NIK (${rawNik}) sudah terdaftar atas nama ${existingNik.nama_lengkap}. Harap periksa kembali NIK yang dimasukkan.`
+                });
+            }
+        }
+
+        // Determine unique nomor_pegawai
+        let nomorPegawai = (payload.nomor_pegawai || '').trim();
+        if (nomorPegawai) {
+            const { data: existingNo } = await supabase
+                .from('employees')
+                .select('id')
+                .eq('nomor_pegawai', nomorPegawai)
+                .maybeSingle();
+            if (existingNo) {
+                nomorPegawai = `${nomorPegawai}-${Date.now().toString().slice(-4)}`;
+            }
+        } else {
+            nomorPegawai = `EMP-${Date.now().toString().slice(-6)}`;
         }
 
         // Determine Role ID
@@ -165,13 +199,13 @@ exports.create_employee = async (req, res) => {
         }
 
         // Determine Default Password
-        const defaultPassword = payload.password || payload.nik || payload.nomor_pegawai || 'password123';
+        const defaultPassword = payload.password || rawNik || nomorPegawai || 'password123';
         const passwordHash = await bcrypt.hash(defaultPassword, 10);
         
         // Guarantee unique username
         let baseUsername = payload.username 
             ? payload.username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '') 
-            : (payload.nama ? payload.nama.toLowerCase().replace(/[^a-z0-9]/g, '') : `emp_${Date.now()}`);
+            : (fullName ? fullName.toLowerCase().replace(/[^a-z0-9]/g, '') : `emp_${Date.now()}`);
         if (!baseUsername) baseUsername = `emp_${Date.now()}`;
 
         let username = baseUsername;
@@ -210,6 +244,7 @@ exports.create_employee = async (req, res) => {
             .single();
 
         if (userError) throw userError;
+        createdUserId = newUser.id;
 
         // 2. Create Employee
         const { data: newEmployee, error: empError } = await supabase
@@ -217,15 +252,15 @@ exports.create_employee = async (req, res) => {
             .insert({
                 user_id: newUser.id,
                 department_id: departmentId,
-                nomor_pegawai: payload.nomor_pegawai || `EMP-${Date.now().toString().slice(-6)}`,
+                nomor_pegawai: nomorPegawai,
                 nomor_pkwt: payload.nomor_pkwt || '',
-                nama_lengkap: payload.nama || payload.nama_lengkap || 'Karyawan Baru',
+                nama_lengkap: fullName,
                 perusahaan: payload.perusahaan || 'PT DEA GLOBAL NIAGA',
                 penempatan: payload.penempatan || 'Site BIB',
                 jabatan: payload.jabatan || 'Staff',
                 level: payload.level || 'LEVEL 6 (ENGINEER/TEKNISI)',
                 status_karyawan: payload.status_karyawan || 'Aktif',
-                nik: payload.nik || payload.no_ktp || null,
+                nik: rawNik || null,
                 tempat_lahir: payload.tempat_lahir || '',
                 tanggal_lahir: payload.tanggal_lahir || null,
                 alamat: payload.alamat || payload.address || '',
@@ -239,7 +274,12 @@ exports.create_employee = async (req, res) => {
             .select('*')
             .single();
 
-        if (empError) throw empError;
+        if (empError) {
+            if (createdUserId) {
+                await supabase.from('users').delete().eq('id', createdUserId);
+            }
+            throw empError;
+        }
 
         // 3. Create Employee Details
         await supabase.from('employee_details').insert({
@@ -250,9 +290,9 @@ exports.create_employee = async (req, res) => {
             nomor_kpj: payload.nomor_kpj || '',
             nomor_jkn: payload.nomor_jkn || '',
             kontak_darurat_nama: payload.kontak_darurat_nama || payload.kontak_darurat || '',
-            kontak_darurat_nomor: payload.kontak_darurat_nomor || payload.kontak_darurat_no || '',
+            kontak_darurat_nomor: payload.kontak_darurat_nomor || payload.kontak_darurat_no || null,
             kontak_darurat_hubungan: payload.kontak_darurat_hubungan || payload.hubungan || '',
-            nama_rekening: payload.nama_rekening || payload.nama || '',
+            nama_rekening: payload.nama_rekening || fullName,
             nomor_rekening: payload.nomor_rekening || ''
         });
 
@@ -266,13 +306,17 @@ exports.create_employee = async (req, res) => {
                 else if (file.fieldname.includes('npwp')) docType = 'NPWP';
                 else if (file.fieldname.includes('ijazah')) docType = 'IJAZAH';
 
-                const fileUrl = await uploadToSupabaseStorage(file, 'documents');
-                if (fileUrl) {
-                    await supabase.from('employee_documents').insert({
-                        employee_id: newEmployee.id,
-                        document_type: docType,
-                        file_url: fileUrl
-                    });
+                try {
+                    const fileUrl = await uploadToSupabaseStorage(file, 'documents');
+                    if (fileUrl) {
+                        await supabase.from('employee_documents').insert({
+                            employee_id: newEmployee.id,
+                            document_type: docType,
+                            file_url: fileUrl
+                        });
+                    }
+                } catch (uploadErr) {
+                    console.error('File upload error during employee creation:', uploadErr);
                 }
             }
         }
@@ -282,7 +326,7 @@ exports.create_employee = async (req, res) => {
             await supabase.from('notifications').insert({
                 target_role: 'superadmin',
                 title: 'Pendaftaran Akun Karyawan Memerlukan Verifikasi',
-                message: `Admin HRGA mendaftarkan akun karyawan baru: ${payload.nama || payload.nama_lengkap} (${username}). Harap tinjau & verifikasi aktivasi akun untuk mencegah kesalahan data.`,
+                message: `Admin HRGA mendaftarkan akun karyawan baru: ${fullName} (${username}). Harap tinjau & verifikasi aktivasi akun untuk mencegah kesalahan data.`,
                 type: 'verification_request',
                 link: '/organization'
             });
@@ -292,6 +336,7 @@ exports.create_employee = async (req, res) => {
 
         // Invalidate Redis caches
         await invalidateCache('emp:*');
+        await invalidateCache('user:*');
         await invalidateCache('dashboard:*');
         await invalidateCache('master:departments');
 
@@ -303,7 +348,15 @@ exports.create_employee = async (req, res) => {
         });
     } catch (err) {
         console.error('Create Employee Error:', err);
-        res.status(500).json({ error: err.message });
+        let msg = err.message;
+        if (err.code === '23505') {
+            if (err.message.includes('nik')) msg = 'NIK sudah terdaftar pada database karyawan.';
+            else if (err.message.includes('nomor_pegawai')) msg = 'Nomor pegawai sudah digunakan.';
+            else if (err.message.includes('username')) msg = 'Username sudah digunakan.';
+            else if (err.message.includes('email')) msg = 'Email sudah digunakan.';
+            else msg = 'Data duplikat terdeteksi pada sistem.';
+        }
+        res.status(400).json({ error: msg, message: msg });
     }
 };
 
@@ -1596,6 +1649,81 @@ exports.review_role_request = async (req, res) => {
         }
     } catch (err) {
         console.error('Review role request error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// PUT /api/hris/employees/:id/verify (Super Admin verification & activation)
+exports.verify_employee = async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        let { data: emp } = await supabase.from('employees').select('id, user_id, nama_lengkap').eq('id', id).maybeSingle();
+        if (!emp) {
+            const { data: byUser } = await supabase.from('employees').select('id, user_id, nama_lengkap').eq('user_id', id).maybeSingle();
+            emp = byUser;
+        }
+
+        if (!emp) {
+            // Also check direct user table
+            const { data: userRow } = await supabase.from('users').select('id, username').eq('id', id).maybeSingle();
+            if (userRow) {
+                await supabase.from('users').update({ is_active: true, updated_at: new Date() }).eq('id', userRow.id);
+                await invalidateCache('emp:*');
+                await invalidateCache('user:*');
+                await invalidateCache('dashboard:*');
+                return res.json({ message: `Akun ${userRow.username} berhasil diverifikasi dan diaktifkan!` });
+            }
+            return res.status(404).json({ message: 'Data karyawan / akun tidak ditemukan' });
+        }
+
+        if (emp.user_id) {
+            await supabase.from('users').update({ is_active: true, updated_at: new Date() }).eq('id', emp.user_id);
+        }
+        await supabase.from('employees').update({ status_karyawan: 'Aktif', updated_at: new Date() }).eq('id', emp.id);
+
+        await invalidateCache('emp:*');
+        await invalidateCache('user:*');
+        await invalidateCache('dashboard:*');
+
+        res.json({ message: `Akun ${emp.nama_lengkap} berhasil diverifikasi dan diaktifkan!` });
+    } catch (err) {
+        console.error('Verify employee error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// DELETE /api/hris/employees/:id/reject (Super Admin rejection & cleanup)
+exports.reject_employee = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        let { data: emp } = await supabase.from('employees').select('id, user_id, nama_lengkap').eq('id', id).maybeSingle();
+        if (!emp) {
+            const { data: byUser } = await supabase.from('employees').select('id, user_id, nama_lengkap').eq('user_id', id).maybeSingle();
+            emp = byUser;
+        }
+
+        if (emp) {
+            await supabase.from('employee_documents').delete().eq('employee_id', emp.id);
+            await supabase.from('employee_details').delete().eq('employee_id', emp.id);
+            await supabase.from('attendance_logs').delete().eq('employee_id', emp.id);
+            await supabase.from('employees').delete().eq('id', emp.id);
+            if (emp.user_id) {
+                await supabase.from('users').delete().eq('id', emp.user_id);
+            }
+        } else {
+            // Check direct user
+            await supabase.from('users').delete().eq('id', id);
+        }
+
+        await invalidateCache('emp:*');
+        await invalidateCache('user:*');
+        await invalidateCache('dashboard:*');
+
+        res.json({ message: 'Pendaftaran akun berhasil ditolak dan dibersihkan secara permanen.' });
+    } catch (err) {
+        console.error('Reject employee error:', err);
         res.status(500).json({ error: err.message });
     }
 };

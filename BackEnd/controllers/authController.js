@@ -93,7 +93,7 @@ exports.signup = async (req, res) => {
 
         if (userErr) throw userErr;
 
-        // 2. Create Employee
+        // 2. Create Employee (only existing columns in employees table)
         const { data: newEmployee, error: empErr } = await supabase
             .from('employees')
             .insert({
@@ -106,7 +106,7 @@ exports.signup = async (req, res) => {
                 penempatan: payload.penempatan || 'Site BIB',
                 jabatan: payload.jabatan || 'Staff',
                 level: payload.level || 'LEVEL 6 (ENGINEER/TEKNISI)',
-                status_karyawan: payload.status_karyawan || 'Aktif',
+                status_karyawan: 'Aktif',
                 nik: payload.nik || null,
                 tempat_lahir: payload.tempat_lahir || '',
                 tanggal_lahir: payload.tanggal_lahir || null,
@@ -116,16 +116,17 @@ exports.signup = async (req, res) => {
                 status_perkawinan: payload.status_perkawinan || '',
                 agama: payload.agama || '',
                 no_handphone: payload.no_handphone || '',
-                join_date: payload.join_date || new Date().toISOString().split('T')[0],
-                roster_type: payload.roster_type || '8/2',
-                cost_center: payload.cost_center || 'GENERAL'
+                join_date: payload.join_date || new Date().toISOString().split('T')[0]
             })
             .select('id')
             .single();
 
-        if (empErr) throw empErr;
+        if (empErr) {
+            await supabase.from('users').delete().eq('id', newUser.id);
+            throw empErr;
+        }
 
-        // 3. Create Employee Details
+        // 3. Create Employee Details (only existing columns in employee_details table)
         await supabase.from('employee_details').insert({
             employee_id: newEmployee.id,
             email_office: email_office || '',
@@ -135,13 +136,12 @@ exports.signup = async (req, res) => {
             nomor_jkn: payload.nomor_jkn || '',
             kontak_darurat_nama: payload.kontak_darurat || '',
             kontak_darurat_hubungan: payload.hubungan || '',
-            kontak_darurat_nomor: payload.kontak_darurat_nomor || '',
-            nama_bank: payload.nama_bank || 'BCA',
+            kontak_darurat_nomor: payload.kontak_darurat_nomor || null,
             nama_rekening: payload.nama_rekening || nama,
             nomor_rekening: payload.nomor_rekening || ''
         });
 
-        // 4. Process Uploaded Documents purely in database table with compression
+        // 4. Process Uploaded Documents
         if (req.files && req.files.length > 0) {
             for (const file of req.files) {
                 const docType = file.fieldname.replace('_file', '').toUpperCase();
@@ -162,7 +162,7 @@ exports.signup = async (req, res) => {
             await supabase.from('notifications').insert({
                 target_role: 'superadmin',
                 title: 'Pendaftaran Akun Baru Memerlukan Verifikasi',
-                message: `Karyawan baru mendaftar: ${nama} (${username} - Dept: ${payload.department || '-'}). Harap verifikasi data untuk menyetujui aktivasi akun.`,
+                message: `Karyawan baru mendaftar: ${nama} (${username} - Dept: ${payload.department || '-'}). Harap tinjau & verifikasi aktivasi akun.`,
                 type: 'verification_request',
                 link: '/organization'
             });
@@ -170,13 +170,25 @@ exports.signup = async (req, res) => {
             console.error('Notification error on signup:', notifErr);
         }
 
+        // Invalidate Redis caches
+        await invalidateCache('emp:*');
+        await invalidateCache('user:*');
+        await invalidateCache('dashboard:*');
+
         res.status(201).json({
-            message: 'Pendaftaran akun berhasil! Akun Anda sedang dalam proses verifikasi oleh Super Admin untuk mencegah kesalahan data. Silakan tunggu persetujuan sebelum dapat login.',
+            message: 'Pendaftaran akun berhasil! Akun Anda telah terdaftar dan menunggu verifikasi aktivasi oleh Super Admin.',
             user: { username, nama }
         });
     } catch (err) {
         console.error('Signup Error:', err);
-        res.status(500).json({ error: err.message });
+        let msg = err.message;
+        if (err.code === '23505') {
+            if (err.message.includes('username')) msg = 'Username sudah digunakan.';
+            else if (err.message.includes('email')) msg = 'Email sudah digunakan.';
+            else if (err.message.includes('nik')) msg = 'NIK sudah terdaftar pada sistem.';
+            else msg = 'Data duplikat terdeteksi pada sistem.';
+        }
+        res.status(400).json({ error: msg, message: msg });
     }
 };
 
