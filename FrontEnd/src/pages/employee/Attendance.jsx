@@ -58,6 +58,10 @@ const Attendance = () => {
   const isRecognizingRef = useRef(false);
   const noFaceCountRef = useRef(0);
   const lastVerifiedDescriptorRef = useRef(null);
+  const lastDetectionRef = useRef(null);
+  const lastDetectionTimeRef = useRef(0);
+  const smoothedBoxRef = useRef(null);
+  const isAiScanningRef = useRef(false);
 
   // Fetch Company Settings from Superadmin
   const fetchSettings = async () => {
@@ -240,208 +244,251 @@ const Attendance = () => {
     return () => stopCamera();
   }, [fetchLocation, stopCamera, isCameraDisabled]);
 
-  // Real-time Face AI Scanning Loop (Continuous face-lock)
+  // Real-time Face AI Scanning & 60 FPS Flicker-Free Render Loop
   useEffect(() => {
-    if (isCameraDisabled || !streamActive || !videoRef.current || !modelsLoaded) return;
+    if (isCameraDisabled || !streamActive || !modelsLoaded) return;
 
-    const interval = setInterval(async () => {
-      if (videoRef.current && videoRef.current.readyState === 4) {
-        const video = videoRef.current;
-        const canvas = overlayCanvasRef.current;
+    let animId;
 
-        if (canvas) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
-          const ctx = canvas.getContext('2d');
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // 1. Background Asynchronous AI Detection Loop
+    const aiInterval = setInterval(async () => {
+      if (isAiScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
+      isAiScanningRef.current = true;
+      try {
+        const detection = await faceapi
+          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.30 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
 
-          // Fast & accurate 416px detector
-          const detection = await faceapi
-            .detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.30 }))
-            .withFaceLandmarks()
-            .withFaceDescriptor();
+        if (detection) {
+          lastDetectionRef.current = detection;
+          lastDetectionTimeRef.current = Date.now();
+          noFaceCountRef.current = 0;
 
-          if (detection) {
-            noFaceCountRef.current = 0;
-            const resized = faceapi.resizeResults(detection, { width: video.videoWidth, height: video.videoHeight });
-            const { x, y, width, height } = resized.detection.box;
-            
-            const isMatched = !!recognizedEmployee;
-            const isMismatch = !!faceMismatchError;
-            const primaryColor = isMatched ? '#10b981' : isMismatch ? '#ef4444' : '#38bdf8';
-            const glowColor = isMatched ? 'rgba(16, 185, 129, 0.45)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.45)';
-            const dotColor = isMatched ? 'rgba(16, 185, 129, 0.9)' : isMismatch ? 'rgba(239, 68, 68, 0.9)' : 'rgba(56, 189, 248, 0.9)';
-
-            // 1. Draw Apple Face ID Dynamic Corner Framing Brackets
-            const bracketLen = Math.min(width, height) * 0.22;
-            const r = 12; // rounded corner radius
-            ctx.strokeStyle = primaryColor;
-            ctx.lineWidth = 3.5;
-            ctx.lineCap = 'round';
-            ctx.lineJoin = 'round';
-            ctx.shadowColor = glowColor;
-            ctx.shadowBlur = 10;
-
-            // Top-Left
-            ctx.beginPath();
-            ctx.moveTo(x, y + bracketLen);
-            ctx.lineTo(x, y + r);
-            ctx.arcTo(x, y, x + r, y, r);
-            ctx.lineTo(x + bracketLen, y);
-            ctx.stroke();
-
-            // Top-Right
-            ctx.beginPath();
-            ctx.moveTo(x + width - bracketLen, y);
-            ctx.lineTo(x + width - r, y);
-            ctx.arcTo(x + width, y, x + width, y + r, r);
-            ctx.lineTo(x + width, y + bracketLen);
-            ctx.stroke();
-
-            // Bottom-Left
-            ctx.beginPath();
-            ctx.moveTo(x, y + height - bracketLen);
-            ctx.lineTo(x, y + height - r);
-            ctx.arcTo(x, y + height, x + r, y + height, r);
-            ctx.lineTo(x + bracketLen, y + height);
-            ctx.stroke();
-
-            // Bottom-Right
-            ctx.beginPath();
-            ctx.moveTo(x + width - bracketLen, y + height);
-            ctx.lineTo(x + width - r, y + height);
-            ctx.arcTo(x + width, y + height, x + width, y + height - r, r);
-            ctx.lineTo(x + width, y + height - bracketLen);
-            ctx.stroke();
-
-            ctx.shadowBlur = 0; // Reset shadow
-
-            // 2. Animated Face ID Laser Scan Beam
-            const scanCycle = (Date.now() % 1600) / 1600;
-            const scanY = y + height * scanCycle;
-            const grad = ctx.createLinearGradient(x, scanY, x + width, scanY);
-            grad.addColorStop(0, 'rgba(0,0,0,0)');
-            grad.addColorStop(0.5, isMatched ? 'rgba(16, 185, 129, 0.75)' : 'rgba(56, 189, 248, 0.75)');
-            grad.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.fillStyle = grad;
-            ctx.fillRect(x + 6, scanY - 1.5, width - 12, 3);
-
-            // 3. Apple Face ID Biometric Mesh Overlay (Full 68 Landmark Contours)
-            if (resized.landmarks && resized.landmarks.positions) {
-              const pts = resized.landmarks.positions;
-
-              const drawContour = (indices, isClosed = false) => {
-                ctx.beginPath();
-                ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.5)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.4)';
-                ctx.lineWidth = 1.6;
-                indices.forEach((idx, i) => {
-                  if (pts[idx]) {
-                    if (i === 0) ctx.moveTo(pts[idx].x, pts[idx].y);
-                    else ctx.lineTo(pts[idx].x, pts[idx].y);
-                  }
-                });
-                if (isClosed) ctx.closePath();
-                ctx.stroke();
-              };
-
-              // Jawline contour (points 0-16)
-              drawContour([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
-              // Eyebrows
-              drawContour([17,18,19,20,21]);
-              drawContour([22,23,24,25,26]);
-              // Nose Bridge & Base
-              drawContour([27,28,29,30]);
-              drawContour([31,32,33,34,35], true);
-              // Eyes
-              drawContour([36,37,38,39,40,41], true);
-              drawContour([42,43,44,45,46,47], true);
-              // Lips
-              drawContour([48,49,50,51,52,53,54,55,56,57,58,59], true);
-
-              // Draw Glowing Landmark Dots around face perimeter and key features
-              ctx.fillStyle = dotColor;
-              pts.forEach((p, idx) => {
-                if (idx % 2 === 0 || [30, 36, 39, 42, 45, 48, 54, 8].includes(idx)) {
-                  ctx.beginPath();
-                  ctx.arc(p.x, p.y, 2.2, 0, 2 * Math.PI);
-                  ctx.fill();
-                }
+          // Auto recognize if descriptor available and not already in flight
+          if (detection.descriptor && !isRecognizingRef.current) {
+            isRecognizingRef.current = true;
+            setRecognizing(true);
+            try {
+              const descriptorArray = Array.from(detection.descriptor);
+              const res = await api.post('/hris/attendance/recognize-face', {
+                face_descriptor: descriptorArray
               });
-            }
 
-            // 4. Floating Face ID Label Pill Above the Face Box
-            const labelText = isMatched
-              ? `✓ ${recognizedEmployee.nama_lengkap} (${Math.round((matchScore || 0.95) * 100)}%)`
-              : isMismatch
-              ? `⚠️ Wajah Tidak Cocok`
-              : `🔍 Memindai Wajah...`;
-
-            ctx.font = 'bold 11px Inter, system-ui, sans-serif';
-            const textMetrics = ctx.measureText(labelText);
-            const pillW = textMetrics.width + 20;
-            const pillH = 22;
-            const pillX = Math.max(10, Math.min(canvas.width - pillW - 10, x + width / 2 - pillW / 2));
-            const pillY = Math.max(28, y - pillH - 8);
-
-            ctx.fillStyle = isMatched ? 'rgba(6, 78, 59, 0.92)' : isMismatch ? 'rgba(136, 19, 55, 0.92)' : 'rgba(15, 23, 42, 0.92)';
-            ctx.strokeStyle = primaryColor;
-            ctx.lineWidth = 1.2;
-            ctx.beginPath();
-            ctx.roundRect(pillX, pillY, pillW, pillH, 11);
-            ctx.fill();
-            ctx.stroke();
-
-            ctx.fillStyle = '#ffffff';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(labelText, pillX + pillW / 2, pillY + pillH / 2);
-
-            // Auto recognize if descriptor available and not already in flight
-            if (detection.descriptor && !isRecognizingRef.current) {
-              isRecognizingRef.current = true;
-              setRecognizing(true);
-              try {
-                const descriptorArray = Array.from(detection.descriptor);
-                const res = await api.post('/hris/attendance/recognize-face', {
-                  face_descriptor: descriptorArray
-                });
-
-                if (res.data && res.data.recognized) {
-                  setRecognizedEmployee(res.data.employee);
-                  setMatchScore(res.data.confidence);
-                  setFaceMismatchError(null);
-                  lastVerifiedDescriptorRef.current = descriptorArray;
-                } else {
-                  setRecognizedEmployee(null);
-                  setMatchScore(null);
-                  setCountdown(null);
-                  if (res.data?.message) {
-                    setFaceMismatchError(res.data.message);
-                  }
+              if (res.data && res.data.recognized) {
+                setRecognizedEmployee(res.data.employee);
+                setMatchScore(res.data.confidence);
+                setFaceMismatchError(null);
+                lastVerifiedDescriptorRef.current = descriptorArray;
+              } else {
+                setRecognizedEmployee(null);
+                setMatchScore(null);
+                setCountdown(null);
+                if (res.data?.message) {
+                  setFaceMismatchError(res.data.message);
                 }
-              } catch (e) {
-                // Ignore transient network errors
-              } finally {
-                isRecognizingRef.current = false;
-                setRecognizing(false);
               }
-            }
-          } else {
-            noFaceCountRef.current += 1;
-            // Only clear state after 3 consecutive frames with no face to avoid flicker
-            if (noFaceCountRef.current >= 3) {
-              setRecognizedEmployee(null);
-              setMatchScore(null);
-              setCountdown(null);
-              setFaceMismatchError(null);
+            } catch (e) {
+              // Ignore transient network errors
+            } finally {
+              isRecognizingRef.current = false;
+              setRecognizing(false);
             }
           }
+        } else {
+          noFaceCountRef.current += 1;
+          // Clear state if no face seen for 5 consecutive loops
+          if (noFaceCountRef.current >= 5) {
+            lastDetectionRef.current = null;
+            setRecognizedEmployee(null);
+            setMatchScore(null);
+            setCountdown(null);
+            setFaceMismatchError(null);
+          }
+        }
+      } catch (err) {
+        console.error('Face AI Error:', err);
+      } finally {
+        isAiScanningRef.current = false;
+      }
+    }, 180);
+
+    // 2. Continuous 60 FPS Render Loop (Zero-Flicker Synchronous Draw)
+    const render = () => {
+      const video = videoRef.current;
+      const canvas = overlayCanvasRef.current;
+
+      if (video && canvas && video.readyState === 4) {
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+        }
+
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const detection = lastDetectionRef.current;
+        const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 900);
+
+        if (isFresh && video.videoWidth > 0) {
+          const resized = faceapi.resizeResults(detection, { width: video.videoWidth, height: video.videoHeight });
+          const targetBox = resized.detection.box;
+
+          // Smooth interpolation (lerp) for seamless fluid motion
+          if (!smoothedBoxRef.current) {
+            smoothedBoxRef.current = { ...targetBox };
+          } else {
+            const s = smoothedBoxRef.current;
+            s.x += (targetBox.x - s.x) * 0.45;
+            s.y += (targetBox.y - s.y) * 0.45;
+            s.width += (targetBox.width - s.width) * 0.45;
+            s.height += (targetBox.height - s.height) * 0.45;
+          }
+
+          const { x, y, width, height } = smoothedBoxRef.current;
+          const isMatched = !!recognizedEmployee;
+          const isMismatch = !!faceMismatchError;
+          const primaryColor = isMatched ? '#10b981' : isMismatch ? '#ef4444' : '#38bdf8';
+          const glowColor = isMatched ? 'rgba(16, 185, 129, 0.45)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.45)';
+          const dotColor = isMatched ? 'rgba(16, 185, 129, 0.9)' : isMismatch ? 'rgba(239, 68, 68, 0.9)' : 'rgba(56, 189, 248, 0.9)';
+
+          // 1. Draw Apple Face ID Dynamic Corner Framing Brackets
+          const bracketLen = Math.min(width, height) * 0.22;
+          const r = 12; // rounded corner radius
+          ctx.strokeStyle = primaryColor;
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.shadowColor = glowColor;
+          ctx.shadowBlur = 10;
+
+          // Top-Left
+          ctx.beginPath();
+          ctx.moveTo(x, y + bracketLen);
+          ctx.lineTo(x, y + r);
+          ctx.arcTo(x, y, x + r, y, r);
+          ctx.lineTo(x + bracketLen, y);
+          ctx.stroke();
+
+          // Top-Right
+          ctx.beginPath();
+          ctx.moveTo(x + width - bracketLen, y);
+          ctx.lineTo(x + width - r, y);
+          ctx.arcTo(x + width, y, x + width, y + r, r);
+          ctx.lineTo(x + width, y + bracketLen);
+          ctx.stroke();
+
+          // Bottom-Left
+          ctx.beginPath();
+          ctx.moveTo(x, y + height - bracketLen);
+          ctx.lineTo(x, y + height - r);
+          ctx.arcTo(x, y + height, x + r, y + height, r);
+          ctx.lineTo(x + bracketLen, y + height);
+          ctx.stroke();
+
+          // Bottom-Right
+          ctx.beginPath();
+          ctx.moveTo(x + width - bracketLen, y + height);
+          ctx.lineTo(x + width - r, y + height);
+          ctx.arcTo(x + width, y + height, x + width, y + height - r, r);
+          ctx.lineTo(x + width, y + height - bracketLen);
+          ctx.stroke();
+
+          ctx.shadowBlur = 0; // Reset shadow
+
+          // 2. Smooth 60 FPS Laser Scan Beam
+          const scanCycle = (Date.now() % 1600) / 1600;
+          const scanY = y + height * scanCycle;
+          const grad = ctx.createLinearGradient(x, scanY, x + width, scanY);
+          grad.addColorStop(0, 'rgba(0,0,0,0)');
+          grad.addColorStop(0.5, isMatched ? 'rgba(16, 185, 129, 0.75)' : 'rgba(56, 189, 248, 0.75)');
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(x + 6, scanY - 1.5, width - 12, 3);
+
+          // 3. Apple Face ID Biometric Mesh Overlay (Full 68 Landmark Contours)
+          if (resized.landmarks && resized.landmarks.positions) {
+            const pts = resized.landmarks.positions;
+
+            const drawContour = (indices, isClosed = false) => {
+              ctx.beginPath();
+              ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.5)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(56, 189, 248, 0.4)';
+              ctx.lineWidth = 1.6;
+              indices.forEach((idx, i) => {
+                if (pts[idx]) {
+                  if (i === 0) ctx.moveTo(pts[idx].x, pts[idx].y);
+                  else ctx.lineTo(pts[idx].x, pts[idx].y);
+                }
+              });
+              if (isClosed) ctx.closePath();
+              ctx.stroke();
+            };
+
+            // Jawline contour (points 0-16)
+            drawContour([0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16]);
+            // Eyebrows
+            drawContour([17,18,19,20,21]);
+            drawContour([22,23,24,25,26]);
+            // Nose Bridge & Base
+            drawContour([27,28,29,30]);
+            drawContour([31,32,33,34,35], true);
+            // Eyes
+            drawContour([36,37,38,39,40,41], true);
+            drawContour([42,43,44,45,46,47], true);
+            // Lips
+            drawContour([48,49,50,51,52,53,54,55,56,57,58,59], true);
+
+            // Draw Glowing Landmark Dots around face perimeter and key features
+            ctx.fillStyle = dotColor;
+            pts.forEach((p, idx) => {
+              if (idx % 2 === 0 || [30, 36, 39, 42, 45, 48, 54, 8].includes(idx)) {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 2.2, 0, 2 * Math.PI);
+                ctx.fill();
+              }
+            });
+          }
+
+          // 4. Floating Face ID Label Pill Above the Face Box
+          const labelText = isMatched
+            ? `✓ ${recognizedEmployee.nama_lengkap} (${Math.round((matchScore || 0.95) * 100)}%)`
+            : isMismatch
+            ? `⚠️ Wajah Tidak Cocok`
+            : `🔍 Memindai Wajah...`;
+
+          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+          const textMetrics = ctx.measureText(labelText);
+          const pillW = textMetrics.width + 20;
+          const pillH = 22;
+          const pillX = Math.max(10, Math.min(canvas.width - pillW - 10, x + width / 2 - pillW / 2));
+          const pillY = Math.max(28, y - pillH - 8);
+
+          ctx.fillStyle = isMatched ? 'rgba(6, 78, 59, 0.92)' : isMismatch ? 'rgba(136, 19, 55, 0.92)' : 'rgba(15, 23, 42, 0.92)';
+          ctx.strokeStyle = primaryColor;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, pillW, pillH, 11);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(labelText, pillX + pillW / 2, pillY + pillH / 2);
+        } else {
+          smoothedBoxRef.current = null;
         }
       }
-    }, 350);
+      animId = requestAnimationFrame(render);
+    };
 
-    return () => clearInterval(interval);
-  }, [isCameraDisabled, streamActive, modelsLoaded]);
+    animId = requestAnimationFrame(render);
+
+    return () => {
+      clearInterval(aiInterval);
+      if (animId) cancelAnimationFrame(animId);
+    };
+  }, [isCameraDisabled, streamActive, modelsLoaded, recognizedEmployee, faceMismatchError, matchScore]);
 
   // Execute Clock In / Out (Strict Continuous Face Verification & Live Descriptor Snapshot - NO PHOTO SAVED)
   const handleClockAction = async (forcedType) => {
