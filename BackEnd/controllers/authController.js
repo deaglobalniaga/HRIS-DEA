@@ -1015,6 +1015,69 @@ exports.disableMfa = async (req, res) => {
     }
 };
 
+/**
+ * Send 6-digit MFA OTP code to user's registered/recovery email
+ */
+exports.sendMfaEmailOtp = async (req, res) => {
+    try {
+        const userId = req.userId || req.body?.userId;
+        const identifier = req.body?.username || req.body?.identifier || req.body?.email;
+
+        let user = null;
+        if (userId) {
+            const { data } = await supabase.from('users').select('id, username, email, recovery_email').eq('id', userId).maybeSingle();
+            user = data;
+        } else if (identifier) {
+            const cleanId = String(identifier).trim().toLowerCase();
+            const { data } = await supabase.from('users').select('id, username, email, recovery_email').or(`username.ilike.${cleanId},email.ilike.${cleanId}`).maybeSingle();
+            user = data;
+        }
+
+        if (!user) {
+            return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
+        }
+
+        // Determine destination email (recovery_email or primary email or employee email)
+        let targetEmail = user.recovery_email || user.email;
+        if (!targetEmail) {
+            const { data: emp } = await supabase.from('employees').select('id, email_office').eq('user_id', user.id).maybeSingle();
+            targetEmail = emp?.email_office;
+        }
+
+        if (!targetEmail) {
+            return res.status(400).json({ message: 'Tidak ada alamat email yang terdaftar untuk akun ini. Silakan hubungi Administrator HRGA/IT.' });
+        }
+
+        // Generate 6-digit cryptographically secure numeric OTP code
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString(); // 10 minutes
+
+        await supabase.from('users').update({
+            reset_otp: otpCode,
+            reset_otp_expires_at: expiresAt
+        }).eq('id', user.id);
+
+        const emailResult = await mailer.sendMfaOtpEmail(targetEmail, otpCode, 10);
+        if (!emailResult.success) {
+            console.error('Failed to send MFA email:', emailResult.error);
+        }
+
+        // Mask email for user privacy (e.g. j***e@gmail.com)
+        const parts = targetEmail.split('@');
+        const maskedName = parts[0].length > 2 ? parts[0][0] + '***' + parts[0].slice(-1) : parts[0][0] + '***';
+        const maskedEmail = `${maskedName}@${parts[1] || 'deaglobalniaga.com'}`;
+
+        res.json({
+            message: `Kode verifikasi 2-Langkah berhasil dikirim ke ${maskedEmail}`,
+            maskedEmail,
+            expiresInMinutes: 10
+        });
+    } catch (err) {
+        console.error('sendMfaEmailOtp error:', err);
+        res.status(500).json({ message: 'Gagal mengirim kode MFA ke email: ' + err.message });
+    }
+};
+
 exports.saveRecoveryEmail = async (req, res) => {
     const { email } = req.body;
     try {

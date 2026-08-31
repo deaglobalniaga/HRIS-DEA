@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
+const { createNotification, notifyRole } = require('./notificationController');
 
 // Haversine formula to calculate distance in meters
 function getDistance(lat1, lon1, lat2, lon2) {
@@ -578,6 +579,27 @@ exports.clock_in_out = async (req, res) => {
 
         await invalidateCache(`attendance:summary:${today}`);
         await invalidateCache(`dashboard:*`);
+
+        // Real-time Push & In-App Notification Dispatch
+        const isClockIn = actionType === 'Clock In';
+        const empName = empRecord?.nama_lengkap || 'Karyawan';
+        const notifTitle = isClockIn ? 'Presensi Masuk Berhasil ✅' : 'Presensi Pulang Berhasil 🏠';
+        const notifMsg = isClockIn 
+            ? `Presensi Masuk (${attendanceStatus}) tercatat pada ${currentTimeDisplay}. Selamat bertugas!`
+            : `Presensi Pulang tercatat pada ${currentTimeDisplay}. Terima kasih atas dedikasi Anda hari ini!`;
+
+        if (req.userId) {
+            createNotification({
+                userId: req.userId,
+                title: notifTitle,
+                message: notifMsg,
+                type: 'success',
+                link: '/attendance-hub'
+            }).catch(e => console.error('Attendance user notif error:', e));
+        }
+
+        // Notify HRGA & Superadmin
+        notifyRole('hrga', `Presensi: ${empName}`, `${empName} melakukan ${actionType} (${currentTimeDisplay})`, 'info', '/attendance-management').catch(() => {});
 
         res.json({
             message: `Berhasil melakukan ${actionType}`,

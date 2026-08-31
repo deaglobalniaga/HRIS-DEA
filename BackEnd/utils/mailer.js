@@ -1,25 +1,40 @@
 const nodemailer = require('nodemailer');
+require('dotenv').config();
 
-// Initialize transporter
-const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.ethereal.email',
-    port: process.env.SMTP_PORT || 587,
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS
+// Create resilient transporter for Gmail / Cloud environments
+const createTransporter = () => {
+    const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+    const isGmail = host.includes('gmail') || process.env.SMTP_SERVICE === 'gmail';
+    const user = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
+    const rawPass = process.env.SMTP_PASS || '';
+    const pass = rawPass.replace(/\s+/g, ''); // strip any accidental copy-pasted spaces
+
+    if (isGmail) {
+        return nodemailer.createTransport({
+            service: 'gmail',
+            auth: { user, pass }
+        });
     }
-});
+
+    return nodemailer.createTransport({
+        host: host,
+        port: parseInt(process.env.SMTP_PORT) || 465,
+        secure: process.env.SMTP_SECURE === 'true' || parseInt(process.env.SMTP_PORT) === 465,
+        auth: { user, pass },
+        tls: {
+            rejectUnauthorized: false
+        }
+    });
+};
+
+const transporter = createTransporter();
+const SENDER_EMAIL = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
+const SENDER_NAME = '"HRIS PT DEA GLOBAL NIAGA"';
 
 /**
  * Sends an email notification for HRIS requests
  */
 const sendRequestNotification = async (to, subject, data, link) => {
-    if (!process.env.SMTP_HOST) {
-        console.warn('SMTP is not configured in .env. Skipping email sending.');
-        return;
-    }
-
     const htmlContent = `
         <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; border: 1px solid #eaeaea; border-radius: 8px;">
             <h2 style="color: #c71e2c; border-bottom: 2px solid #eaeaea; padding-bottom: 10px;">Pengajuan Baru: ${data.type}</h2>
@@ -49,20 +64,23 @@ const sendRequestNotification = async (to, subject, data, link) => {
                 <a href="${link}" style="background-color: #c71e2c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Proses Approval di Web</a>
             </div>
             
-            <p style="margin-top: 30px; font-size: 12px; color: #888;">Email ini dikirim otomatis oleh HRIS PT. Dea Global Niaga.</p>
+            <p style="margin-top: 30px; font-size: 12px; color: #888;">Email ini dikirim otomatis oleh HRIS PT DEA GLOBAL NIAGA.</p>
         </div>
     `;
 
     try {
         const info = await transporter.sendMail({
-            from: '"HRIS DGN Notification" <no-reply@deaglobalniaga.com>',
+            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            replyTo: SENDER_EMAIL,
             to: to,
             subject: subject,
             html: htmlContent
         });
-        console.log('Email sent successfully:', info.messageId);
+        console.log('Request notification email sent successfully:', info.messageId);
+        return { success: true, messageId: info.messageId };
     } catch (err) {
-        console.error('Failed to send email:', err);
+        console.error('Failed to send request email:', err);
+        return { success: false, error: err.message };
     }
 };
 
@@ -115,29 +133,15 @@ const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
     console.log(`⏱️ Valid for: ${minutesValid} Minutes`);
     console.log(`========================================\n`);
 
-    if (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'smtp.ethereal.email') {
-        // Ethereal / Local mode
-        try {
-            const info = await transporter.sendMail({
-                from: '"HRIS DGN Security" <security@deaglobalniaga.com>',
-                to: to,
-                subject: `[HRIS DGN] Kode Reset Password: ${otpCode}`,
-                html: htmlContent
-            });
-            console.log('OTP Email preview URL:', nodemailer.getTestMessageUrl(info));
-        } catch (e) {
-            console.log('Local mailer simulated (OTP logged to console).');
-        }
-        return { success: true, simulated: true };
-    }
-
     try {
         const info = await transporter.sendMail({
-            from: '"HRIS DGN Security" <no-reply@deaglobalniaga.com>',
+            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            replyTo: SENDER_EMAIL,
             to: to,
             subject: `[HRIS DGN] Kode Reset Password: ${otpCode}`,
             html: htmlContent
         });
+        console.log('Reset OTP email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
     } catch (err) {
         console.error('Failed to send reset OTP email:', err);
@@ -160,11 +164,11 @@ const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
             </div>
 
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                <p style="color: #334155; font-size: 13px; margin: 0 0 12px 0;">Gunakan kode verifikasi berikut untuk menyelesaikan proses masuk:</p>
+                <p style="color: #334155; font-size: 13px; margin: 0 0 12px 0;">Gunakan kode verifikasi berikut untuk menyelesaikan proses autentikasi akun Anda:</p>
                 <div style="background: #ffffff; border: 2px dashed #dc2626; border-radius: 10px; padding: 14px 20px; display: inline-block; letter-spacing: 8px; font-size: 30px; font-weight: 900; color: #991b1b; font-family: monospace;">
                     ${otpCode}
                 </div>
-                <p style="color: #64748b; font-size: 11px; margin: 12px 0 0 0;">
+                <p style="color: #64748b; font-size: 12px; margin: 12px 0 0 0;">
                     Kode ini berlaku selama <strong>${minutesValid} menit</strong>.
                 </p>
             </div>
@@ -187,28 +191,15 @@ const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
     console.log(`⏱️ Valid for: ${minutesValid} Minutes`);
     console.log(`========================================\n`);
 
-    if (!process.env.SMTP_HOST || process.env.SMTP_HOST === 'smtp.ethereal.email') {
-        try {
-            const info = await transporter.sendMail({
-                from: '"HRIS DGN Security" <security@deaglobalniaga.com>',
-                to: to,
-                subject: `[HRIS DGN] Kode Verifikasi 2-Langkah (MFA): ${otpCode}`,
-                html: htmlContent
-            });
-            console.log('MFA Email preview URL:', nodemailer.getTestMessageUrl(info));
-        } catch (e) {
-            console.log('Local mailer simulated (MFA OTP logged to console).');
-        }
-        return { success: true, simulated: true };
-    }
-
     try {
         const info = await transporter.sendMail({
-            from: '"HRIS DGN Security" <no-reply@deaglobalniaga.com>',
+            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+            replyTo: SENDER_EMAIL,
             to: to,
             subject: `[HRIS DGN] Kode Verifikasi 2-Langkah (MFA): ${otpCode}`,
             html: htmlContent
         });
+        console.log('MFA OTP email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
     } catch (err) {
         console.error('Failed to send MFA OTP email:', err);
