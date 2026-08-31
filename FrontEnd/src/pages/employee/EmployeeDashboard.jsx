@@ -111,14 +111,17 @@ const EmployeeDashboard = () => {
 
           <div className="flex items-center gap-2">
             <button
+              type="button"
               onClick={() => setShowProfileModal(true)}
-              className="px-3.5 py-1.5 rounded-full bg-white/15 backdrop-blur-md flex items-center gap-1.5 text-xs font-bold hover:bg-white/25 transition border border-white/20 shadow-sm"
+              className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20 active:scale-95 cursor-pointer shadow-sm"
+              title="Profil"
             >
-              <User size={14} /> Profil Saya
+              <User size={18} />
             </button>
             <button
+              type="button"
               onClick={logout}
-              className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20"
+              className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20 active:scale-95 cursor-pointer shadow-sm"
               title="Keluar"
             >
               <LogOut size={18} />
@@ -300,15 +303,15 @@ const EmployeeDashboard = () => {
       {/* Modern Profile Modal Pop-up Card for Mobile & Desktop */}
       {showProfileModal && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in"
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in"
           onClick={() => setShowProfileModal(false)}
         >
           <div
-            className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-3xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 flex flex-col max-h-[90vh]"
+            className="bg-white w-full max-w-sm sm:max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[85vh] my-auto border border-slate-100"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Banner */}
-            <div className="relative bg-gradient-to-r from-slate-900 via-red-950 to-red-900 p-6 text-white overflow-hidden">
+            <div className="relative bg-gradient-to-r from-slate-900 via-red-950 to-red-900 p-5 sm:p-6 text-white overflow-hidden shrink-0">
               <button
                 onClick={() => setShowProfileModal(false)}
                 className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
