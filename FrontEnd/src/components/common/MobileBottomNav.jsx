@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, Fingerprint, CalendarDays, Briefcase, Award, Building2, Shield, ShieldCheck, User } from 'lucide-react';
+import { Home, Users, Fingerprint, CalendarDays, Briefcase, Award, Building2, Shield, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const MobileBottomNav = () => {
@@ -21,38 +21,38 @@ const MobileBottomNav = () => {
     )
   );
 
-  // Role-based Navigation Items (superadmin, hse admin, hrga admin, user)
+  // Role-based Navigation Items
   const getNavItems = () => {
-    // 1. Super Admin Menu (Focus on System Governance & Security)
+    // 1. Super Admin Menu
     if (isSuperAdmin) {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
         { label: 'Organisasi', path: '/organization', icon: Building2 },
         { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Saya', path: '/settings', isAvatar: true },
+        { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
       ];
     }
 
-    // 2. HSE Admin Menu (Focus on K3 & Operasional)
+    // 2. HSE Admin Menu
     if (isHSEAdmin) {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
-        { label: 'Matriks K3', path: '/organization', icon: Award },
+        { label: 'Matriks K3', path: '/organization', icon: ShieldCheck },
         { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Saya', path: '/personal-certifications', isAvatar: true },
+        { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
       ];
     }
 
-    // 3. HRGA Admin Menu (With Karyawan, Presensi, Kalender & Agenda Kerja)
+    // 3. HRGA Admin Menu
     if (isAdmin) {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
         { label: 'Karyawan', path: '/organization', icon: Users },
         { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Saya', path: '/performance', isAvatar: true },
+        { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
       ];
     }
 
@@ -62,7 +62,7 @@ const MobileBottomNav = () => {
       { label: 'Organisasi', path: '/organization-tree', icon: Building2 },
       { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
       { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-      { label: 'Saya', path: '/personal-certifications', isAvatar: true },
+      { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
     ];
   };
 
@@ -70,8 +70,11 @@ const MobileBottomNav = () => {
 
   return (
     <div className="lg:hidden fixed bottom-3.5 inset-x-0 z-50 flex justify-center px-3.5 select-none pointer-events-none">
-      {/* Floating WhatsApp Dark Liquid Glass Capsule Bar */}
-      <nav className="w-full max-w-[365px] pointer-events-auto bg-[#172228]/95 backdrop-blur-2xl border border-white/10 px-2 py-1.5 rounded-full shadow-[0_16px_36px_rgba(0,0,0,0.5),0_0_1px_rgba(255,255,255,0.2)] flex items-center justify-around relative transition-all duration-300">
+      {/* Floating Translucent Frosted Liquid Glass Capsule Bar */}
+      <nav className="w-full max-w-[365px] pointer-events-auto bg-white/40 dark:bg-slate-900/40 backdrop-blur-2xl backdrop-saturate-150 border border-white/60 dark:border-white/20 px-2 py-1.5 rounded-full shadow-[0_12px_36px_rgba(0,0,0,0.15),inset_0_1px_2px_rgba(255,255,255,0.7)] flex items-center justify-around relative transition-all duration-300">
+        {/* Specular Top Reflection Highlight */}
+        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/50 dark:from-white/15 to-transparent pointer-events-none rounded-t-full" />
+
         {navItems.map((item, index) => {
           const isActive = location.pathname === item.path || 
             (item.path === '/attendance-hub' && location.pathname.includes('attendance')) ||
@@ -86,54 +89,34 @@ const MobileBottomNav = () => {
             <NavLink
               key={index}
               to={item.path}
-              className="flex flex-col items-center justify-center flex-1 py-0.5 relative group cursor-pointer transition-transform duration-200 active:scale-90 focus:outline-none"
+              className="flex flex-col items-center justify-center flex-1 py-0.5 relative group cursor-pointer transition-transform duration-200 active:scale-90 focus:outline-none z-10"
             >
-              {/* Icon Container with WhatsApp Liquid Glass Oval Lens on Active */}
+              {/* Icon Container with Oval Liquid Glass Lens on Active */}
               <div className={`relative flex items-center justify-center transition-all duration-300 ${
                 isActive 
-                  ? 'w-14 h-7.5 rounded-full bg-white/20 backdrop-blur-xl border border-white/35 shadow-[0_2px_12px_rgba(255,255,255,0.18),inset_0_1px_2px_rgba(255,255,255,0.6)]' 
+                  ? 'w-14 h-7.5 rounded-full bg-white/80 dark:bg-white/25 backdrop-blur-xl border border-white/90 dark:border-white/35 shadow-[0_3px_12px_rgba(0,0,0,0.12),inset_0_1px_2px_rgba(255,255,255,0.9)]' 
                   : 'w-14 h-7.5 rounded-full bg-transparent'
               }`}>
-                {/* Iridescent Specular Highlight for Active Lens */}
+                {/* Active Lens Specular Gloss Highlight */}
                 {isActive && (
-                  <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/70 to-transparent pointer-events-none rounded-t-full" />
+                  <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/80 to-transparent pointer-events-none rounded-t-full" />
                 )}
 
-                {item.isAvatar ? (
-                  user?.profile_photo_url ? (
-                    <img 
-                      src={user.profile_photo_url} 
-                      alt={user?.nama || 'Saya'} 
-                      className={`w-5.5 h-5.5 rounded-full object-cover transition-all ${
-                        isActive ? 'ring-2 ring-emerald-400' : 'ring-1.5 ring-white/50 group-hover:ring-white'
-                      }`} 
-                    />
-                  ) : (
-                    <div className={`w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
-                      isActive 
-                        ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-400' 
-                        : 'bg-slate-800 text-slate-200 ring-1.5 ring-white/40 group-hover:ring-white'
-                    }`}>
-                      {(user?.nama_lengkap || user?.username || 'U').charAt(0).toUpperCase()}
-                    </div>
-                  )
-                ) : (
-                  <Icon 
-                    size={20} 
-                    className={`transition-colors duration-200 ${
-                      isActive 
-                        ? 'text-white stroke-[2.4] drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]' 
-                        : 'text-slate-300/85 stroke-[1.8] group-hover:text-white'
-                    }`} 
-                  />
-                )}
+                <Icon 
+                  size={20} 
+                  className={`transition-colors duration-200 ${
+                    isActive 
+                      ? 'text-red-700 dark:text-white stroke-[2.4] drop-shadow-[0_1px_3px_rgba(0,0,0,0.2)]' 
+                      : 'text-slate-700 dark:text-slate-300 stroke-[1.8] group-hover:text-slate-950 dark:group-hover:text-white'
+                  }`} 
+                />
               </div>
 
               {/* Text Label Below Icon */}
               <span className={`text-[10px] tracking-tight mt-0.5 transition-colors duration-200 leading-tight ${
                 isActive 
-                  ? 'font-black text-white' 
-                  : 'font-semibold text-slate-400 group-hover:text-slate-200'
+                  ? 'font-black text-slate-900 dark:text-white' 
+                  : 'font-semibold text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200'
               }`}>
                 {item.label}
               </span>
