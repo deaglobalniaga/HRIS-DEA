@@ -21,11 +21,6 @@ const MobileBottomNav = () => {
     )
   );
 
-  // Hide floating mobile navigation bar on full-screen Attendance Camera scanner
-  if (location.pathname === '/attendance-hub' || location.pathname === '/attendance') {
-    return null;
-  }
-
   // Role-based Navigation Items (superadmin, hse admin, hrga admin, user)
   const getNavItems = () => {
     // 1. Super Admin Menu (Focus on System Governance & Security)
