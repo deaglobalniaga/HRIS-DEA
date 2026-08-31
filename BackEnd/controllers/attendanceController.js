@@ -85,78 +85,10 @@ exports.recognize_face = async (req, res) => {
             });
         }
 
-        if (!selfEmp.face_descriptor) {
-            // Auto-enroll first face descriptor for logged in employee so they can seamlessly clock in
-            const newDescriptorObj = { descriptors: [face_descriptor], count: 1, updated_at: new Date().toISOString() };
-            await supabase.from('employees').update({
-                face_descriptor: newDescriptorObj
-            }).eq('id', selfEmp.id);
-            await invalidateCache('emp:*');
-            await invalidateCache('master:enrolled_faces');
-            selfEmp.face_descriptor = newDescriptorObj;
-
-            return res.json({
-                recognized: true,
-                isOwnAccount: true,
-                isFirstEnrollment: true,
-                confidence: 0.98,
-                distance: '0.0500',
-                employee: {
-                    id: selfEmp.id,
-                    user_id: selfEmp.user_id,
-                    nama_lengkap: selfEmp.nama_lengkap,
-                    nomor_pegawai: selfEmp.nomor_pegawai,
-                    jabatan: selfEmp.jabatan,
-                    penempatan: selfEmp.penempatan,
-                    department: selfEmp.departments?.name || 'General'
-                },
-                message: `Wajah Anda (${selfEmp.nama_lengkap}) berhasil didaftarkan dan terverifikasi secara otomatis!`
-            });
-        }
-
         const THRESHOLD = 0.58; // Calibrated for facial variation (glasses, lighting, angle, APD)
-        const storedRaw = typeof selfEmp.face_descriptor === 'string' ? JSON.parse(selfEmp.face_descriptor) : selfEmp.face_descriptor;
-        let selfSamples = [];
 
-        if (storedRaw && typeof storedRaw === 'object' && !Array.isArray(storedRaw) && Array.isArray(storedRaw.descriptors)) {
-            selfSamples = storedRaw.descriptors;
-        } else if (Array.isArray(storedRaw)) {
-            selfSamples = Array.isArray(storedRaw[0]) ? storedRaw : [storedRaw];
-        }
-
-        let lowestDistance = 1.0;
-        for (const sample of selfSamples) {
-            const distance = calculateFaceDistance(face_descriptor, sample);
-            if (distance < lowestDistance) {
-                lowestDistance = distance;
-            }
-        }
-
-        console.log(`[Face AI] User: ${selfEmp.nama_lengkap} (${selfEmp.nomor_pegawai}), Samples: ${selfSamples.length}, Lowest Dist: ${lowestDistance.toFixed(4)}, Threshold: ${THRESHOLD}, Matched: ${lowestDistance <= THRESHOLD}`);
-
-        // 1. Matches the logged-in user's own face
-        if (lowestDistance <= THRESHOLD) {
-            const normalizedConfidence = Math.max(0.80, Math.min(0.99, 1.0 - (lowestDistance / THRESHOLD) * 0.18));
-
-            return res.json({
-                recognized: true,
-                isOwnAccount: true,
-                confidence: +normalizedConfidence.toFixed(2),
-                distance: lowestDistance.toFixed(4),
-                employee: {
-                    id: selfEmp.id,
-                    user_id: selfEmp.user_id,
-                    nama_lengkap: selfEmp.nama_lengkap,
-                    nomor_pegawai: selfEmp.nomor_pegawai,
-                    jabatan: selfEmp.jabatan,
-                    penempatan: selfEmp.penempatan,
-                    department: selfEmp.departments?.name || 'General'
-                }
-            });
-        }
-
-        // 2. Face does NOT match the logged-in user - Check if it belongs to someone else to give clear feedback
-        const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 600, async () => {
+        // 1. STRICT ANTI-IMPERSONATION: First check if this face matches ANY OTHER employee in the database
+        const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 300, async () => {
             const { data, error } = await supabase
                 .from('employees')
                 .select(`id, nama_lengkap, face_descriptor`)
@@ -182,17 +114,86 @@ exports.recognize_face = async (req, res) => {
             } catch (e) {}
         }
 
+        // If face in camera belongs to someone else -> BLOCK IMMEDIATELY
         if (otherMatch) {
             return res.json({
                 recognized: false,
                 isMismatch: true,
-                message: `Wajah yang terdeteksi adalah ${otherMatch.nama_lengkap}, BUKAN akun yang sedang login (${selfEmp.nama_lengkap}). Presensi ditolak karena hanya dapat dilakukan oleh akun pemilik wajah masing-masing.`
+                message: `Wajah yang terdeteksi adalah milik ${otherMatch.nama_lengkap}, BUKAN akun yang sedang login (${selfEmp.nama_lengkap}). Presensi ditolak karena akun biometrik tidak sesuai!`
             });
         }
 
+        // 2. If logged in employee already has an enrolled face descriptor, verify strictly against own record
+        if (selfEmp.face_descriptor) {
+            const storedRaw = typeof selfEmp.face_descriptor === 'string' ? JSON.parse(selfEmp.face_descriptor) : selfEmp.face_descriptor;
+            let selfSamples = [];
+
+            if (storedRaw && typeof storedRaw === 'object' && !Array.isArray(storedRaw) && Array.isArray(storedRaw.descriptors)) {
+                selfSamples = storedRaw.descriptors;
+            } else if (Array.isArray(storedRaw)) {
+                selfSamples = Array.isArray(storedRaw[0]) ? storedRaw : [storedRaw];
+            }
+
+            let lowestDistance = 1.0;
+            for (const sample of selfSamples) {
+                const distance = calculateFaceDistance(face_descriptor, sample);
+                if (distance < lowestDistance) {
+                    lowestDistance = distance;
+                }
+            }
+
+            if (lowestDistance <= THRESHOLD) {
+                const normalizedConfidence = Math.max(0.80, Math.min(0.99, 1.0 - (lowestDistance / THRESHOLD) * 0.18));
+
+                return res.json({
+                    recognized: true,
+                    isOwnAccount: true,
+                    confidence: +normalizedConfidence.toFixed(2),
+                    distance: lowestDistance.toFixed(4),
+                    employee: {
+                        id: selfEmp.id,
+                        user_id: selfEmp.user_id,
+                        nama_lengkap: selfEmp.nama_lengkap,
+                        nomor_pegawai: selfEmp.nomor_pegawai,
+                        jabatan: selfEmp.jabatan,
+                        penempatan: selfEmp.penempatan,
+                        department: selfEmp.departments?.name || 'General'
+                    }
+                });
+            } else {
+                return res.json({
+                    recognized: false,
+                    message: `Wajah tidak cocok dengan data biometrik akun Anda (${selfEmp.nama_lengkap}).`
+                });
+            }
+        }
+
+        // 3. User does NOT have an enrolled face yet, AND face does NOT match any other employee
+        // Auto-enroll new unique face descriptor to selfEmp
+        const newDescriptorObj = { descriptors: [face_descriptor], count: 1, updated_at: new Date().toISOString() };
+        await supabase.from('employees').update({
+            face_descriptor: newDescriptorObj
+        }).eq('id', selfEmp.id);
+        await invalidateCache('emp:*');
+        await invalidateCache('master:enrolled_faces');
+        selfEmp.face_descriptor = newDescriptorObj;
+
         return res.json({
-            recognized: false,
-            message: `Wajah tidak cocok dengan data biometrik akun Anda (${selfEmp.nama_lengkap}).`
+            recognized: true,
+            isOwnAccount: true,
+            isFirstEnrollment: true,
+            confidence: 0.98,
+            distance: '0.0500',
+            employee: {
+                id: selfEmp.id,
+                user_id: selfEmp.user_id,
+                nama_lengkap: selfEmp.nama_lengkap,
+                nomor_pegawai: selfEmp.nomor_pegawai,
+                jabatan: selfEmp.jabatan,
+                penempatan: selfEmp.penempatan,
+                department: selfEmp.departments?.name || 'General'
+            },
+            message: `Wajah Anda (${selfEmp.nama_lengkap}) berhasil didaftarkan dan terverifikasi secara otomatis!`
         });
     } catch (err) {
         console.error('Face recognition error:', err);
@@ -318,14 +319,34 @@ exports.clock_in_out = async (req, res) => {
                 });
             }
 
-            if (!empRecord?.face_descriptor) {
-                // Auto-enroll first face sample on clock-in
-                const newDescObj = { descriptors: [incomingFaceDesc], count: 1, updated_at: new Date().toISOString() };
-                await supabase.from('employees').update({ face_descriptor: newDescObj }).eq('id', empRecord.id);
-                await invalidateCache('emp:*');
-                await invalidateCache('master:enrolled_faces');
-                empRecord.face_descriptor = newDescObj;
-            } else {
+            // 1. Cross-account Impersonation Prevention: Ensure incoming face does not belong to another enrolled employee
+            const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 300, async () => {
+                const { data, error } = await supabase
+                    .from('employees')
+                    .select(`id, nama_lengkap, face_descriptor`)
+                    .not('face_descriptor', 'is', null);
+
+                if (error) throw error;
+                return data || [];
+            });
+
+            for (const otherEmp of enrolledEmployees) {
+                if (otherEmp.id === empRecord.id) continue;
+                try {
+                    const oRaw = typeof otherEmp.face_descriptor === 'string' ? JSON.parse(otherEmp.face_descriptor) : otherEmp.face_descriptor;
+                    let oSamples = (oRaw && Array.isArray(oRaw.descriptors)) ? oRaw.descriptors : (Array.isArray(oRaw) ? (Array.isArray(oRaw[0]) ? oRaw : [oRaw]) : []);
+                    for (const s of oSamples) {
+                        if (calculateFaceDistance(incomingFaceDesc, s) <= 0.58) {
+                            return res.status(403).json({
+                                message: `Presensi ditolak: Wajah di depan kamera adalah milik ${otherEmp.nama_lengkap}. Anda tidak dapat melakukan presensi untuk akun karyawan lain (${empRecord.nama_lengkap})!`
+                            });
+                        }
+                    }
+                } catch (e) {}
+            }
+
+            // 2. If employee already has face registered, verify strictly against own descriptor
+            if (empRecord?.face_descriptor) {
                 try {
                     const storedRaw = typeof empRecord.face_descriptor === 'string' ? JSON.parse(empRecord.face_descriptor) : empRecord.face_descriptor;
                     let samples = [];
@@ -343,7 +364,7 @@ exports.clock_in_out = async (req, res) => {
                     }
                     if (minFaceDist > 0.58) {
                         return res.status(400).json({
-                            message: `Presensi ditolak: Wajah di depan kamera (${empRecord.nama_lengkap}) tidak sesuai dengan data biometrik yang tersimpan di sistem. Presensi dikunci demi keamanan.`
+                            message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda (${empRecord.nama_lengkap}). Presensi dikunci demi keamanan.`
                         });
                     }
                 } catch (faceErr) {
@@ -352,6 +373,13 @@ exports.clock_in_out = async (req, res) => {
                         message: 'Presensi ditolak: Terjadi kesalahan saat memverifikasi struktur biometrik wajah.'
                     });
                 }
+            } else {
+                // First-time enrollment for novel face
+                const newDescObj = { descriptors: [incomingFaceDesc], count: 1, updated_at: new Date().toISOString() };
+                await supabase.from('employees').update({ face_descriptor: newDescObj }).eq('id', empRecord.id);
+                await invalidateCache('emp:*');
+                await invalidateCache('master:enrolled_faces');
+                empRecord.face_descriptor = newDescObj;
             }
         }
 
