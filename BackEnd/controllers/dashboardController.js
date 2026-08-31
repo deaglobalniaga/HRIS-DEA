@@ -157,6 +157,24 @@ exports.get_dashboard_stats = async (req, res) => {
             { id: '5', category: 'Handover', tag: 'ROTASI ROSTER', tagColor: 'bg-teal-50 text-teal-700 border-teal-200', title: 'Rotasi Shift & Handover Log Operasional', description: 'Mess / Pos Komando Site BIB', time: '16:30', pic: 'Supervisor Lapangan' }
         ];
 
+        // 10. Fetch Persistent System Notes from Settings
+        let notesList = [];
+        try {
+            const { data: noteSetting } = await supabase
+                .from('settings')
+                .select('setting_value')
+                .eq('setting_key', 'dashboard_system_notes')
+                .maybeSingle();
+
+            if (noteSetting && noteSetting.setting_value) {
+                notesList = typeof noteSetting.setting_value === 'string' 
+                    ? JSON.parse(noteSetting.setting_value) 
+                    : noteSetting.setting_value;
+            }
+        } catch (nErr) {
+            console.error('Error fetching dashboard notes:', nErr);
+        }
+
         res.json({
             totalEmployees: employeesCount,
             attendanceRate,
@@ -167,7 +185,7 @@ exports.get_dashboard_stats = async (req, res) => {
             todayArrivals,
             activeLeavesList,
             pendingTasks: [],
-            notesList: [],
+            notesList: Array.isArray(notesList) ? notesList : [],
             timeline,
             contractStats,
             avgWorkHours
@@ -259,11 +277,83 @@ exports.get_employee_dashboard = async (req, res) => {
     }
 };
 
-// System Notes
+// System Notes Persistent Handlers
 exports.post_system_notes = async (req, res) => {
-    res.json({ message: 'Note added' });
+    try {
+        const noteText = (req.body?.note_text || req.body?.text || '').trim();
+        if (!noteText) {
+            return res.status(400).json({ message: 'Teks catatan tidak boleh kosong.' });
+        }
+
+        // Fetch existing notes
+        const { data: existing } = await supabase
+            .from('settings')
+            .select('setting_value')
+            .eq('setting_key', 'dashboard_system_notes')
+            .maybeSingle();
+
+        let currentNotes = [];
+        if (existing && existing.setting_value) {
+            currentNotes = typeof existing.setting_value === 'string' 
+                ? JSON.parse(existing.setting_value) 
+                : existing.setting_value;
+        }
+        if (!Array.isArray(currentNotes)) currentNotes = [];
+
+        const newNote = {
+            id: `note_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            text: noteText,
+            created_at: new Date().toISOString(),
+            created_by: req.user?.nama || 'Admin HRGA'
+        };
+
+        const updatedNotes = [newNote, ...currentNotes];
+
+        await supabase
+            .from('settings')
+            .upsert({
+                setting_key: 'dashboard_system_notes',
+                setting_value: updatedNotes,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'setting_key' });
+
+        res.status(201).json({ message: 'Catatan berhasil disimpan.', note: newNote });
+    } catch (err) {
+        console.error('Error saving dashboard note:', err);
+        res.status(500).json({ error: err.message });
+    }
 };
 
 exports.delete_system_notes_id = async (req, res) => {
-    res.json({ message: 'Note deleted' });
+    try {
+        const noteId = req.params.id;
+        const { data: existing } = await supabase
+            .from('settings')
+            .select('setting_value')
+            .eq('setting_key', 'dashboard_system_notes')
+            .maybeSingle();
+
+        let currentNotes = [];
+        if (existing && existing.setting_value) {
+            currentNotes = typeof existing.setting_value === 'string' 
+                ? JSON.parse(existing.setting_value) 
+                : existing.setting_value;
+        }
+        if (!Array.isArray(currentNotes)) currentNotes = [];
+
+        const filtered = currentNotes.filter(n => n.id !== noteId);
+
+        await supabase
+            .from('settings')
+            .upsert({
+                setting_key: 'dashboard_system_notes',
+                setting_value: filtered,
+                updated_at: new Date().toISOString()
+            }, { onConflict: 'setting_key' });
+
+        res.json({ message: 'Catatan berhasil dihapus.' });
+    } catch (err) {
+        console.error('Error deleting dashboard note:', err);
+        res.status(500).json({ error: err.message });
+    }
 };

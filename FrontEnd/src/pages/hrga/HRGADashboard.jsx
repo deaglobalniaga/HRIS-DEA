@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
-  UserCheck, UserX, AlertCircle, RefreshCw,
+  UserCheck, UserX, RefreshCw,
   TrendingUp, PieChart as PieChartIcon, CalendarDays, X,
   Calendar, Bell, Gift, Building2
 } from 'lucide-react';
@@ -158,8 +158,8 @@ const HRGADashboard = () => {
         </div>
       </div>
 
-      {/* Row 1: 7 Top KPI Badges */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
+      {/* Row 1: 6 Top KPI Badges */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         <TopBadge 
           icon={Users} 
           value={stats.totalEmployees || 0} 
@@ -214,19 +214,10 @@ const HRGADashboard = () => {
           bgClass="bg-teal-50"
           onClick={() => navigate('/organization?tab=company')} 
         />
-        <TopBadge 
-          icon={AlertCircle} 
-          value={stats.notesList?.length || 0} 
-          title="Catatan" 
-          subtitle="Isu sistem" 
-          colorClass="text-orange-500" 
-          bgClass="bg-orange-50"
-          onClick={() => setIsAddingNote(true)} 
-        />
       </div>
 
-      {/* Row 2: 4 Cards (Kehadiran Hari Ini, Cuti & Izin, Pengingat HR, Jalan Pintas) */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      {/* Row 2: 3 Cards (Kehadiran Hari Ini, Cuti & Izin, Catatan & Agenda Internal) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Kehadiran Hari Ini */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 h-64 flex flex-col justify-between">
           <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
@@ -314,33 +305,41 @@ const HRGADashboard = () => {
           </div>
         </div>
 
-        {/* Card 3: Pengingat HR */}
+        {/* Card 3: Catatan & Agenda Internal */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 h-64 flex flex-col justify-between relative">
           <div className="flex justify-between items-center pb-2.5 border-b border-slate-100">
-            <h3 className="text-xs font-black text-slate-900">Pengingat HR</h3>
+            <h3 className="text-xs font-black text-slate-900">
+              Catatan & Agenda Internal ({stats.notesList?.length || 0})
+            </h3>
             <button 
               onClick={() => setIsAddingNote(!isAddingNote)} 
-              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
+              className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer hover:underline flex items-center gap-1"
             >
               {isAddingNote ? 'Batal' : '+ Tambah'}
             </button>
           </div>
           <div className="flex-1 overflow-y-auto pr-1 py-1 flex flex-col gap-2">
             {isAddingNote && (
-              <div className="flex flex-col gap-1.5 p-2 bg-blue-50/60 rounded-xl border border-blue-100 animate-in fade-in">
+              <div className="flex flex-col gap-1.5 p-2 bg-blue-50/70 rounded-xl border border-blue-100 animate-in fade-in shrink-0">
                 <input 
                   type="text" 
                   value={newNoteText}
                   onChange={(e) => setNewNoteText(e.target.value)}
-                  placeholder="Ketik catatan / pengingat..."
-                  className="text-xs p-2 bg-white rounded-lg border border-blue-200 outline-none focus:ring-2 focus:ring-blue-400 font-medium"
+                  placeholder="Ketik catatan atau agenda internal..."
+                  className="text-xs p-2 bg-white rounded-lg border border-blue-200 outline-none focus:ring-2 focus:ring-blue-400 font-medium text-slate-800"
                   autoFocus
                   onKeyDown={(e) => e.key === 'Enter' && submitNewNote()}
                 />
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-1.5">
+                  <button 
+                    onClick={() => setIsAddingNote(false)}
+                    className="text-[10px] font-bold text-slate-500 px-2 py-1 rounded-lg hover:bg-slate-200/60 cursor-pointer"
+                  >
+                    Batal
+                  </button>
                   <button 
                     onClick={submitNewNote} 
-                    className="text-[10px] font-black bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 cursor-pointer"
+                    className="text-[10px] font-black bg-blue-600 text-white px-2.5 py-1 rounded-lg hover:bg-blue-700 cursor-pointer shadow-xs"
                   >
                     Simpan
                   </button>
@@ -350,64 +349,34 @@ const HRGADashboard = () => {
 
             {stats.notesList?.length > 0 ? (
               stats.notesList.map((rem, i) => (
-                <div key={i} className="flex gap-2 items-start group p-1.5 rounded-lg hover:bg-slate-50">
-                  <div className="w-2 h-2 rounded-full mt-1 shrink-0 bg-blue-500"></div>
+                <div key={rem.id || i} className="flex gap-2 items-start group p-2 rounded-xl bg-slate-50/80 hover:bg-slate-100/80 border border-slate-100 transition-all">
+                  <div className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-blue-600 ring-4 ring-blue-100"></div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-xs text-slate-700 font-medium">{rem.text}</span>
+                    <p className="text-xs text-slate-800 font-bold leading-snug">{rem.text}</p>
+                    {rem.created_at && (
+                      <span className="text-[9px] text-slate-400 font-medium mt-0.5 block">
+                        {new Date(rem.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} • {rem.created_by || 'Admin HRGA'}
+                      </span>
+                    )}
                   </div>
                   <button 
                     onClick={() => handleDeleteNote(rem.id)} 
-                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-0.5"
+                    title="Hapus Catatan"
+                    className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer p-0.5 rounded hover:bg-red-50"
                   >
-                    <X size={12} />
+                    <X size={13} />
                   </button>
                 </div>
               ))
             ) : (
               !isAddingNote && (
                 <div className="flex flex-col items-center justify-center h-full text-center text-slate-400">
-                  <Bell size={28} className="mb-1.5 text-slate-300 stroke-[1.5]" />
-                  <span className="text-xs font-bold text-slate-500">Tidak ada pengingat</span>
+                  <Bell size={26} className="mb-1.5 text-slate-300 stroke-[1.5]" />
+                  <span className="text-xs font-bold text-slate-500">Belum ada catatan internal</span>
+                  <p className="text-[10px] text-slate-400 mt-0.5">Klik "+ Tambah" untuk mencatat agenda atau memo tim</p>
                 </div>
               )
             )}
-          </div>
-        </div>
-
-        {/* Card 4: Jalan Pintas */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-4 h-64 flex flex-col justify-between">
-          <div className="pb-2.5 border-b border-slate-100">
-            <h3 className="text-xs font-black text-slate-900">Jalan Pintas</h3>
-          </div>
-          <div className="flex-1 flex flex-col justify-center gap-2 pt-2">
-            <button 
-              onClick={() => navigate('/organization')} 
-              className="w-full text-left bg-slate-50/80 hover:bg-blue-50/80 border border-slate-100 hover:border-blue-200 text-slate-700 hover:text-blue-700 px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer shadow-2xs"
-            >
-              <Users size={14} className="text-amber-500 shrink-0" />
-              <span>Data Karyawan & Organisasi</span>
-            </button>
-            <button 
-              onClick={() => navigate('/attendance-hub')} 
-              className="w-full text-left bg-slate-50/80 hover:bg-emerald-50/80 border border-slate-100 hover:border-emerald-200 text-slate-700 hover:text-emerald-700 px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer shadow-2xs"
-            >
-              <UserCheck size={14} className="text-emerald-500 shrink-0" />
-              <span>Kehadiran Hub</span>
-            </button>
-            <button 
-              onClick={() => navigate('/calendar')} 
-              className="w-full text-left bg-slate-50/80 hover:bg-amber-50/80 border border-slate-100 hover:border-amber-200 text-slate-700 hover:text-amber-700 px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer shadow-2xs"
-            >
-              <CalendarRange size={14} className="text-amber-500 shrink-0" />
-              <span>Agenda Perusahaan</span>
-            </button>
-            <button 
-              onClick={() => navigate('/leave-timeline')} 
-              className="w-full text-left bg-slate-50/80 hover:bg-purple-50/80 border border-slate-100 hover:border-purple-200 text-slate-700 hover:text-purple-700 px-3 py-2 rounded-xl text-[11px] font-bold transition-all flex items-center gap-2.5 cursor-pointer shadow-2xs"
-            >
-              <CalendarDays size={14} className="text-purple-500 shrink-0" />
-              <span>Timeline Cuti</span>
-            </button>
           </div>
         </div>
       </div>
