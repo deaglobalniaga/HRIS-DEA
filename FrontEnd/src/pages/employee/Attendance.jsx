@@ -130,11 +130,11 @@ const Attendance = () => {
     }
   }, [currentTime, companySettings]);
 
-  // Load face-api AI models
+  // Load face-api AI models (Fast local models from /models with fallback to CDN)
   useEffect(() => {
     const loadModels = async () => {
       try {
-        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+        const MODEL_URL = '/models';
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
           faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
@@ -142,7 +142,18 @@ const Attendance = () => {
         ]);
         setModelsLoaded(true);
       } catch (err) {
-        console.error('Error loading face models:', err);
+        console.warn('Local models failed, loading from CDN:', err);
+        try {
+          const FALLBACK_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+          await Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(FALLBACK_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(FALLBACK_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(FALLBACK_URL)
+          ]);
+          setModelsLoaded(true);
+        } catch (fallbackErr) {
+          console.error('Error loading face models:', fallbackErr);
+        }
       }
     };
     loadModels();
@@ -612,7 +623,7 @@ const Attendance = () => {
   const formattedTimeBadge = currentTime.toTimeString().split(' ')[0];
 
   return (
-    <div className="fixed inset-0 w-full h-[100dvh] flex flex-col justify-between overflow-hidden bg-slate-950 font-sans select-none">
+    <div className="fixed lg:relative inset-0 lg:inset-auto w-full h-[100dvh] lg:h-[calc(100vh-5.5rem)] lg:max-w-5xl lg:mx-auto lg:my-2 lg:rounded-3xl lg:border lg:border-slate-800 lg:shadow-2xl flex flex-col justify-between overflow-hidden bg-slate-950 font-sans select-none">
       {/* 1. FULL SCREEN CAMERA BACKGROUND VIEWPORT */}
       {!isCameraDisabled ? (
         <div className="absolute inset-0 w-full h-full z-0 overflow-hidden bg-slate-950">
@@ -628,7 +639,7 @@ const Attendance = () => {
             className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-10 ${!streamActive ? 'hidden' : ''}`}
           />
           {/* Subtle Dark Gradient Vignette for UI Readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-transparent to-black/85 pointer-events-none z-10" />
+          <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-transparent to-black/90 pointer-events-none z-10" />
         </div>
       ) : (
         <div className="absolute inset-0 w-full h-full z-0 bg-gradient-to-br from-slate-900 via-slate-950 to-red-950 flex flex-col items-center justify-center p-6 text-center">
@@ -642,40 +653,40 @@ const Attendance = () => {
         </div>
       )}
 
-      {/* 2. COMPACT AUTO-SCALE TOP HEADER (Z-20) */}
-      <div className="relative z-20 p-3 sm:p-4 space-y-1.5 max-w-md mx-auto w-full pointer-events-auto shrink-0">
+      {/* 2. RESPONSIVE AUTO-SCALE TOP HEADER (Z-20) */}
+      <div className="relative z-20 p-3 sm:p-4 lg:p-5 space-y-2 max-w-xl mx-auto w-full pointer-events-auto shrink-0">
         <div className="flex items-center justify-between">
           <button
             type="button"
             onClick={() => navigate(-1)}
-            className="w-9 h-9 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all cursor-pointer shadow-lg active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/50 backdrop-blur-md border border-white/20 flex items-center justify-center text-white hover:bg-black/70 transition-all cursor-pointer shadow-lg active:scale-95"
             title="Kembali ke Dashboard"
           >
             <ChevronLeft size={20} />
           </button>
 
           {/* Date & Time Badges */}
-          <div className="flex items-center gap-1.5">
-            <div className="bg-black/50 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-bold text-white shadow-md border border-white/15">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <div className="bg-black/50 backdrop-blur-md px-3 py-1.5 rounded-full text-xs sm:text-sm font-bold text-white shadow-md border border-white/15">
               {formattedDateBadge}
             </div>
-            <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] font-mono font-black text-emerald-300 shadow-md border border-white/15">
+            <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full text-xs sm:text-sm font-mono font-black text-emerald-300 shadow-md border border-white/15">
               {formattedTimeBadge}
             </div>
           </div>
         </div>
 
         {/* User Account & Schedule Mode Row */}
-        <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold">
-          <div className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-xl text-slate-200 border border-white/15 flex items-center justify-between shadow-md truncate">
+        <div className="grid grid-cols-2 gap-2 text-xs sm:text-sm font-bold">
+          <div className="bg-black/60 backdrop-blur-md px-3 py-2 rounded-2xl text-slate-200 border border-white/15 flex items-center justify-between shadow-md truncate">
             <span className="flex items-center gap-1.5 truncate">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
               <span className="truncate text-white font-bold">{user?.nama_lengkap || user?.nama || user?.username}</span>
             </span>
-            <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-white/10 text-emerald-300 font-black shrink-0 border border-white/10">{user?.role || 'Karyawan'}</span>
+            <span className="text-[9px] sm:text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-lg bg-white/10 text-emerald-300 font-black shrink-0 border border-white/10">{user?.role || 'Karyawan'}</span>
           </div>
 
-          <div className={`px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 shadow-md backdrop-blur-md border truncate ${
+          <div className={`px-3 py-2 rounded-2xl flex items-center gap-2 shadow-md backdrop-blur-md border truncate ${
             attendanceMode === 'in'
               ? 'bg-emerald-950/85 border-emerald-500/40 text-emerald-200'
               : attendanceMode === 'out'
@@ -683,17 +694,17 @@ const Attendance = () => {
               : 'bg-red-950/90 border-red-500/40 text-red-200'
           }`}>
             {attendanceMode === 'locked' ? (
-              <Lock size={12} className="text-red-400 shrink-0" />
+              <Lock size={14} className="text-red-400 shrink-0" />
             ) : (
-              <Timer size={12} className={attendanceMode === 'in' ? 'text-emerald-400 shrink-0' : 'text-blue-400 shrink-0'} />
+              <Timer size={14} className={attendanceMode === 'in' ? 'text-emerald-400 shrink-0' : 'text-blue-400 shrink-0'} />
             )}
-            <span className="truncate text-[10px]">{scheduleStatusMessage}</span>
+            <span className="truncate text-xs sm:text-sm">{scheduleStatusMessage}</span>
           </div>
         </div>
 
         {/* Mismatch Warning Alert if any */}
         {faceMismatchError && (
-          <div className="bg-red-950/95 border border-red-500/60 px-3 py-1.5 rounded-xl text-[10px] font-bold text-red-200 shadow-xl backdrop-blur-md text-center animate-in fade-in leading-tight">
+          <div className="bg-red-950/95 border border-red-500/60 px-3.5 py-2 rounded-2xl text-xs font-bold text-red-200 shadow-xl backdrop-blur-md text-center animate-in fade-in leading-tight">
             ⚠️ {faceMismatchError}
           </div>
         )}
@@ -702,9 +713,9 @@ const Attendance = () => {
       {/* 3. CENTER VIEWPORT: FLOATING COUNTDOWN HUD OVERLAY (NO STATIC RETICLE BOX) */}
       <div className="relative z-20 flex-1 flex flex-col items-center justify-center pointer-events-none w-full px-4">
         {countdown !== null && (
-          <div className="bg-slate-950/90 backdrop-blur-md border border-emerald-500/50 p-4 rounded-3xl shadow-2xl flex flex-col items-center justify-center text-center animate-in zoom-in-95 max-w-xs w-full pointer-events-auto">
+          <div className="bg-slate-950/90 backdrop-blur-md border border-emerald-500/50 p-5 rounded-3xl shadow-2xl flex flex-col items-center justify-center text-center animate-in zoom-in-95 max-w-sm w-full pointer-events-auto">
             {/* Circular Progress Ring */}
-            <div className="relative w-20 h-20 flex items-center justify-center mb-2">
+            <div className="relative w-24 h-24 flex items-center justify-center mb-3">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle
                   cx="50"
@@ -729,30 +740,30 @@ const Attendance = () => {
                 />
               </svg>
               <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-2xl font-black text-emerald-300 font-mono leading-none">{countdown}</span>
-                <span className="text-[7px] uppercase tracking-wider font-bold text-emerald-400 mt-0.5">Detik</span>
+                <span className="text-3xl font-black text-emerald-300 font-mono leading-none">{countdown}</span>
+                <span className="text-[8px] uppercase tracking-wider font-bold text-emerald-400 mt-0.5">Detik</span>
               </div>
             </div>
 
-            <p className="text-xs font-black text-white">
+            <p className="text-sm font-black text-white">
               {attendanceMode === 'in' ? 'Otomatis Presensi Masuk' : 'Otomatis Presensi Pulang'}
             </p>
-            <p className="text-[10px] text-emerald-300 font-bold mt-0.5">
+            <p className="text-xs text-emerald-300 font-bold mt-1">
               {recognizedEmployee?.nama_lengkap} ({Math.round((matchScore || 0.95) * 100)}%)
             </p>
 
-            <div className="flex items-center gap-2 mt-3 w-full">
+            <div className="flex items-center gap-2.5 mt-4 w-full">
               <button
                 type="button"
                 onClick={() => handleClockAction(attendanceMode)}
-                className="flex-1 py-2 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-[10px] rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-1 cursor-pointer"
+                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <Sparkles size={12} /> Presensi Sekarang
+                <Sparkles size={14} /> Presensi Sekarang
               </button>
               <button
                 type="button"
                 onClick={() => setCountdown(null)}
-                className="px-3 py-2 bg-white/10 hover:bg-white/20 text-white font-bold text-[10px] rounded-xl transition cursor-pointer"
+                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition cursor-pointer"
               >
                 Batal
               </button>
@@ -761,15 +772,15 @@ const Attendance = () => {
         )}
       </div>
 
-      {/* 4. FLOATING BOTTOM CONTROLS & ACTION BUTTONS (Z-20 with Clearance for MobileBottomNav) */}
-      <div className="relative z-20 p-3 sm:p-4 pb-28 sm:pb-6 space-y-2 max-w-md mx-auto w-full pointer-events-auto shrink-0">
+      {/* 4. FLOATING BOTTOM CONTROLS & ACTION BUTTONS */}
+      <div className="relative z-20 p-3 sm:p-4 lg:p-6 pb-28 lg:pb-6 space-y-2.5 max-w-xl mx-auto w-full pointer-events-auto shrink-0">
         {/* Dynamic Superadmin Geofence Site Name Pill */}
-        <div className="bg-black/60 backdrop-blur-md text-white px-3 py-1.5 rounded-xl flex items-center justify-between text-[11px] font-bold border border-white/15 shadow-lg">
-          <span className="flex items-center gap-1.5 truncate">
-            <MapPin size={13} className={isGpsDisabled ? 'text-emerald-400' : isInsideGeofence ? 'text-emerald-400' : 'text-amber-400'} />
+        <div className="bg-black/60 backdrop-blur-md text-white px-3.5 py-2 rounded-2xl flex items-center justify-between text-xs sm:text-sm font-bold border border-white/15 shadow-lg">
+          <span className="flex items-center gap-2 truncate">
+            <MapPin size={15} className={isGpsDisabled ? 'text-emerald-400' : isInsideGeofence ? 'text-emerald-400' : 'text-amber-400'} />
             <span className="truncate">{isGpsDisabled ? 'Validasi GPS Dilewati (Dispensasi)' : siteLocationName}</span>
           </span>
-          <span className={`text-[9px] px-2 py-0.5 rounded-lg font-black shrink-0 ${
+          <span className={`text-[10px] sm:text-xs px-2.5 py-1 rounded-xl font-black shrink-0 ${
             isInsideGeofence ? 'bg-emerald-500/25 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/25 text-amber-300 border border-amber-500/30'
           }`}>
             {isInsideGeofence ? 'Di Lokasi Site' : 'Di Luar Radius'}
@@ -778,64 +789,64 @@ const Attendance = () => {
 
         {/* Recognized Employee Verification Pill */}
         {isCameraDisabled ? (
-          <div className="bg-emerald-950/75 border border-emerald-500/30 p-2 rounded-xl flex items-center justify-between text-[11px] text-white font-bold backdrop-blur-md shadow-lg">
-            <span className="flex items-center gap-1.5 truncate">
-              <UserCheck size={14} className="text-emerald-400 shrink-0" />
+          <div className="bg-emerald-950/75 border border-emerald-500/30 p-2.5 rounded-2xl flex items-center justify-between text-xs sm:text-sm text-white font-bold backdrop-blur-md shadow-lg">
+            <span className="flex items-center gap-2 truncate">
+              <UserCheck size={16} className="text-emerald-400 shrink-0" />
               <span className="truncate">{user?.nama_lengkap || user?.username || 'Karyawan PT DGN'}</span>
             </span>
-            <span className="text-[9px] bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full font-black shrink-0">
+            <span className="text-[10px] bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full font-black shrink-0">
               Bypass Kamera
             </span>
           </div>
         ) : recognizedEmployee ? (
-          <div className="bg-emerald-950/80 border border-emerald-500/40 p-2 rounded-xl flex items-center justify-between text-[11px] text-white font-bold backdrop-blur-md shadow-lg animate-in fade-in">
-            <span className="flex items-center gap-1.5 truncate">
-              <ShieldCheck size={14} className="text-emerald-400 shrink-0" />
+          <div className="bg-emerald-950/80 border border-emerald-500/40 p-2.5 rounded-2xl flex items-center justify-between text-xs sm:text-sm text-white font-bold backdrop-blur-md shadow-lg animate-in fade-in">
+            <span className="flex items-center gap-2 truncate">
+              <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
               <span className="truncate">{recognizedEmployee.nama_lengkap} ({recognizedEmployee.department || 'Staff'})</span>
             </span>
-            <span className="text-[9px] bg-emerald-500 text-slate-950 px-2 py-0.5 rounded-full font-black shrink-0 ml-1">
+            <span className="text-[10px] bg-emerald-500 text-slate-950 px-2.5 py-0.5 rounded-full font-black shrink-0 ml-1">
               {Math.round((matchScore || 0.95) * 100)}% Terverifikasi
             </span>
           </div>
         ) : (
-          <div className="bg-red-950/80 border border-red-500/40 p-2 rounded-xl flex items-center justify-between text-[11px] text-red-200 font-bold backdrop-blur-md shadow-lg">
-            <span className="flex items-center gap-1.5">
-              <AlertCircle size={14} className="text-red-400 shrink-0" />
+          <div className="bg-red-950/80 border border-red-500/40 p-2.5 rounded-2xl flex items-center justify-between text-xs sm:text-sm text-red-200 font-bold backdrop-blur-md shadow-lg">
+            <span className="flex items-center gap-2">
+              <AlertCircle size={15} className="text-red-400 shrink-0" />
               Wajah Belum Terverifikasi
             </span>
-            <span className="text-[9px] text-red-300">
+            <span className="text-[10px] text-red-300">
               Tatap kamera lurus
             </span>
           </div>
         )}
 
         {/* Action Buttons: Seamless Glassmorphism Buttons */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
           <button
             type="button"
-            disabled={loading || attendanceMode !== 'in' || (!isCameraDisabled && !recognizedEmployee)}
+            disabled={loading || (!isCameraDisabled && !recognizedEmployee)}
             onClick={() => handleClockAction('in')}
-            className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-black text-xs shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
+            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
               attendanceMode === 'in'
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400 shadow-emerald-500/40 animate-pulse'
                 : 'bg-white/10 backdrop-blur-md text-white/50 border border-white/10'
             }`}
           >
-            <Clock size={14} />
+            <Clock size={16} />
             {loading && attendanceMode === 'in' ? 'Menyimpan...' : 'Absen Masuk'}
           </button>
 
           <button
             type="button"
-            disabled={loading || attendanceMode !== 'out' || (!isCameraDisabled && !recognizedEmployee)}
+            disabled={loading || (!isCameraDisabled && !recognizedEmployee)}
             onClick={() => handleClockAction('out')}
-            className={`flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl font-black text-xs shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
+            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
               attendanceMode === 'out'
                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-2 ring-blue-400 shadow-blue-500/40 animate-pulse'
                 : 'bg-white/10 backdrop-blur-md text-white/50 border border-white/10'
             }`}
           >
-            <Clock size={14} />
+            <Clock size={16} />
             {loading && attendanceMode === 'out' ? 'Menyimpan...' : 'Absen Pulang'}
           </button>
         </div>
