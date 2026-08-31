@@ -272,14 +272,20 @@ exports.login = async (req, res) => {
         // Validate Password OR Face Descriptor
         // Face recognition logic: multi-sample minimum Euclidean distance
         if (faceDescriptor) {
-            const { data: empData } = await supabase.from('employees').select('face_descriptor').eq('user_id', user.id).single();
+            const { data: empData } = await supabase.from('employees').select('face_descriptor').eq('user_id', user.id).maybeSingle();
             if (!empData || !empData.face_descriptor) {
                 return res.status(401).json({ message: 'Data biometrik wajah belum didaftarkan untuk pengguna ini.' });
             }
             
             try {
-                const storedData = JSON.parse(empData.face_descriptor);
-                const samples = Array.isArray(storedData[0]) ? storedData : [storedData];
+                const storedRaw = typeof empData.face_descriptor === 'string' ? JSON.parse(empData.face_descriptor) : empData.face_descriptor;
+                let samples = [];
+                if (storedRaw && typeof storedRaw === 'object' && !Array.isArray(storedRaw) && Array.isArray(storedRaw.descriptors)) {
+                    samples = storedRaw.descriptors;
+                } else if (Array.isArray(storedRaw)) {
+                    samples = Array.isArray(storedRaw[0]) ? storedRaw : [storedRaw];
+                }
+
                 const incoming = typeof faceDescriptor === 'string' ? JSON.parse(faceDescriptor) : faceDescriptor;
                 
                 let minDistance = 1.0;
@@ -292,7 +298,7 @@ exports.login = async (req, res) => {
                     if (dist < minDistance) minDistance = dist;
                 }
 
-                if (minDistance > 0.42) { // Calibrated threshold for face-api.js 128D embeddings
+                if (minDistance > 0.52) { // Calibrated threshold for face-api.js 128D embeddings
                     return res.status(401).json({ message: 'Verifikasi biometrik wajah tidak cocok.' });
                 }
             } catch (parseErr) {
@@ -300,9 +306,12 @@ exports.login = async (req, res) => {
                 return res.status(401).json({ message: 'Format data biometrik wajah tidak valid.' });
             }
         } else {
+            if (!user.password_hash) {
+                return res.status(401).json({ message: 'Kata sandi belum diatur untuk akun ini.' });
+            }
             const isValid = await bcrypt.compare(password, user.password_hash);
             if (!isValid) {
-                return res.status(401).json({ message: 'Invalid password' });
+                return res.status(401).json({ message: 'Kata sandi tidak sesuai. Silakan periksa kembali kata sandi Anda.' });
             }
         }
 
@@ -441,11 +450,11 @@ exports.login = async (req, res) => {
                 status: 'Success'
             });
         } catch (devErr) {
-            console.error('Device tracking error:', devErr);
+            console.error('Device tracking error (non-fatal):', devErr);
         }
 
         // 5. Generate Dynamic JWT & HttpOnly Cookie with configured TTL
-        const userRole = (user.roles?.name || user.role || 'user').toLowerCase();
+        const userRole = ((Array.isArray(user.roles) ? user.roles[0]?.name : user.roles?.name) || user.role || 'user').toLowerCase();
         const secConfig = await getSecurityConfig();
         const token = jwt.sign(
             { id: user.id, role: userRole },
@@ -455,33 +464,45 @@ exports.login = async (req, res) => {
 
         setAuthCookie(res, token, (secConfig.jwtExpirySeconds || 18000) * 1000); // Dynamic TTL Cookie
 
-        // Fetch flattened employee details
-        const { data: employeeData } = await supabase.from('employees').select('*, departments(name), employee_details(*)').eq('user_id', user.id).single();
+        // Fetch flattened employee details safely with maybeSingle()
+        let employeeData = null;
+        try {
+            const { data } = await supabase.from('employees').select('*, departments(name), employee_details(*)').eq('user_id', user.id).maybeSingle();
+            employeeData = data;
+        } catch (e) {
+            console.warn('Employee details fetch warn:', e.message);
+        }
         
         let flattenedUser = { ...user, role: userRole };
         delete flattenedUser.password_hash;
         if (employeeData) {
-            flattenedUser = { ...flattenedUser, ...employeeData };
+            flattenedUser = { 
+                ...flattenedUser, 
+                ...employeeData,
+                id: user.id,
+                user_id: user.id,
+                employee_id: employeeData.id,
+                role: userRole
+            };
             if (employeeData.departments) flattenedUser.department = employeeData.departments.name;
             if (employeeData.employee_details) {
-                flattenedUser = { ...flattenedUser, ...(Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0] : employeeData.employee_details) };
+                const det = Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0] : employeeData.employee_details;
+                if (det) flattenedUser = { ...flattenedUser, ...det };
             }
-            // Explicitly enforce authoritative role from users table
-            flattenedUser.role = userRole;
             delete flattenedUser.departments;
             delete flattenedUser.employee_details;
         }
 
         res.json({
             message: 'Login successful',
-            token, // Also sent in body for backward compatibility if needed temporarily
+            token,
             user: flattenedUser,
             requirePasswordChange: user.must_change_password
         });
 
     } catch (err) {
         console.error("Login Error:", err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: err.message || 'Terjadi kesalahan saat memproses login.' });
     }
 };
 
