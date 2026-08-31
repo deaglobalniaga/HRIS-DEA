@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Home, Users, Fingerprint, CalendarDays, Briefcase, Award, Building2, Shield, ShieldCheck, Settings } from 'lucide-react';
+import { Home, Users, Fingerprint, CalendarDays, Briefcase, Award, Building2, Shield, ShieldCheck, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const MobileBottomNav = () => {
@@ -28,9 +28,9 @@ const MobileBottomNav = () => {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
         { label: 'Organisasi', path: '/organization', icon: Building2 },
-        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isCenter: true },
+        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Keamanan', path: '/settings', icon: Shield },
+        { label: 'Saya', path: '/settings', isAvatar: true },
       ];
     }
 
@@ -39,9 +39,9 @@ const MobileBottomNav = () => {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
         { label: 'Matriks K3', path: '/organization', icon: Award },
-        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isCenter: true },
+        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Sertifikat', path: '/personal-certifications', icon: ShieldCheck },
+        { label: 'Saya', path: '/personal-certifications', isAvatar: true },
       ];
     }
 
@@ -50,9 +50,9 @@ const MobileBottomNav = () => {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
         { label: 'Karyawan', path: '/organization', icon: Users },
-        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isCenter: true },
+        { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-        { label: 'Agenda', path: '/performance', icon: Briefcase },
+        { label: 'Saya', path: '/performance', isAvatar: true },
       ];
     }
 
@@ -60,18 +60,18 @@ const MobileBottomNav = () => {
     return [
       { label: 'Home', path: '/dashboard', icon: Home },
       { label: 'Organisasi', path: '/organization-tree', icon: Building2 },
-      { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isCenter: true },
+      { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint },
       { label: 'Kalender', path: '/calendar', icon: CalendarDays },
-      { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
+      { label: 'Saya', path: '/personal-certifications', isAvatar: true },
     ];
   };
 
   const navItems = getNavItems();
 
   return (
-    <div className="lg:hidden fixed bottom-4 inset-x-0 z-50 flex justify-center px-4 select-none pointer-events-none">
-      {/* Floating Crisp White Ultra-Slim Capsule Island Bar */}
-      <nav className="w-full max-w-[325px] pointer-events-auto bg-white/95 backdrop-blur-2xl border border-slate-200/90 px-1.5 py-1 rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.12)] flex items-center justify-between relative transition-all duration-300">
+    <div className="lg:hidden fixed bottom-3.5 inset-x-0 z-50 flex justify-center px-3.5 select-none pointer-events-none">
+      {/* Floating WhatsApp Dark Liquid Glass Capsule Bar */}
+      <nav className="w-full max-w-[365px] pointer-events-auto bg-[#172228]/95 backdrop-blur-2xl border border-white/10 px-2 py-1.5 rounded-full shadow-[0_16px_36px_rgba(0,0,0,0.5),0_0_1px_rgba(255,255,255,0.2)] flex items-center justify-around relative transition-all duration-300">
         {navItems.map((item, index) => {
           const isActive = location.pathname === item.path || 
             (item.path === '/attendance-hub' && location.pathname.includes('attendance')) ||
@@ -82,53 +82,61 @@ const MobileBottomNav = () => {
           
           const Icon = item.icon;
 
-          // Center Elevated Presensi Fingerprint Action Button (Slimmed)
-          if (item.isCenter) {
-            return (
-              <NavLink
-                key={index}
-                to={item.path}
-                className="relative -top-3.5 flex flex-col items-center group active:scale-90 transition-transform duration-200 focus:outline-none"
-              >
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center shadow-lg transition-all duration-300 ring-3 ring-white group-hover:scale-105 ${
-                  isActive
-                    ? 'bg-gradient-to-tr from-black via-red-900 to-red-600 text-white shadow-red-600/40 scale-105'
-                    : 'bg-gradient-to-tr from-slate-950 via-red-950 to-red-600 text-white shadow-slate-900/25'
-                }`}>
-                  <Icon size={19} className="animate-pulse text-white" />
-                </div>
-                <span className={`text-[8px] font-black mt-0.5 tracking-tight transition-colors ${isActive ? 'text-red-700 font-extrabold' : 'text-slate-600 group-hover:text-red-700'}`}>
-                  {item.label}
-                </span>
-              </NavLink>
-            );
-          }
-
-          // Active Item: Slim Liquid Glass Capsule Pill
-          if (isActive) {
-            return (
-              <NavLink
-                key={index}
-                to={item.path}
-                className="relative flex items-center gap-1 px-2.5 py-1 rounded-full font-black text-[11px] transition-all duration-300 active:scale-95 focus:outline-none overflow-hidden bg-gradient-to-b from-white/95 via-slate-100/70 to-slate-200/50 backdrop-blur-xl border border-white/90 text-slate-900 shadow-[inset_0_1px_1.5px_rgba(255,255,255,1),inset_0_-1px_1.5px_rgba(0,0,0,0.04),0_3px_10px_rgba(0,0,0,0.06)] ring-1 ring-slate-900/5 group"
-              >
-                {/* Liquid Glass Gloss Specular Top Highlight */}
-                <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/80 to-transparent pointer-events-none rounded-t-full" />
-                <Icon size={14} className="stroke-[2.5] text-red-700 relative z-10" />
-                <span className="truncate max-w-[62px] tracking-tight relative z-10 text-slate-900 font-black">{item.label}</span>
-              </NavLink>
-            );
-          }
-
-          // Inactive Items: Slim Minimalist Icon
           return (
             <NavLink
               key={index}
               to={item.path}
-              className="p-1.5 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-all duration-200 active:scale-90 focus:outline-none flex items-center justify-center"
-              title={item.label}
+              className="flex flex-col items-center justify-center flex-1 py-0.5 relative group cursor-pointer transition-transform duration-200 active:scale-90 focus:outline-none"
             >
-              <Icon size={17} className="stroke-[1.8] text-slate-500 hover:text-slate-900 transition-colors" />
+              {/* Icon Container with WhatsApp Liquid Glass Oval Lens on Active */}
+              <div className={`relative flex items-center justify-center transition-all duration-300 ${
+                isActive 
+                  ? 'w-14 h-7.5 rounded-full bg-white/20 backdrop-blur-xl border border-white/35 shadow-[0_2px_12px_rgba(255,255,255,0.18),inset_0_1px_2px_rgba(255,255,255,0.6)]' 
+                  : 'w-14 h-7.5 rounded-full bg-transparent'
+              }`}>
+                {/* Iridescent Specular Highlight for Active Lens */}
+                {isActive && (
+                  <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/70 to-transparent pointer-events-none rounded-t-full" />
+                )}
+
+                {item.isAvatar ? (
+                  user?.profile_photo_url ? (
+                    <img 
+                      src={user.profile_photo_url} 
+                      alt={user?.nama || 'Saya'} 
+                      className={`w-5.5 h-5.5 rounded-full object-cover transition-all ${
+                        isActive ? 'ring-2 ring-emerald-400' : 'ring-1.5 ring-white/50 group-hover:ring-white'
+                      }`} 
+                    />
+                  ) : (
+                    <div className={`w-5.5 h-5.5 rounded-full flex items-center justify-center text-[10px] font-black transition-all ${
+                      isActive 
+                        ? 'bg-emerald-500 text-slate-950 ring-2 ring-emerald-400' 
+                        : 'bg-slate-800 text-slate-200 ring-1.5 ring-white/40 group-hover:ring-white'
+                    }`}>
+                      {(user?.nama_lengkap || user?.username || 'U').charAt(0).toUpperCase()}
+                    </div>
+                  )
+                ) : (
+                  <Icon 
+                    size={20} 
+                    className={`transition-colors duration-200 ${
+                      isActive 
+                        ? 'text-white stroke-[2.4] drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]' 
+                        : 'text-slate-300/85 stroke-[1.8] group-hover:text-white'
+                    }`} 
+                  />
+                )}
+              </div>
+
+              {/* Text Label Below Icon */}
+              <span className={`text-[10px] tracking-tight mt-0.5 transition-colors duration-200 leading-tight ${
+                isActive 
+                  ? 'font-black text-white' 
+                  : 'font-semibold text-slate-400 group-hover:text-slate-200'
+              }`}>
+                {item.label}
+              </span>
             </NavLink>
           );
         })}
