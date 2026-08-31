@@ -70,10 +70,10 @@ const MobileBottomNav = () => {
 
   return (
     <div className="lg:hidden fixed bottom-3.5 inset-x-0 z-50 flex justify-center px-3.5 select-none pointer-events-none">
-      {/* Floating Translucent Frosted Liquid Glass Capsule Bar */}
-      <nav className="w-full max-w-[365px] pointer-events-auto bg-[#1e293b]/90 dark:bg-slate-900/90 backdrop-blur-2xl backdrop-saturate-200 border border-white/25 dark:border-white/20 px-2 py-1.5 rounded-full shadow-[0_16px_36px_rgba(0,0,0,0.45),inset_0_1px_2px_rgba(255,255,255,0.4)] flex items-center justify-around relative transition-all duration-300">
+      {/* Floating Bright Crystal Liquid Glass Capsule Bar */}
+      <nav className="w-full max-w-[365px] pointer-events-auto bg-white/75 dark:bg-slate-900/75 backdrop-blur-3xl backdrop-saturate-150 border border-white/80 dark:border-white/25 px-2 py-1.5 rounded-full shadow-[0_12px_32px_rgba(0,0,0,0.12),0_0_1px_rgba(255,255,255,0.8),inset_0_1px_2px_rgba(255,255,255,0.9)] flex items-center justify-around relative transition-all duration-300">
         {/* Specular Top Reflection Highlight */}
-        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/30 dark:from-white/15 to-transparent pointer-events-none rounded-t-full" />
+        <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/80 dark:from-white/20 to-transparent pointer-events-none rounded-t-full" />
 
         {navItems.map((item, index) => {
           const isActive = location.pathname === item.path || 
@@ -94,20 +94,20 @@ const MobileBottomNav = () => {
               {/* Icon Container with Oval Liquid Glass Lens on Active */}
               <div className={`relative flex items-center justify-center transition-all duration-300 ${
                 isActive 
-                  ? 'w-14 h-7.5 rounded-full bg-white/20 dark:bg-white/20 backdrop-blur-xl border border-white/40 dark:border-white/35 shadow-[0_2px_12px_rgba(255,255,255,0.2),inset_0_1px_2px_rgba(255,255,255,0.6)]' 
+                  ? 'w-14 h-7.5 rounded-full bg-white/90 dark:bg-white/25 backdrop-blur-xl border border-white/95 dark:border-white/40 shadow-[0_3px_12px_rgba(220,38,38,0.22),inset_0_1px_2px_rgba(255,255,255,0.95)]' 
                   : 'w-14 h-7.5 rounded-full bg-transparent'
               }`}>
                 {/* Active Lens Specular Gloss Highlight */}
                 {isActive && (
-                  <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/70 to-transparent pointer-events-none rounded-t-full" />
+                  <div className="absolute inset-x-0 top-0 h-[45%] bg-gradient-to-b from-white/90 to-transparent pointer-events-none rounded-t-full" />
                 )}
 
                 <Icon 
                   size={20} 
                   className={`transition-colors duration-200 ${
                     isActive 
-                      ? 'text-emerald-400 dark:text-emerald-400 stroke-[2.4] drop-shadow-[0_0_8px_rgba(52,211,153,0.6)]' 
-                      : 'text-slate-200 dark:text-slate-200 stroke-[2] group-hover:text-white'
+                      ? 'text-red-600 dark:text-red-400 stroke-[2.4] drop-shadow-[0_1px_4px_rgba(220,38,38,0.35)]' 
+                      : 'text-slate-700 dark:text-slate-300 stroke-[2] group-hover:text-slate-950 dark:group-hover:text-white'
                   }`} 
                 />
               </div>
@@ -115,8 +115,8 @@ const MobileBottomNav = () => {
               {/* Text Label Below Icon */}
               <span className={`text-[10px] tracking-tight mt-0.5 transition-colors duration-200 leading-tight ${
                 isActive 
-                  ? 'font-black text-white' 
-                  : 'font-bold text-slate-200 group-hover:text-white'
+                  ? 'font-black text-red-700 dark:text-red-400' 
+                  : 'font-bold text-slate-700 dark:text-slate-300 group-hover:text-slate-950 dark:group-hover:text-white'
               }`}>
                 {item.label}
               </span>
