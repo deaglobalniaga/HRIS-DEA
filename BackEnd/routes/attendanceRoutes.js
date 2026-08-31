@@ -12,6 +12,9 @@ router.post('/attendance/clock', verifyToken, controller.clock_in_out);
 // GET Attendance Daily Status (Sudah Absen, Belum Absen, Tidak Hadir)
 router.get('/attendance/daily-status', verifyToken, controller.get_daily_status);
 
+// GET Attendance Today for Logged In User
+router.get('/attendance/my-today', verifyToken, controller.get_my_attendance_today);
+
 // GET Attendance Today
 router.get('/attendance/today', verifyToken, controller.get_attendance_today);
 

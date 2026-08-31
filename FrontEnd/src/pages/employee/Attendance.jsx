@@ -50,6 +50,9 @@ const Attendance = () => {
   const [siteLocationName, setSiteLocationName] = useState('Memuat lokasi site...');
   const [isInsideGeofence, setIsInsideGeofence] = useState(false);
 
+  // My Attendance Today State
+  const [myToday, setMyToday] = useState(null);
+
   // Face Recognition State
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [recognizedEmployee, setRecognizedEmployee] = useState(null);
@@ -75,8 +78,21 @@ const Attendance = () => {
     }
   };
 
+  // Fetch Logged-in User's Attendance Today
+  const fetchMyToday = async () => {
+    try {
+      const res = await api.get('/hris/attendance/my-today');
+      if (res.data) {
+        setMyToday(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch my attendance today:', err);
+    }
+  };
+
   useEffect(() => {
     fetchSettings();
+    fetchMyToday();
   }, []);
 
   // Update clock every second
@@ -84,6 +100,17 @@ const Attendance = () => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  // Format Time Helper
+  const formatTimeStr = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      return d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' });
+    } catch (e) {
+      return '';
+    }
+  };
 
   // Calculate WITA Schedule Window & Determine Auto Check-In vs Check-Out
   useEffect(() => {
@@ -114,7 +141,18 @@ const Attendance = () => {
     const outStart = parseMin(companySettings.checkOutStart, '17:00');
     const outEnd = parseMin(companySettings.checkOutEnd, '22:00');
 
-    if (currentTotalMins >= inStart && currentTotalMins <= inLateLimit) {
+    if (myToday?.has_checked_in && myToday?.has_checked_out) {
+      setAttendanceMode('completed');
+      setScheduleStatusMessage(`Presensi Selesai • Masuk: ${formatTimeStr(myToday.check_in_time)} | Pulang: ${formatTimeStr(myToday.check_out_time)} WITA`);
+    } else if (myToday?.has_checked_in && !myToday?.has_checked_out) {
+      if (currentTotalMins >= outStart && currentTotalMins <= outEnd) {
+        setAttendanceMode('out');
+        setScheduleStatusMessage(`Jadwal Presensi Pulang • ${companySettings.checkOutStart || '17:00'} - ${companySettings.checkOutEnd || '22:00'} WITA`);
+      } else {
+        setAttendanceMode('already_in');
+        setScheduleStatusMessage(`Sudah Absen Masuk (${formatTimeStr(myToday.check_in_time)} WITA) • Jadwal Pulang: ${companySettings.checkOutStart || '17:00'} WITA`);
+      }
+    } else if (currentTotalMins >= inStart && currentTotalMins <= inLateLimit) {
       setAttendanceMode('in');
       if (currentTotalMins > inEnd) {
         setScheduleStatusMessage(`Jadwal Masuk (Terlambat) • Batas ${companySettings.checkInEnd || '08:00'} (+${maxLate}m toleransi)`);
@@ -128,7 +166,7 @@ const Attendance = () => {
       setAttendanceMode('locked');
       setScheduleStatusMessage(`Di Luar Jam Presensi (${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} WITA) • Masuk: ${companySettings.checkInStart || '06:00'}-${companySettings.checkInEnd || '08:00'} | Pulang: ${companySettings.checkOutStart || '17:00'}-${companySettings.checkOutEnd || '22:00'} WITA`);
     }
-  }, [currentTime, companySettings]);
+  }, [currentTime, companySettings, myToday]);
 
   // Load face-api AI models (Fast local models from /models with fallback to CDN)
   useEffect(() => {
@@ -589,7 +627,7 @@ const Attendance = () => {
 
   // Hands-Free Auto Attendance Countdown (3... 2... 1... Auto Submit!)
   useEffect(() => {
-    if (isCameraDisabled || loading || autoTriggered || attendanceMode === 'locked') {
+    if (isCameraDisabled || loading || autoTriggered || attendanceMode === 'locked' || attendanceMode === 'already_in' || attendanceMode === 'completed') {
       setCountdown(null);
       return;
     }
@@ -687,7 +725,7 @@ const Attendance = () => {
           </div>
 
           <div className={`px-3 py-2 rounded-2xl flex items-center gap-2 shadow-md backdrop-blur-md border truncate ${
-            attendanceMode === 'in'
+            attendanceMode === 'in' || attendanceMode === 'already_in' || attendanceMode === 'completed'
               ? 'bg-emerald-950/85 border-emerald-500/40 text-emerald-200'
               : attendanceMode === 'out'
               ? 'bg-blue-950/85 border-blue-500/40 text-blue-200'
@@ -696,7 +734,7 @@ const Attendance = () => {
             {attendanceMode === 'locked' ? (
               <Lock size={14} className="text-red-400 shrink-0" />
             ) : (
-              <Timer size={14} className={attendanceMode === 'in' ? 'text-emerald-400 shrink-0' : 'text-blue-400 shrink-0'} />
+              <Timer size={14} className={attendanceMode === 'out' ? 'text-blue-400 shrink-0' : 'text-emerald-400 shrink-0'} />
             )}
             <span className="truncate text-xs sm:text-sm">{scheduleStatusMessage}</span>
           </div>
@@ -710,12 +748,15 @@ const Attendance = () => {
         )}
       </div>
 
-      {/* 3. CENTER VIEWPORT: FLOATING COUNTDOWN HUD OVERLAY (NO STATIC RETICLE BOX) */}
+      {/* 3. CENTER VIEWPORT: FLOATING COUNTDOWN HUD LIQUID GLASS MODAL */}
       <div className="relative z-20 flex-1 flex flex-col items-center justify-center pointer-events-none w-full px-4">
         {countdown !== null && (
-          <div className="bg-slate-950/90 backdrop-blur-md border border-emerald-500/50 p-5 rounded-3xl shadow-2xl flex flex-col items-center justify-center text-center animate-in zoom-in-95 max-w-sm w-full pointer-events-auto">
-            {/* Circular Progress Ring */}
-            <div className="relative w-24 h-24 flex items-center justify-center mb-3">
+          <div className="relative max-w-sm w-full bg-[#131d24]/80 backdrop-blur-3xl border border-white/20 p-6 rounded-3xl shadow-[0_24px_60px_rgba(0,0,0,0.7),inset_0_1px_2px_rgba(255,255,255,0.4)] overflow-hidden text-center animate-in zoom-in-95 pointer-events-auto">
+            {/* Liquid Glass Iridescent Gloss Top Highlight */}
+            <div className="absolute inset-x-0 top-0 h-1/2 bg-gradient-to-b from-white/25 via-white/5 to-transparent pointer-events-none rounded-t-3xl" />
+            
+            {/* Glowing Iridescent Circular Countdown Ring */}
+            <div className="relative w-24 h-24 mx-auto flex items-center justify-center mb-3">
               <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
                 <circle
                   cx="50"
@@ -737,33 +778,36 @@ const Attendance = () => {
                   strokeLinecap="round"
                   stroke="currentColor"
                   fill="transparent"
+                  style={{ filter: 'drop-shadow(0 0 8px rgba(52, 211, 153, 0.8))' }}
                 />
               </svg>
               <div className="absolute flex flex-col items-center justify-center">
-                <span className="text-3xl font-black text-emerald-300 font-mono leading-none">{countdown}</span>
-                <span className="text-[8px] uppercase tracking-wider font-bold text-emerald-400 mt-0.5">Detik</span>
+                <span className="text-3xl font-black text-emerald-300 font-mono leading-none drop-shadow-[0_0_10px_rgba(110,231,183,0.7)]">{countdown}</span>
+                <span className="text-[8px] uppercase tracking-wider font-extrabold text-emerald-400 mt-0.5">Detik</span>
               </div>
             </div>
 
-            <p className="text-sm font-black text-white">
+            <p className="text-sm font-black text-white relative z-10">
               {attendanceMode === 'in' ? 'Otomatis Presensi Masuk' : 'Otomatis Presensi Pulang'}
             </p>
-            <p className="text-xs text-emerald-300 font-bold mt-1">
-              {recognizedEmployee?.nama_lengkap} ({Math.round((matchScore || 0.95) * 100)}%)
+            <p className="text-xs text-emerald-300 font-bold mt-1 relative z-10 flex items-center justify-center gap-1">
+              <Sparkles size={13} className="text-emerald-400 shrink-0" />
+              <span className="truncate">{recognizedEmployee?.nama_lengkap} ({Math.round((matchScore || 0.95) * 100)}%)</span>
             </p>
 
-            <div className="flex items-center gap-2.5 mt-4 w-full">
+            {/* Liquid Glass Action Buttons */}
+            <div className="flex items-center gap-2.5 mt-4 w-full relative z-10">
               <button
                 type="button"
                 onClick={() => handleClockAction(attendanceMode)}
-                className="flex-1 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                className="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-400 hover:from-emerald-400 hover:to-teal-300 text-slate-950 font-black text-xs rounded-2xl shadow-[0_4px_16px_rgba(16,185,129,0.4),inset_0_1px_1px_rgba(255,255,255,0.6)] transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Sparkles size={14} /> Presensi Sekarang
               </button>
               <button
                 type="button"
                 onClick={() => setCountdown(null)}
-                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs rounded-xl transition cursor-pointer"
+                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 backdrop-blur-xl border border-white/20 text-white font-bold text-xs rounded-2xl transition active:scale-95 cursor-pointer shadow-md"
               >
                 Batal
               </button>
@@ -824,30 +868,52 @@ const Attendance = () => {
         <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
           <button
             type="button"
-            disabled={loading || (!isCameraDisabled && !recognizedEmployee)}
+            disabled={loading || myToday?.has_checked_in || (!isCameraDisabled && !recognizedEmployee)}
             onClick={() => handleClockAction('in')}
-            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
-              attendanceMode === 'in'
+            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+              myToday?.has_checked_in
+                ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/40'
+                : attendanceMode === 'in'
                 ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white ring-2 ring-emerald-400 shadow-emerald-500/40 animate-pulse'
                 : 'bg-white/10 backdrop-blur-md text-white/50 border border-white/10'
             }`}
           >
-            <Clock size={16} />
-            {loading && attendanceMode === 'in' ? 'Menyimpan...' : 'Absen Masuk'}
+            {myToday?.has_checked_in ? (
+              <>
+                <CheckCircle size={16} className="text-emerald-400" />
+                <span>Sudah Masuk ({formatTimeStr(myToday.check_in_time)})</span>
+              </>
+            ) : (
+              <>
+                <Clock size={16} />
+                <span>{loading && attendanceMode === 'in' ? 'Menyimpan...' : 'Absen Masuk'}</span>
+              </>
+            )}
           </button>
 
           <button
             type="button"
-            disabled={loading || (!isCameraDisabled && !recognizedEmployee)}
+            disabled={loading || myToday?.has_checked_out || !myToday?.has_checked_in || (!isCameraDisabled && !recognizedEmployee)}
             onClick={() => handleClockAction('out')}
-            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-35 disabled:cursor-not-allowed disabled:grayscale ${
-              attendanceMode === 'out'
+            className={`flex items-center justify-center gap-2 py-3 sm:py-3.5 px-4 rounded-2xl font-black text-xs sm:text-sm shadow-xl transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${
+              myToday?.has_checked_out
+                ? 'bg-blue-950/80 text-blue-300 border border-blue-500/40'
+                : myToday?.has_checked_in && attendanceMode === 'out'
                 ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white ring-2 ring-blue-400 shadow-blue-500/40 animate-pulse'
                 : 'bg-white/10 backdrop-blur-md text-white/50 border border-white/10'
             }`}
           >
-            <Clock size={16} />
-            {loading && attendanceMode === 'out' ? 'Menyimpan...' : 'Absen Pulang'}
+            {myToday?.has_checked_out ? (
+              <>
+                <CheckCircle size={16} className="text-blue-400" />
+                <span>Sudah Pulang ({formatTimeStr(myToday.check_out_time)})</span>
+              </>
+            ) : (
+              <>
+                <Clock size={16} />
+                <span>{loading && attendanceMode === 'out' ? 'Menyimpan...' : 'Absen Pulang'}</span>
+              </>
+            )}
           </button>
         </div>
       </div>

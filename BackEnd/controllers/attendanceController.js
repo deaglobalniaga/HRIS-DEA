@@ -651,6 +651,44 @@ exports.get_daily_status = async (req, res) => {
     }
 };
 
+// GET /api/hris/attendance/my-today
+exports.get_my_attendance_today = async (req, res) => {
+    try {
+        const loggedInUserId = req.userId;
+        const today = new Date().toISOString().split('T')[0];
+
+        let { data: selfEmp } = await supabase
+            .from('employees')
+            .select('id, nama_lengkap')
+            .eq('user_id', loggedInUserId)
+            .maybeSingle();
+
+        if (!selfEmp) {
+            return res.json({ has_log: false, has_checked_in: false, has_checked_out: false, log: null });
+        }
+
+        const { data: log } = await supabase
+            .from('attendance_logs')
+            .select('*')
+            .eq('employee_id', selfEmp.id)
+            .eq('date', today)
+            .maybeSingle();
+
+        res.json({
+            has_log: !!log,
+            has_checked_in: !!log?.check_in,
+            has_checked_out: !!log?.check_out,
+            check_in_time: log?.check_in || null,
+            check_out_time: log?.check_out || null,
+            status: log?.status || null,
+            log: log || null
+        });
+    } catch (err) {
+        console.error('get_my_attendance_today error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 // GET /api/hris/attendance/today
 exports.get_attendance_today = async (req, res) => {
     try {
