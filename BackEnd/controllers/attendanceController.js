@@ -351,7 +351,7 @@ exports.clock_in_out = async (req, res) => {
                     for (const s of oSamples) {
                         if (calculateFaceDistance(incomingFaceDesc, s) <= 0.52) {
                             return res.status(403).json({
-                                message: `Presensi ditolak: Wajah di depan kamera adalah milik ${otherEmp.nama_lengkap}. Anda tidak dapat melakukan presensi untuk akun karyawan lain (${empRecord.nama_lengkap})!`
+                                message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda (${empRecord.nama_lengkap}).`
                             });
                         }
                     }

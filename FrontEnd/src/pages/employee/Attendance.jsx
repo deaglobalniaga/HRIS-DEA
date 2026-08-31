@@ -362,26 +362,48 @@ const Attendance = () => {
       }
     }, 160);
 
-    // 2. Continuous 60 FPS Render Loop (Zero-Flicker Synchronous Draw)
+    // 2. Continuous 60 FPS Render Loop (Zero-Flicker Pixel-Perfect Synchronous Draw)
     const render = () => {
       const video = videoRef.current;
       const canvas = overlayCanvasRef.current;
 
       if (video && canvas && video.readyState === 4) {
-        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-          canvas.width = video.videoWidth;
-          canvas.height = video.videoHeight;
+        const parent = canvas.parentElement;
+        const cWidth = parent ? parent.clientWidth : video.videoWidth;
+        const cHeight = parent ? parent.clientHeight : video.videoHeight;
+        if (canvas.width !== cWidth || canvas.height !== cHeight) {
+          canvas.width = cWidth;
+          canvas.height = cHeight;
         }
 
         const ctx = canvas.getContext('2d');
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        const vWidth = video.videoWidth;
+        const vHeight = video.videoHeight;
         const detection = lastDetectionRef.current;
         const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 1200);
 
-        if (isFresh && video.videoWidth > 0) {
-          const resized = faceapi.resizeResults(detection, { width: video.videoWidth, height: video.videoHeight });
-          const targetBox = resized.detection.box;
+        if (isFresh && vWidth > 0 && vHeight > 0) {
+          // Exact CSS object-cover aspect-ratio scale & offset calculation
+          const vAspect = vWidth / vHeight;
+          const cAspect = cWidth / cHeight;
+          let scale, offsetX = 0, offsetY = 0;
+          if (cAspect > vAspect) {
+            scale = cWidth / vWidth;
+            offsetY = (cHeight - vHeight * scale) / 2;
+          } else {
+            scale = cHeight / vHeight;
+            offsetX = (cWidth - vWidth * scale) / 2;
+          }
+
+          const rawBox = detection.detection.box;
+          const targetBox = {
+            x: rawBox.x * scale + offsetX,
+            y: rawBox.y * scale + offsetY,
+            width: rawBox.width * scale,
+            height: rawBox.height * scale
+          };
 
           // Smooth interpolation (lerp) for seamless fluid motion
           if (!smoothedBoxRef.current) {
@@ -402,15 +424,15 @@ const Attendance = () => {
           const primaryColor = isMatched ? '#10b981' : isMismatch ? '#ef4444' : '#00e5ff';
           const glowColor = isMatched ? 'rgba(16, 185, 129, 0.6)' : isMismatch ? 'rgba(239, 68, 68, 0.6)' : 'rgba(0, 229, 255, 0.65)';
           const dotColor = isMatched ? 'rgba(16, 185, 129, 0.95)' : isMismatch ? 'rgba(239, 68, 68, 0.95)' : 'rgba(0, 229, 255, 0.95)';
-          const boxBgColor = isMatched ? 'rgba(16, 185, 129, 0.06)' : isMismatch ? 'rgba(239, 68, 68, 0.08)' : 'rgba(0, 229, 255, 0.07)';
+          const boxBgColor = isMatched ? 'rgba(16, 185, 129, 0.08)' : isMismatch ? 'rgba(239, 68, 68, 0.08)' : 'rgba(0, 229, 255, 0.08)';
 
           // 1. Draw Full Translucent Face Detection Box
           ctx.beginPath();
           ctx.roundRect(x, y, width, height, 16);
           ctx.fillStyle = boxBgColor;
           ctx.fill();
-          ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.45)' : isMismatch ? 'rgba(239, 68, 68, 0.45)' : 'rgba(0, 229, 255, 0.5)';
-          ctx.lineWidth = 1.8;
+          ctx.strokeStyle = isMatched ? 'rgba(16, 185, 129, 0.5)' : isMismatch ? 'rgba(239, 68, 68, 0.5)' : 'rgba(0, 229, 255, 0.55)';
+          ctx.lineWidth = 2;
           ctx.stroke();
 
           // 2. Draw 4 Prominent Glowing Apple Face ID Corner Brackets
@@ -468,8 +490,11 @@ const Attendance = () => {
           ctx.fillRect(x + 4, scanY - 1.5, width - 8, 3);
 
           // 4. Apple Face ID Biometric Mesh Overlay (Full 68 Landmark Contours)
-          if (resized.landmarks && resized.landmarks.positions) {
-            const pts = resized.landmarks.positions;
+          if (detection.landmarks && detection.landmarks.positions) {
+            const pts = detection.landmarks.positions.map(p => ({
+              x: p.x * scale + offsetX,
+              y: p.y * scale + offsetY
+            }));
 
             const drawContour = (indices, isClosed = false) => {
               ctx.beginPath();
@@ -538,6 +563,77 @@ const Attendance = () => {
           ctx.fillText(labelText, pillX + pillW / 2, pillY + pillH / 2);
         } else {
           smoothedBoxRef.current = null;
+
+          // 6. Draw High-Tech Electric Cyan Idle Frame Guide in Center Viewport
+          const guideW = Math.min(cWidth * 0.72, 280);
+          const guideH = guideW * 1.25;
+          const guideX = (cWidth - guideW) / 2;
+          const guideY = (cHeight - guideH) / 2.3;
+          const bracketLen = guideW * 0.22;
+          const r = 16;
+
+          ctx.strokeStyle = 'rgba(0, 229, 255, 0.75)';
+          ctx.lineWidth = 3.5;
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+          ctx.shadowColor = 'rgba(0, 229, 255, 0.5)';
+          ctx.shadowBlur = 10;
+
+          // Top-Left
+          ctx.beginPath();
+          ctx.moveTo(guideX, guideY + bracketLen);
+          ctx.lineTo(guideX, guideY + r);
+          ctx.arcTo(guideX, guideY, guideX + r, guideY, r);
+          ctx.lineTo(guideX + bracketLen, guideY);
+          ctx.stroke();
+
+          // Top-Right
+          ctx.beginPath();
+          ctx.moveTo(guideX + guideW - bracketLen, guideY);
+          ctx.lineTo(guideX + guideW - r, guideY);
+          ctx.arcTo(guideX + guideW, guideY, guideX + guideW, guideY + r, r);
+          ctx.lineTo(guideX + guideW, guideY + bracketLen);
+          ctx.stroke();
+
+          // Bottom-Left
+          ctx.beginPath();
+          ctx.moveTo(guideX, guideY + guideH - bracketLen);
+          ctx.lineTo(guideX, guideY + guideH - r);
+          ctx.arcTo(guideX, guideY + guideH, guideX + r, guideY + guideH, r);
+          ctx.lineTo(guideX + bracketLen, guideY + guideH);
+          ctx.stroke();
+
+          // Bottom-Right
+          ctx.beginPath();
+          ctx.moveTo(guideX + guideW - bracketLen, guideY + guideH);
+          ctx.lineTo(guideX + guideW - r, guideY + guideH);
+          ctx.arcTo(guideX + guideW, guideY + guideH, guideX + guideW, guideY + guideH - r, r);
+          ctx.lineTo(guideX + guideW, guideY + guideH - bracketLen);
+          ctx.stroke();
+
+          ctx.shadowBlur = 0;
+
+          // Idle Guidance Pill
+          const idleText = '🔍 Posisikan Wajah di Tengah Bingkai';
+          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
+          const textMetrics = ctx.measureText(idleText);
+          const pillW = textMetrics.width + 20;
+          const pillH = 24;
+          const pillX = (cWidth - pillW) / 2;
+          const pillY = guideY + guideH + 12;
+
+          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+          ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.roundRect(pillX, pillY, pillW, pillH, 12);
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#38bdf8';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(idleText, pillX + pillW / 2, pillY + pillH / 2);
         }
       }
       animId = requestAnimationFrame(render);
@@ -686,7 +782,7 @@ const Attendance = () => {
           />
           <canvas
             ref={overlayCanvasRef}
-            className={`absolute inset-0 w-full h-full object-cover pointer-events-none z-10 ${!streamActive ? 'hidden' : ''}`}
+            className={`absolute inset-0 w-full h-full pointer-events-none z-20 ${!streamActive ? 'hidden' : ''}`}
           />
           {/* Subtle Dark Gradient Vignette for UI Readability */}
           <div className="absolute inset-0 bg-gradient-to-b from-black/75 via-transparent to-black/90 pointer-events-none z-10" />
