@@ -305,7 +305,7 @@ const Attendance = () => {
       isAiScanningRef.current = true;
       try {
         const detection = await faceapi
-          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.2 }))
+          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.15 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 

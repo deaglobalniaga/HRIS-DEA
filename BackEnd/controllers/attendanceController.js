@@ -85,7 +85,11 @@ exports.recognize_face = async (req, res) => {
             });
         }
 
-        const THRESHOLD = 0.52; // Strict precision threshold for accurate biometric authentication
+        // Biometric Euclidean Distance Thresholds:
+        // - CROSS_ACCOUNT_THRESHOLD (0.50): Strict anti-impersonation cross-check against other accounts
+        // - OWN_ACCOUNT_THRESHOLD (0.58): Dynamic expression tolerance (smiling, open mouth, glasses, tilts, lighting changes)
+        const CROSS_ACCOUNT_THRESHOLD = 0.50;
+        const OWN_ACCOUNT_THRESHOLD = 0.58;
 
         // 1. STRICT ANTI-IMPERSONATION: First check if this face matches ANY OTHER employee in the database
         const enrolledEmployees = await getOrSetCache('master:enrolled_faces', 300, async () => {
@@ -105,7 +109,7 @@ exports.recognize_face = async (req, res) => {
                 const otherRaw = typeof emp.face_descriptor === 'string' ? JSON.parse(emp.face_descriptor) : emp.face_descriptor;
                 let otherSamples = (otherRaw && Array.isArray(otherRaw.descriptors)) ? otherRaw.descriptors : (Array.isArray(otherRaw) ? (Array.isArray(otherRaw[0]) ? otherRaw : [otherRaw]) : []);
                 for (const s of otherSamples) {
-                    if (calculateFaceDistance(face_descriptor, s) <= THRESHOLD) {
+                    if (calculateFaceDistance(face_descriptor, s) <= CROSS_ACCOUNT_THRESHOLD) {
                         otherMatch = emp;
                         break;
                     }
@@ -142,13 +146,13 @@ exports.recognize_face = async (req, res) => {
                 }
             }
 
-            if (lowestDistance <= THRESHOLD) {
-                const normalizedConfidence = Math.max(0.82, Math.min(0.99, 1.0 - (lowestDistance / THRESHOLD) * 0.20));
+            if (lowestDistance <= OWN_ACCOUNT_THRESHOLD) {
+                const normalizedConfidence = Math.max(0.80, Math.min(0.99, 1.0 - (lowestDistance / OWN_ACCOUNT_THRESHOLD) * 0.22));
 
-                // Adaptive Biometric Multi-Sampling: Collect up to 5 diverse lighting/angle samples for 99.9% accuracy
-                if (lowestDistance < 0.42 && selfSamples.length < 5) {
-                    const isRedundant = selfSamples.some(s => calculateFaceDistance(face_descriptor, s) < 0.15);
-                    if (!isRedundant) {
+                // Adaptive Biometric Multi-Expression Sampling: Learn expressions (smiling, open mouth, tilts) up to 8 diverse samples
+                if (lowestDistance < 0.52 && selfSamples.length < 8) {
+                    const isTooClose = selfSamples.some(s => calculateFaceDistance(face_descriptor, s) < 0.12);
+                    if (!isTooClose) {
                         const updatedSamples = [...selfSamples, face_descriptor];
                         const updatedObj = { descriptors: updatedSamples, count: updatedSamples.length, updated_at: new Date().toISOString() };
                         supabase.from('employees').update({ face_descriptor: updatedObj }).eq('id', selfEmp.id).then(() => {
@@ -349,16 +353,16 @@ exports.clock_in_out = async (req, res) => {
                     const oRaw = typeof otherEmp.face_descriptor === 'string' ? JSON.parse(otherEmp.face_descriptor) : otherEmp.face_descriptor;
                     let oSamples = (oRaw && Array.isArray(oRaw.descriptors)) ? oRaw.descriptors : (Array.isArray(oRaw) ? (Array.isArray(oRaw[0]) ? oRaw : [oRaw]) : []);
                     for (const s of oSamples) {
-                        if (calculateFaceDistance(incomingFaceDesc, s) <= 0.52) {
+                        if (calculateFaceDistance(incomingFaceDesc, s) <= 0.50) {
                             return res.status(403).json({
-                                message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda (${empRecord.nama_lengkap}).`
+                                message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda.`
                             });
                         }
                     }
                 } catch (e) {}
             }
 
-            // 2. If employee already has face registered, verify strictly against own descriptor
+            // 2. If employee already has face registered, verify against own descriptors with expression tolerance (0.58)
             if (empRecord?.face_descriptor) {
                 try {
                     const storedRaw = typeof empRecord.face_descriptor === 'string' ? JSON.parse(empRecord.face_descriptor) : empRecord.face_descriptor;
@@ -375,10 +379,23 @@ exports.clock_in_out = async (req, res) => {
                         const dist = calculateFaceDistance(incomingFaceDesc, sample);
                         if (dist < minFaceDist) minFaceDist = dist;
                     }
-                    if (minFaceDist > 0.52) {
+                    if (minFaceDist > 0.58) {
                         return res.status(400).json({
-                            message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda (${empRecord.nama_lengkap}). Presensi dikunci demi keamanan.`
+                            message: `Presensi ditolak: Wajah di depan kamera tidak sesuai dengan data biometrik akun Anda.`
                         });
+                    }
+
+                    // Adaptive multi-sampling update on successful clock action
+                    if (minFaceDist < 0.52 && samples.length < 8) {
+                        const isTooClose = samples.some(s => calculateFaceDistance(incomingFaceDesc, s) < 0.12);
+                        if (!isTooClose) {
+                            const updatedSamples = [...samples, incomingFaceDesc];
+                            const updatedObj = { descriptors: updatedSamples, count: updatedSamples.length, updated_at: new Date().toISOString() };
+                            supabase.from('employees').update({ face_descriptor: updatedObj }).eq('id', empRecord.id).then(() => {
+                                invalidateCache('emp:*');
+                                invalidateCache('master:enrolled_faces');
+                            }).catch(() => {});
+                        }
                     }
                 } catch (faceErr) {
                     console.error('Face validation error:', faceErr);
