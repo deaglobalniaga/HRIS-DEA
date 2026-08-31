@@ -119,7 +119,7 @@ exports.recognize_face = async (req, res) => {
             return res.json({
                 recognized: false,
                 isMismatch: true,
-                message: `Wajah yang terdeteksi tidak cocok dengan data biometrik akun Anda (${selfEmp.nama_lengkap}). Presensi dikunci demi keamanan biometrik.`
+                message: `Wajah yang terdeteksi bukan milik akun ini. Presensi ditolak demi keamanan biometrik.`
             });
         }
 
@@ -176,7 +176,7 @@ exports.recognize_face = async (req, res) => {
             } else {
                 return res.json({
                     recognized: false,
-                    message: `Wajah tidak cocok dengan data biometrik akun Anda (${selfEmp.nama_lengkap}). Pastikan wajah menghadap lurus ke kamera.`
+                    message: `Wajah yang terdeteksi bukan milik akun ini. Pastikan posisi wajah tegak dan pencahayaan cukup.`
                 });
             }
         }
