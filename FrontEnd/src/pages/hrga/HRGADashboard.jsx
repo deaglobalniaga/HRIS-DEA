@@ -8,7 +8,7 @@ import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
   UserCheck, UserX, AlertCircle, RefreshCw,
   TrendingUp, PieChart as PieChartIcon, CalendarDays, X,
-  Calendar, Bell, Gift, Building2, HeartPulse
+  Calendar, Bell, Gift, Building2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -158,8 +158,8 @@ const HRGADashboard = () => {
         </div>
       </div>
 
-      {/* Row 1: 8 Top KPI Badges */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+      {/* Row 1: 7 Top KPI Badges */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-7 gap-3">
         <TopBadge 
           icon={Users} 
           value={stats.totalEmployees || 0} 
@@ -204,15 +204,6 @@ const HRGADashboard = () => {
           colorClass="text-purple-600" 
           bgClass="bg-purple-50"
           onClick={() => navigate('/organization?tab=departments')} 
-        />
-        <TopBadge 
-          icon={HeartPulse} 
-          value={0} 
-          title="Tugas HSE" 
-          subtitle="Tugas tertunda" 
-          colorClass="text-pink-600" 
-          bgClass="bg-pink-50"
-          onClick={() => navigate('/hse-dashboard')} 
         />
         <TopBadge 
           icon={FileText} 
