@@ -299,13 +299,13 @@ const Attendance = () => {
 
     let animId;
 
-    // 1. Background Asynchronous AI Detection Loop (512px High Resolution, 0.15 Threshold for Dim Light & Accessories)
+    // 1. Background Asynchronous AI Detection Loop (Ultra-fast 320px responsive tracking)
     const aiInterval = setInterval(async () => {
       if (isAiScanningRef.current || !videoRef.current || videoRef.current.readyState !== 4) return;
       isAiScanningRef.current = true;
       try {
         const detection = await faceapi
-          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.15 }))
+          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.2 }))
           .withFaceLandmarks()
           .withFaceDescriptor();
 
@@ -346,8 +346,8 @@ const Attendance = () => {
           }
         } else {
           noFaceCountRef.current += 1;
-          // Clear state if no face seen for 6 consecutive loops
-          if (noFaceCountRef.current >= 6) {
+          // Clear state if no face seen for 5 consecutive loops
+          if (noFaceCountRef.current >= 5) {
             lastDetectionRef.current = null;
             setRecognizedEmployee(null);
             setMatchScore(null);
@@ -360,9 +360,9 @@ const Attendance = () => {
       } finally {
         isAiScanningRef.current = false;
       }
-    }, 160);
+    }, 100);
 
-    // 2. Continuous 60 FPS Render Loop (Zero-Flicker Pixel-Perfect Synchronous Draw)
+    // 2. Continuous 60 FPS Render Loop (Ultra-Responsive Real-Time Dynamic Face Tracking)
     const render = () => {
       const video = videoRef.current;
       const canvas = overlayCanvasRef.current;
@@ -382,7 +382,7 @@ const Attendance = () => {
         const vWidth = video.videoWidth;
         const vHeight = video.videoHeight;
         const detection = lastDetectionRef.current;
-        const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 1200);
+        const isFresh = detection && (Date.now() - lastDetectionTimeRef.current < 900);
 
         if (isFresh && vWidth > 0 && vHeight > 0) {
           // Exact CSS object-cover aspect-ratio scale & offset calculation
@@ -405,15 +405,15 @@ const Attendance = () => {
             height: rawBox.height * scale
           };
 
-          // Smooth interpolation (lerp) for seamless fluid motion
+          // Smooth interpolation (lerp) for seamless fluid motion tracking
           if (!smoothedBoxRef.current) {
             smoothedBoxRef.current = { ...targetBox };
           } else {
             const s = smoothedBoxRef.current;
-            s.x += (targetBox.x - s.x) * 0.45;
-            s.y += (targetBox.y - s.y) * 0.45;
-            s.width += (targetBox.width - s.width) * 0.45;
-            s.height += (targetBox.height - s.height) * 0.45;
+            s.x += (targetBox.x - s.x) * 0.65;
+            s.y += (targetBox.y - s.y) * 0.65;
+            s.width += (targetBox.width - s.width) * 0.65;
+            s.height += (targetBox.height - s.height) * 0.65;
           }
 
           const { x, y, width, height } = smoothedBoxRef.current;
@@ -563,77 +563,6 @@ const Attendance = () => {
           ctx.fillText(labelText, pillX + pillW / 2, pillY + pillH / 2);
         } else {
           smoothedBoxRef.current = null;
-
-          // 6. Draw High-Tech Electric Cyan Idle Frame Guide in Center Viewport
-          const guideW = Math.min(cWidth * 0.72, 280);
-          const guideH = guideW * 1.25;
-          const guideX = (cWidth - guideW) / 2;
-          const guideY = (cHeight - guideH) / 2.3;
-          const bracketLen = guideW * 0.22;
-          const r = 16;
-
-          ctx.strokeStyle = 'rgba(0, 229, 255, 0.75)';
-          ctx.lineWidth = 3.5;
-          ctx.lineCap = 'round';
-          ctx.lineJoin = 'round';
-          ctx.shadowColor = 'rgba(0, 229, 255, 0.5)';
-          ctx.shadowBlur = 10;
-
-          // Top-Left
-          ctx.beginPath();
-          ctx.moveTo(guideX, guideY + bracketLen);
-          ctx.lineTo(guideX, guideY + r);
-          ctx.arcTo(guideX, guideY, guideX + r, guideY, r);
-          ctx.lineTo(guideX + bracketLen, guideY);
-          ctx.stroke();
-
-          // Top-Right
-          ctx.beginPath();
-          ctx.moveTo(guideX + guideW - bracketLen, guideY);
-          ctx.lineTo(guideX + guideW - r, guideY);
-          ctx.arcTo(guideX + guideW, guideY, guideX + guideW, guideY + r, r);
-          ctx.lineTo(guideX + guideW, guideY + bracketLen);
-          ctx.stroke();
-
-          // Bottom-Left
-          ctx.beginPath();
-          ctx.moveTo(guideX, guideY + guideH - bracketLen);
-          ctx.lineTo(guideX, guideY + guideH - r);
-          ctx.arcTo(guideX, guideY + guideH, guideX + r, guideY + guideH, r);
-          ctx.lineTo(guideX + bracketLen, guideY + guideH);
-          ctx.stroke();
-
-          // Bottom-Right
-          ctx.beginPath();
-          ctx.moveTo(guideX + guideW - bracketLen, guideY + guideH);
-          ctx.lineTo(guideX + guideW - r, guideY + guideH);
-          ctx.arcTo(guideX + guideW, guideY + guideH, guideX + guideW, guideY + guideH - r, r);
-          ctx.lineTo(guideX + guideW, guideY + guideH - bracketLen);
-          ctx.stroke();
-
-          ctx.shadowBlur = 0;
-
-          // Idle Guidance Pill
-          const idleText = '🔍 Posisikan Wajah di Tengah Bingkai';
-          ctx.font = 'bold 11px Inter, system-ui, sans-serif';
-          const textMetrics = ctx.measureText(idleText);
-          const pillW = textMetrics.width + 20;
-          const pillH = 24;
-          const pillX = (cWidth - pillW) / 2;
-          const pillY = guideY + guideH + 12;
-
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
-          ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.roundRect(pillX, pillY, pillW, pillH, 12);
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = '#38bdf8';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(idleText, pillX + pillW / 2, pillY + pillH / 2);
         }
       }
       animId = requestAnimationFrame(render);
