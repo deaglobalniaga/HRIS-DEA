@@ -210,7 +210,7 @@ exports.clock_in_out = async (req, res) => {
             return res.status(400).json({ message: 'Data karyawan Anda belum terhubung dengan akun login.' });
         }
 
-        if (employee_id && employee_id !== selfEmp.id) {
+        if (employee_id && employee_id !== selfEmp.id && employee_id !== selfEmp.user_id) {
             return res.status(403).json({
                 message: `Presensi ditolak: Presensi hanya dapat dilakukan oleh akun Anda sendiri (${selfEmp.nama_lengkap}). Anda tidak dapat melakukan presensi untuk akun karyawan lain.`
             });

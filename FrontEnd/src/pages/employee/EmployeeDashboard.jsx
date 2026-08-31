@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Bell, LogOut, Megaphone, Camera, RefreshCw, User, Shield, Briefcase,
   Building2, Award, ChevronRight, X, Calendar as CalendarIcon, MapPin, Hash, CheckCircle2,
@@ -112,17 +113,9 @@ const EmployeeDashboard = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => setShowProfileModal(true)}
-              className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20 active:scale-95 cursor-pointer shadow-sm"
-              title="Profil"
-            >
-              <User size={18} />
-            </button>
-            <button
-              type="button"
               onClick={logout}
               className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20 active:scale-95 cursor-pointer shadow-sm"
-              title="Keluar"
+              title="Keluar dari Akun"
             >
               <LogOut size={18} />
             </button>
@@ -300,21 +293,22 @@ const EmployeeDashboard = () => {
         </div>
       </div>
 
-      {/* Modern Profile Modal Pop-up Card for Mobile & Desktop */}
-      {showProfileModal && (
+      {/* Modern Profile Modal Pop-up Card for Mobile & Desktop (Portal above all layouts) */}
+      {showProfileModal && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-md animate-in fade-in"
+          className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 pb-20 sm:pb-6 bg-slate-950/80 backdrop-blur-md animate-in fade-in"
           onClick={() => setShowProfileModal(false)}
         >
           <div
-            className="bg-white w-full max-w-sm sm:max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[85vh] my-auto border border-slate-100"
+            className="bg-white w-full max-w-sm sm:max-w-md rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 flex flex-col max-h-[82vh] -translate-y-4 sm:translate-y-0 border border-slate-200/80"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header Banner */}
             <div className="relative bg-gradient-to-r from-slate-900 via-red-950 to-red-900 p-5 sm:p-6 text-white overflow-hidden shrink-0">
               <button
+                type="button"
                 onClick={() => setShowProfileModal(false)}
-                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition"
+                className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition cursor-pointer"
               >
                 <X size={16} />
               </button>
@@ -357,7 +351,7 @@ const EmployeeDashboard = () => {
                 <button
                   type="button"
                   onClick={() => { setShowProfileModal(false); navigate('/settings'); }}
-                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group"
+                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-red-100 text-red-700 flex items-center justify-center">
@@ -374,7 +368,7 @@ const EmployeeDashboard = () => {
                 <button
                   type="button"
                   onClick={() => { setShowProfileModal(false); navigate('/personal-certifications'); }}
-                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group"
+                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-amber-100 text-amber-800 flex items-center justify-center">
@@ -391,7 +385,7 @@ const EmployeeDashboard = () => {
                 <button
                   type="button"
                   onClick={() => { setShowProfileModal(false); navigate('/organization-tree'); }}
-                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group"
+                  className="w-full p-3 rounded-2xl bg-slate-50 hover:bg-red-50/50 border border-slate-200/80 hover:border-red-200 flex items-center justify-between text-xs font-bold text-slate-800 transition group cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center">
@@ -408,14 +402,15 @@ const EmployeeDashboard = () => {
                 <button
                   type="button"
                   onClick={() => { setShowProfileModal(false); logout(); }}
-                  className="w-full p-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center gap-2 text-xs font-black text-rose-700 transition mt-3"
+                  className="w-full p-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center gap-2 text-xs font-black text-rose-700 transition mt-3 cursor-pointer"
                 >
                   <LogOut size={16} /> Keluar dari Akun (Logout)
                 </button>
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

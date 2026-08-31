@@ -57,6 +57,7 @@ const Attendance = () => {
   const [faceMismatchError, setFaceMismatchError] = useState(null);
   const isRecognizingRef = useRef(false);
   const noFaceCountRef = useRef(0);
+  const lastVerifiedDescriptorRef = useRef(null);
 
   // Fetch Company Settings from Superadmin
   const fetchSettings = async () => {
@@ -298,6 +299,7 @@ const Attendance = () => {
                   setRecognizedEmployee(res.data.employee);
                   setMatchScore(res.data.confidence);
                   setFaceMismatchError(null);
+                  lastVerifiedDescriptorRef.current = descriptorArray;
                 } else {
                   setRecognizedEmployee(null);
                   setMatchScore(null);
@@ -348,20 +350,25 @@ const Attendance = () => {
       }
 
       // Instant real-time frame snapshot verification at the exact millisecond of click
-      const instantDetection = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.35 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
+      let instantDetection = null;
+      try {
+        instantDetection = await faceapi
+          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.25 }))
+          .withFaceLandmarks()
+          .withFaceDescriptor();
+      } catch (e) {}
 
-      if (!instantDetection || !instantDetection.descriptor) {
+      if (instantDetection && instantDetection.descriptor) {
+        liveFaceDescriptor = Array.from(instantDetection.descriptor);
+      } else if (lastVerifiedDescriptorRef.current && recognizedEmployee) {
+        liveFaceDescriptor = lastVerifiedDescriptorRef.current;
+      } else {
         setRecognizedEmployee(null);
         setMatchScore(null);
         setCountdown(null);
         addToast('Wajah tidak terdeteksi di depan kamera saat presensi! Harap tatap kamera lurus.', 'error');
         return;
       }
-
-      liveFaceDescriptor = Array.from(instantDetection.descriptor);
 
       if (!recognizedEmployee) {
         addToast('Wajah Anda belum terverifikasi atau tidak cocok dengan database karyawan. Presensi terkunci.', 'error');
@@ -374,7 +381,7 @@ const Attendance = () => {
       return;
     }
 
-    const empId = recognizedEmployee?.id || user?.id;
+    const empId = recognizedEmployee?.id || user?.employee_id || user?.id;
     if (!empId) {
       addToast('Identitas akun karyawan belum terverifikasi untuk presensi!', 'error');
       return;
