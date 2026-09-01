@@ -864,11 +864,6 @@ const Employees = ({ readOnly = false }) => {
 
                     {/* Action Buttons: Import CSV & Tambah Karyawan next to filter */}
                     <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto justify-end">
-                        {isReadOnly && (
-                            <span className="text-xs font-bold bg-slate-100 text-slate-600 border border-slate-200 px-3.5 py-2 rounded-xl flex items-center gap-1.5 shadow-2xs">
-                                👁️ Mode Tinjauan (HSE Read-Only)
-                            </span>
-                        )}
 
                         {!isReadOnly && isHRAdmin && selectedIds.length > 0 && (
                             <button
@@ -957,7 +952,9 @@ const Employees = ({ readOnly = false }) => {
                                     <th className="p-4 font-black whitespace-nowrap">Nomor Rekening</th>
                                     <th className="p-4 font-black whitespace-nowrap">Efektif Resign</th>
                                     <th className="p-4 font-black whitespace-nowrap">Role</th>
-                                    <th className="p-4 font-black text-center sticky right-0 bg-slate-50 z-10 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] outline outline-1 outline-slate-50">Aksi</th>
+                                    {isHRAdmin && (
+                                        <th className="p-4 font-black text-center sticky right-0 bg-slate-50 z-10 shadow-[-4px_0_15px_-3px_rgba(0,0,0,0.1)] outline outline-1 outline-slate-50">Aksi</th>
+                                    )}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -1067,25 +1064,23 @@ const Employees = ({ readOnly = false }) => {
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.efektif_resign ? new Date(emp.efektif_resign).toLocaleDateString('id-ID') : '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 capitalize whitespace-nowrap">{emp.role === 'superadmin' ? 'Super Admin' : (['admin', 'hrga_admin', 'hse_admin'].includes(emp.role?.toLowerCase()) ? 'Admin' : 'User')}</td>
 
-                                            <td className="p-4 text-sm font-bold sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] border-l border-slate-100 outline outline-1 outline-white group-hover:outline-slate-50">
-                                                {isHRAdmin && (
-                                                    <>
-                                                        <button onClick={() => setActiveDropdown(activeDropdown === emp.id ? null : emp.id)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none">
-                                                            <MoreVertical size={18} />
-                                                        </button>
-                                                        {activeDropdown === emp.id && (
-                                                            <div className="absolute right-12 top-10 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 text-left">
-                                                                <button onClick={() => openEditModal(emp)} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                                                                    <Edit size={14} className="text-blue-500" /> Edit Karyawan
-                                                                </button>
-                                                                <button onClick={() => { setActiveDropdown(null); handleDeleteEmployee(emp.id); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
-                                                                    <Trash2 size={14} /> Hapus Karyawan
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </>
-                                                )}
-                                            </td>
+                                            {isHRAdmin && (
+                                                <td className="p-4 text-sm font-bold sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.05)] border-l border-slate-100 outline outline-1 outline-white group-hover:outline-slate-50">
+                                                    <button onClick={() => setActiveDropdown(activeDropdown === emp.id ? null : emp.id)} className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none">
+                                                        <MoreVertical size={18} />
+                                                    </button>
+                                                    {activeDropdown === emp.id && (
+                                                        <div className="absolute right-12 top-10 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 text-left">
+                                                            <button onClick={() => openEditModal(emp)} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
+                                                                <Edit size={14} className="text-blue-500" /> Edit Karyawan
+                                                            </button>
+                                                            <button onClick={() => { setActiveDropdown(null); handleDeleteEmployee(emp.id); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
+                                                                <Trash2 size={14} /> Hapus Karyawan
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))
                                 )}
