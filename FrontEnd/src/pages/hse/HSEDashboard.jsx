@@ -322,7 +322,7 @@ const HSEDashboard = () => {
             title="Segera Kedaluwarsa"
             subtitle="Masa berlaku < 60 hari"
             colorClass={hseData.expiringCertsCount > 0 ? "text-amber-500" : "text-slate-400"}
-            onClick={() => navigate('/organization?tab=certifications')}
+            onClick={() => navigate('/organization?tab=certifications&expiry=expiring')}
           />
           <TopBadge
             icon={FileCheck}
@@ -330,7 +330,7 @@ const HSEDashboard = () => {
             title="Kedaluwarsa"
             subtitle="Perlu perpanjangan/renewal"
             colorClass={hseData.expiredCertsCount > 0 ? "text-red-600" : "text-emerald-600"}
-            onClick={() => navigate('/organization?tab=certifications')}
+            onClick={() => navigate('/organization?tab=certifications&expiry=expired')}
           />
         </div>
 

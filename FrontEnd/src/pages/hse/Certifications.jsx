@@ -29,13 +29,28 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [customCategory, setCustomCategory] = useState('');
     const [savingType, setSavingType] = useState(false);
 
+    // Filter Expiry State ('ALL' | 'expiring' | 'expired' | 'active')
+    const getInitialExpiryFilter = () => {
+        const params = new URLSearchParams(window.location.search);
+        return params.get('expiry') || 'ALL';
+    };
+    const [expiryFilter, setExpiryFilter] = useState(getInitialExpiryFilter());
+
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const exp = params.get('expiry') || 'ALL';
+        if (exp !== expiryFilter) {
+            setExpiryFilter(exp);
+        }
+    }, [window.location.search]);
+
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(10);
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [searchTerm, filterType]);
+    }, [searchTerm, filterType, expiryFilter]);
 
     const [previewDoc, setPreviewDoc] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -270,6 +285,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const getDisplayRows = () => {
         let rows = [];
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
         
         employees.forEach(emp => {
             const empId = emp.id;
@@ -284,15 +301,46 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 !c.notes?.includes('[STATUS:PENDING]')
             );
 
+            let matchingCerts = empCerts;
+
+            // 1. Filter by Certificate Type
+            if (filterType !== 'ALL') {
+                matchingCerts = matchingCerts.filter(c => {
+                    const certName = (c.nama_sertifikat || c.certificate_name || '').toLowerCase();
+                    return certName.includes(filterType.toLowerCase());
+                });
+            }
+
+            // 2. Filter by Expiry Status
+            if (expiryFilter !== 'ALL') {
+                matchingCerts = matchingCerts.filter(c => {
+                    if (c.is_lifetime || !c.tanggal_kadaluarsa) {
+                        return expiryFilter === 'active';
+                    }
+                    const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+                    const diffDays = Math.round((expDate - today) / (1000 * 60 * 60 * 24));
+
+                    if (expiryFilter === 'expired') {
+                        return diffDays < 0;
+                    } else if (expiryFilter === 'expiring') {
+                        return diffDays >= 0 && diffDays <= 60;
+                    } else if (expiryFilter === 'active') {
+                        return diffDays > 60;
+                    }
+                    return true;
+                });
+            }
+
             const empName = emp.nama || emp.nama_lengkap || '';
             const empNip = emp.nomor_pegawai || '';
             const empDept = emp.department || emp.departments?.name || '';
             const empJabatan = emp.jabatan || '';
 
             const term = searchTerm.toLowerCase().trim();
-            const hasMatchingCert = empCerts.some(c => 
+            const hasMatchingCert = matchingCerts.some(c => 
                 (c.nama_sertifikat || c.certificate_name || '').toLowerCase().includes(term) ||
-                (c.nomor_sertifikat || c.certificate_number || '').toLowerCase().includes(term)
+                (c.nomor_sertifikat || c.certificate_number || '').toLowerCase().includes(term) ||
+                (c.institusi_penerbit || '').toLowerCase().includes(term)
             );
 
             const matchSearch = !term ||
@@ -301,36 +349,56 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 empDept.toLowerCase().includes(term) ||
                 empJabatan.toLowerCase().includes(term) ||
                 hasMatchingCert;
-            
-            let filteredCerts = empCerts;
-            if (filterType !== 'ALL') {
-                filteredCerts = empCerts.filter(c => {
-                    const certName = (c.nama_sertifikat || c.certificate_name || '').toLowerCase();
-                    return certName.includes(filterType.toLowerCase());
-                });
-            }
 
-            if (empCerts.length > 0) {
-                if (matchSearch && (filterType === 'ALL' || filteredCerts.length > 0)) {
+            if (matchingCerts.length > 0) {
+                if (matchSearch) {
                     rows.push({
                         type: 'has_certs',
                         employee: emp,
-                        certs: filterType === 'ALL' ? empCerts : filteredCerts
+                        certs: matchingCerts
                     });
                 }
-            } else {
-                if (matchSearch && filterType === 'ALL') {
-                    rows.push({
-                        type: 'empty',
-                        employee: emp,
-                        certs: []
-                    });
-                }
+            } else if (expiryFilter === 'ALL' && filterType === 'ALL' && matchSearch) {
+                rows.push({
+                    type: 'empty',
+                    employee: emp,
+                    certs: []
+                });
             }
         });
         
         return rows;
     };
+
+    const todayDateObj = new Date();
+    todayDateObj.setHours(0, 0, 0, 0);
+    const approvedCertsList = certifications.filter(c => 
+        c.status !== 'Rejected' && 
+        !c.notes?.includes('[STATUS:REJECTED]') &&
+        c.status !== 'Pending' &&
+        !c.notes?.includes('[STATUS:PENDING]')
+    );
+
+    const expiringCount = approvedCertsList.filter(c => {
+        if (c.is_lifetime || !c.tanggal_kadaluarsa) return false;
+        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
+        return diff >= 0 && diff <= 60;
+    }).length;
+
+    const expiredCount = approvedCertsList.filter(c => {
+        if (c.is_lifetime || !c.tanggal_kadaluarsa) return false;
+        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
+        return diff < 0;
+    }).length;
+
+    const activeCount = approvedCertsList.filter(c => {
+        if (c.is_lifetime || !c.tanggal_kadaluarsa) return true;
+        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
+        return diff > 60;
+    }).length;
 
     const displayRows = getDisplayRows();
     const totalPages = Math.max(1, Math.ceil(displayRows.length / itemsPerPage));
@@ -520,35 +588,122 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 /* MATRIX TAB VIEW */
                 <div className="space-y-4">
                     {/* Search & Filter Bar */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-                            <div className="relative w-full sm:w-72">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                                <input
-                                    type="text"
-                                    placeholder="Cari nama karyawan, jabatan, divisi..."
-                                    value={searchTerm}
-                                    onChange={e => setSearchTerm(e.target.value)}
-                                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-900/20"
-                                />
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3.5">
+                        <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto flex-1">
+                                <div className="relative w-full sm:w-72">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                                    <input
+                                        type="text"
+                                        placeholder="Cari nama karyawan, NIP, sertifikat..."
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-900/20"
+                                    />
+                                </div>
+
+                                {/* Filter Type */}
+                                <select
+                                    value={filterType}
+                                    onChange={e => setFilterType(e.target.value)}
+                                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-900/20"
+                                >
+                                    <option value="ALL">Semua Jenis Sertifikat</option>
+                                    <option value="POP">POP (Pengawas Pertama)</option>
+                                    <option value="POM">POM (Pengawas Madya)</option>
+                                    <option value="WAH">WAH (Working at Height)</option>
+                                    <option value="AK3U">AK3U (Ahli K3 Umum)</option>
+                                    <option value="CSMS">CSMS / CSMC</option>
+                                    <option value="LISTRIK">Teknisi / AK3 Listrik</option>
+                                    <option value="UBIQUITI">Ubiquiti / Network</option>
+                                </select>
                             </div>
 
-                            {/* Filter Type */}
-                            <select
-                                value={filterType}
-                                onChange={e => setFilterType(e.target.value)}
-                                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-900/20"
-                            >
-                                <option value="ALL">Semua Jenis Sertifikat</option>
-                                <option value="POP">POP (Pengawas Pertama)</option>
-                                <option value="POM">POM (Pengawas Madya)</option>
-                                <option value="WAH">WAH (Working at Height)</option>
-                                <option value="AK3U">AK3U (Ahli K3 Umum)</option>
-                                <option value="CSMS">CSMS / CSMC</option>
-                                <option value="LISTRIK">Teknisi / AK3 Listrik</option>
-                                <option value="UBIQUITI">Ubiquiti / Network</option>
-                            </select>
+                            {/* Status Filter Buttons */}
+                            <div className="flex items-center gap-1.5 flex-wrap w-full lg:w-auto">
+                                <button
+                                    type="button"
+                                    onClick={() => setExpiryFilter('ALL')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        expiryFilter === 'ALL'
+                                            ? 'bg-slate-900 text-white shadow-sm'
+                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                    }`}
+                                >
+                                    <span>Semua</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                                        {approvedCertsList.length}
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setExpiryFilter('expiring')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        expiryFilter === 'expiring'
+                                            ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400 shadow-sm'
+                                            : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
+                                    }`}
+                                >
+                                    <AlertTriangle size={13} className={expiryFilter === 'expiring' ? 'text-slate-950' : 'text-amber-600'} />
+                                    <span>Segera Habis (&le; 60 Hr)</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expiring' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
+                                        {expiringCount}
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setExpiryFilter('expired')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        expiryFilter === 'expired'
+                                            ? 'bg-red-600 text-white font-black ring-2 ring-red-400 shadow-sm'
+                                            : 'bg-red-50 hover:bg-red-100 text-red-900 border border-red-200/80'
+                                    }`}
+                                >
+                                    <FileCheck size={13} className={expiryFilter === 'expired' ? 'text-white' : 'text-red-600'} />
+                                    <span>Kedaluwarsa</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expired' ? 'bg-red-800 text-white' : 'bg-red-200 text-red-900'}`}>
+                                        {expiredCount}
+                                    </span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setExpiryFilter('active')}
+                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                        expiryFilter === 'active'
+                                            ? 'bg-emerald-600 text-white font-black ring-2 ring-emerald-400 shadow-sm'
+                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80'
+                                    }`}
+                                >
+                                    <CheckCircle2 size={13} className={expiryFilter === 'active' ? 'text-white' : 'text-emerald-600'} />
+                                    <span>Aktif</span>
+                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'active' ? 'bg-emerald-800 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
+                                        {activeCount}
+                                    </span>
+                                </button>
+                            </div>
                         </div>
+
+                        {/* Active Filter Notification */}
+                        {expiryFilter !== 'ALL' && (
+                            <div className="flex items-center justify-between bg-amber-50/90 border border-amber-200/80 px-4 py-2 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in">
+                                <div className="flex items-center gap-2">
+                                    <AlertTriangle size={14} className="text-amber-700 shrink-0" />
+                                    <span>
+                                        Menampilkan filter khusus: <strong>{expiryFilter === 'expiring' ? 'Sertifikat Segera Habis (Masa Berlaku ≤ 60 Hari)' : expiryFilter === 'expired' ? 'Sertifikat Sudah Kedaluwarsa' : 'Sertifikat Aktif / Seumur Hidup'}</strong>.
+                                    </span>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setExpiryFilter('ALL')}
+                                    className="text-amber-800 hover:text-amber-950 font-black underline text-xs cursor-pointer ml-3 shrink-0"
+                                >
+                                    Reset / Tampilkan Semua
+                                </button>
+                            </div>
+                        )}
                     </div>
 
                     {/* LEGENDA STATUS & KATEGORI SERTIFIKASI K3 - WHITE WITH SOFT ROSE GRADIENT */}
