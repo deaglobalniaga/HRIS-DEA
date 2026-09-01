@@ -18,6 +18,65 @@ const parseDateSafe = (dStr) => {
     return isNaN(d.getTime()) ? null : d;
 };
 
+// 15 K3 Competency Legends with exact color dots matching the corporate matrix
+const CERT_LEGEND = [
+    { code: 'POM', name: 'Pengawas Operasional Madya', dot: '#84cc16' },
+    { code: 'POP', name: 'Pengawas Operasional Pertama', dot: '#2563eb' },
+    { code: 'AK3U', name: 'Ahli K3 Umum', dot: '#dc2626' },
+    { code: 'AK3 Listrik', name: 'AK3 Listrik', dot: '#f59e0b' },
+    { code: 'WAH', name: 'Working at Height', dot: '#ea580c' },
+    { code: 'Teknisi Listrik', name: 'Teknisi Listrik', dot: '#eab308' },
+    { code: 'MTCNA', name: 'MikroTik Certified Network Associate', dot: '#9333ea' },
+    { code: 'Ubiqty', name: 'Ubiquiti Network Specialist', dot: '#06b6d4' },
+    { code: 'FO', name: 'Fiber Optic Specialist', dot: '#10b981' },
+    { code: 'TOT', name: 'Training of Trainer', dot: '#0f766e' },
+    { code: 'First Aid', name: 'Pertolongan Pertama (P3K)', dot: '#065f46' },
+    { code: 'Operator Drone', name: 'Lisensi Operator Drone', dot: '#db2777' },
+    { code: 'Teknisi Geoteknik', name: 'Teknisi Geoteknik', dot: '#78350f' },
+    { code: 'Building Construction', name: 'Building Construction', dot: '#57534e' },
+    { code: 'CSMC', name: 'Certified Safety Management', dot: '#f97316' },
+];
+
+const getCertLegendItem = (certName) => {
+    if (!certName) return { code: 'K3', name: 'Kompetensi K3', dot: '#64748b' };
+    const upper = certName.toUpperCase().trim();
+    const found = CERT_LEGEND.find(l => upper.includes(l.code.toUpperCase()) || upper.includes(l.name.toUpperCase()));
+    if (found) return found;
+    return {
+        code: certName.length > 12 ? certName.slice(0, 10) + '..' : certName,
+        name: certName,
+        dot: '#b91c1c'
+    };
+};
+
+const getEmployeeOverallStatus = (certs = []) => {
+    if (!certs || certs.length === 0) {
+        return { text: 'Belum Ada Sertifikat', color: 'bg-slate-100 text-slate-500 border-slate-200' };
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let hasExpired = false;
+    let hasExpiring = false;
+
+    for (const c of certs) {
+        if (c.is_lifetime || !c.tanggal_kadaluarsa) continue;
+        const exp = parseDateSafe(c.tanggal_kadaluarsa);
+        if (!exp) continue;
+        const diff = Math.round((exp - today) / (1000 * 60 * 60 * 24));
+        if (diff < 0) hasExpired = true;
+        else if (diff <= 60) hasExpiring = true;
+    }
+
+    if (hasExpired) {
+        return { text: 'Ada Kedaluwarsa', color: 'bg-red-100 text-red-800 border-red-300' };
+    }
+    if (hasExpiring) {
+        return { text: 'Segera Habis (≤ 60 hr)', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+    }
+    return { text: 'Semua Aktif / Valid', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
+};
+
 const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const { user } = useAuth();
     const { addToast } = useToast();
@@ -37,6 +96,9 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [newTypeCategory, setNewTypeCategory] = useState('K3/HSE');
     const [customCategory, setCustomCategory] = useState('');
     const [savingType, setSavingType] = useState(false);
+
+    // Selected Employee Detail Modal State
+    const [selectedEmpDetail, setSelectedEmpDetail] = useState(null);
 
     // Filter Expiry State ('ALL' | 'expiring' | 'expired' | 'active')
     const [expiryFilter, setExpiryFilter] = useState(searchParams.get('expiry') || 'ALL');
@@ -586,531 +648,588 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 </div>
             ) : (
                 /* MATRIX TAB VIEW */
-                <div className="space-y-4">
-                    {/* Search & Filter Bar */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3.5">
-                        <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
-                            <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto flex-1">
-                                <div className="relative w-full sm:w-72">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
-                                    <input
-                                        type="text"
-                                        placeholder="Cari nama karyawan, NIP, sertifikat..."
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-900/20"
-                                    />
-                                </div>
-
-                                {/* Filter Type */}
-                                <select
-                                    value={filterType}
-                                    onChange={e => setFilterType(e.target.value)}
-                                    className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-red-900/20"
-                                >
-                                    <option value="ALL">Semua Jenis Sertifikat</option>
-                                    <option value="POP">POP (Pengawas Pertama)</option>
-                                    <option value="POM">POM (Pengawas Madya)</option>
-                                    <option value="WAH">WAH (Working at Height)</option>
-                                    <option value="AK3U">AK3U (Ahli K3 Umum)</option>
-                                    <option value="CSMS">CSMS / CSMC</option>
-                                    <option value="LISTRIK">Teknisi / AK3 Listrik</option>
-                                    <option value="UBIQUITI">Ubiquiti / Network</option>
-                                </select>
+                <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-start">
+                    {/* LEFT PANEL: MATRIKS SERTIFIKASI LEGENDA (3 Cols on XL) */}
+                    <div className="xl:col-span-3 bg-white rounded-3xl p-5 border border-slate-200 shadow-sm space-y-4 sticky top-4">
+                        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                            <div className="flex items-center gap-2">
+                                <Award className="text-red-600" size={20} />
+                                <h3 className="text-xs font-black text-slate-900 tracking-wider uppercase">
+                                    Matriks Sertifikasi
+                                </h3>
                             </div>
-
-                            {/* Status Filter Buttons */}
-                            <div className="flex items-center gap-1.5 flex-wrap w-full lg:w-auto">
+                            {filterType !== 'ALL' && (
                                 <button
-                                    type="button"
-                                    onClick={() => setExpiryFilter('ALL')}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        expiryFilter === 'ALL'
-                                            ? 'bg-slate-900 text-white shadow-sm'
-                                            : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
-                                    }`}
+                                    onClick={() => setFilterType('ALL')}
+                                    className="text-[10px] text-red-600 hover:text-red-800 font-bold underline cursor-pointer"
                                 >
-                                    <span>Semua</span>
-                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                                        {approvedCertsList.length}
-                                    </span>
+                                    Reset
                                 </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setExpiryFilter('expiring')}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        expiryFilter === 'expiring'
-                                            ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400 shadow-sm'
-                                            : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
-                                    }`}
-                                >
-                                    <AlertTriangle size={13} className={expiryFilter === 'expiring' ? 'text-slate-950' : 'text-amber-600'} />
-                                    <span>Segera Habis (&le; 60 Hr)</span>
-                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expiring' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
-                                        {expiringCount}
-                                    </span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setExpiryFilter('expired')}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        expiryFilter === 'expired'
-                                            ? 'bg-red-600 text-white font-black ring-2 ring-red-400 shadow-sm'
-                                            : 'bg-red-50 hover:bg-red-100 text-red-900 border border-red-200/80'
-                                    }`}
-                                >
-                                    <FileCheck size={13} className={expiryFilter === 'expired' ? 'text-white' : 'text-red-600'} />
-                                    <span>Kedaluwarsa</span>
-                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expired' ? 'bg-red-800 text-white' : 'bg-red-200 text-red-900'}`}>
-                                        {expiredCount}
-                                    </span>
-                                </button>
-
-                                <button
-                                    type="button"
-                                    onClick={() => setExpiryFilter('active')}
-                                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                                        expiryFilter === 'active'
-                                            ? 'bg-emerald-600 text-white font-black ring-2 ring-emerald-400 shadow-sm'
-                                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80'
-                                    }`}
-                                >
-                                    <CheckCircle2 size={13} className={expiryFilter === 'active' ? 'text-white' : 'text-emerald-600'} />
-                                    <span>Aktif</span>
-                                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'active' ? 'bg-emerald-800 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
-                                        {activeCount}
-                                    </span>
-                                </button>
-                            </div>
+                            )}
                         </div>
 
-                        {/* Active Filter Notification */}
-                        {expiryFilter !== 'ALL' && (
-                            <div className="flex items-center justify-between bg-amber-50/90 border border-amber-200/80 px-4 py-2 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in">
-                                <div className="flex items-center gap-2">
-                                    <AlertTriangle size={14} className="text-amber-700 shrink-0" />
-                                    <span>
-                                        Menampilkan filter khusus: <strong>{expiryFilter === 'expiring' ? 'Sertifikat Segera Habis (Masa Berlaku ≤ 60 Hari)' : expiryFilter === 'expired' ? 'Sertifikat Sudah Kedaluwarsa' : 'Sertifikat Aktif / Seumur Hidup'}</strong>.
-                                    </span>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setExpiryFilter('ALL')}
-                                    className="text-amber-800 hover:text-amber-950 font-black underline text-xs cursor-pointer ml-3 shrink-0"
-                                >
-                                    Reset / Tampilkan Semua
-                                </button>
-                            </div>
+                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                            Klik pada jenis lisensi di bawah untuk memfilter daftar karyawan yang memilikinya:
+                        </p>
+
+                        <div className="space-y-1.5 max-h-[620px] overflow-y-auto pr-1">
+                            {CERT_LEGEND.map((item, idx) => {
+                                const isSelected = filterType.toUpperCase() === item.code.toUpperCase();
+                                const count = approvedCertsList.filter(c => {
+                                    const cName = (c.nama_sertifikat || c.certificate_name || '').toUpperCase();
+                                    return cName.includes(item.code.toUpperCase()) || cName.includes(item.name.toUpperCase());
+                                }).length;
+
+                                return (
+                                    <button
+                                        key={idx}
+                                        type="button"
+                                        onClick={() => setFilterType(isSelected ? 'ALL' : item.code)}
+                                        className={`w-full p-2.5 rounded-2xl border text-left transition-all flex items-start gap-3 cursor-pointer ${
+                                            isSelected 
+                                                ? 'bg-slate-900 text-white border-slate-900 shadow-sm' 
+                                                : 'bg-white hover:bg-slate-50 border-slate-100 hover:border-slate-200'
+                                        }`}
+                                    >
+                                        <span 
+                                            className="w-3.5 h-3.5 rounded-full shrink-0 mt-0.5 shadow-xs" 
+                                            style={{ backgroundColor: item.dot }}
+                                        ></span>
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center justify-between gap-1">
+                                                <span className={`text-xs font-black truncate ${isSelected ? 'text-white' : 'text-slate-900'}`}>
+                                                    {item.code}
+                                                </span>
+                                                <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+                                                    isSelected 
+                                                        ? 'bg-white/20 text-white' 
+                                                        : count > 0 ? 'bg-slate-100 text-slate-700' : 'text-slate-400'
+                                                }`}>
+                                                    {count}
+                                                </span>
+                                            </div>
+                                            <p className={`text-[10px] font-medium truncate ${isSelected ? 'text-slate-300' : 'text-slate-400'}`}>
+                                                {item.name}
+                                            </p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+
+                        {canManage && (
+                            <button
+                                type="button"
+                                onClick={() => setShowAddTypeModal(true)}
+                                className="w-full py-2 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-700 hover:text-red-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
+                            >
+                                <Plus size={13} /> Tambah Jenis Sertifikasi
+                            </button>
                         )}
                     </div>
 
-                    {/* LEGENDA STATUS & KATEGORI SERTIFIKASI K3 - WHITE WITH SOFT ROSE GRADIENT */}
-                    <div className="bg-gradient-to-r from-white via-rose-50/70 to-red-50/60 text-slate-800 rounded-2xl p-4.5 shadow-sm border border-red-200/80">
-                        <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 mb-2.5 border-b border-rose-200/70">
-                            <div className="flex items-center gap-2">
-                                <span className="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
-                                <h4 className="text-xs font-black text-red-950 uppercase tracking-wider flex items-center gap-1.5">
-                                    <ShieldCheck size={15} className="text-red-700" /> Legenda Standar Sertifikasi & Lisensi K3 Minerba
-                                </h4>
+                    {/* RIGHT PANEL: TABLE & FILTERS (9 Cols on XL) */}
+                    <div className="xl:col-span-9 space-y-4">
+                        {/* Search & Status Filter Bar */}
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col gap-3.5">
+                            <div className="flex flex-col lg:flex-row items-center justify-between gap-3">
+                                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto flex-1">
+                                    <div className="relative w-full sm:w-72">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+                                        <input
+                                            type="text"
+                                            placeholder="Cari nama karyawan, NIP, sertifikat..."
+                                            value={searchTerm}
+                                            onChange={e => setSearchTerm(e.target.value)}
+                                            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-900/20"
+                                        />
+                                    </div>
+
+                                    {filterType !== 'ALL' && (
+                                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-900 text-white shadow-xs">
+                                            <span>Filter: {filterType}</span>
+                                            <X size={13} className="cursor-pointer hover:text-red-300" onClick={() => setFilterType('ALL')} />
+                                        </span>
+                                    )}
+                                </div>
+
+                                {/* Status Filter Buttons */}
+                                <div className="flex items-center gap-1.5 flex-wrap w-full lg:w-auto">
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpiryFilter('ALL')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            expiryFilter === 'ALL'
+                                                ? 'bg-slate-900 text-white shadow-sm'
+                                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+                                        }`}
+                                    >
+                                        <span>Semua</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'ALL' ? 'bg-slate-700 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                                            {approvedCertsList.length}
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpiryFilter('expiring')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            expiryFilter === 'expiring'
+                                                ? 'bg-amber-500 text-slate-950 font-black ring-2 ring-amber-400 shadow-sm'
+                                                : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80'
+                                        }`}
+                                    >
+                                        <AlertTriangle size={13} className={expiryFilter === 'expiring' ? 'text-slate-950' : 'text-amber-600'} />
+                                        <span>Segera Habis (&le; 60 Hr)</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expiring' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
+                                            {expiringCount}
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpiryFilter('expired')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            expiryFilter === 'expired'
+                                                ? 'bg-red-600 text-white font-black ring-2 ring-red-400 shadow-sm'
+                                                : 'bg-red-50 hover:bg-red-100 text-red-900 border border-red-200/80'
+                                        }`}
+                                    >
+                                        <FileCheck size={13} className={expiryFilter === 'expired' ? 'text-white' : 'text-red-600'} />
+                                        <span>Kedaluwarsa</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expired' ? 'bg-red-800 text-white' : 'bg-red-200 text-red-900'}`}>
+                                            {expiredCount}
+                                        </span>
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={() => setExpiryFilter('active')}
+                                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                                            expiryFilter === 'active'
+                                                ? 'bg-emerald-600 text-white font-black ring-2 ring-emerald-400 shadow-sm'
+                                                : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-200/80'
+                                        }`}
+                                    >
+                                        <CheckCircle2 size={13} className={expiryFilter === 'active' ? 'text-white' : 'text-emerald-600'} />
+                                        <span>Aktif</span>
+                                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'active' ? 'bg-emerald-800 text-white' : 'bg-emerald-200 text-emerald-900'}`}>
+                                            {activeCount}
+                                        </span>
+                                    </button>
+                                </div>
                             </div>
-                            <span className="text-[10px] text-slate-500 font-bold bg-white/90 px-3 py-1 rounded-full border border-rose-200/70 shadow-2xs">
-                                Standar Kepmen ESDM 1827 K/30/MEM/2018 & Kemnaker RI
-                            </span>
+
+                            {/* Active Filter Notification */}
+                            {(expiryFilter !== 'ALL' || filterType !== 'ALL') && (
+                                <div className="flex items-center justify-between bg-amber-50/90 border border-amber-200/80 px-4 py-2 rounded-xl text-xs font-medium text-amber-900 animate-in fade-in">
+                                    <div className="flex items-center gap-2">
+                                        <AlertTriangle size={14} className="text-amber-700 shrink-0" />
+                                        <span>
+                                            Menampilkan filter: <strong>{filterType !== 'ALL' ? `Jenis ${filterType}` : ''} {expiryFilter !== 'ALL' ? `• Status ${expiryFilter}` : ''}</strong>.
+                                        </span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        onClick={() => { setExpiryFilter('ALL'); setFilterType('ALL'); }}
+                                        className="text-amber-800 hover:text-amber-950 font-black underline text-xs cursor-pointer ml-3 shrink-0"
+                                    >
+                                        Reset Semua Filter
+                                    </button>
+                                </div>
+                            )}
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-2.5 text-[11px]">
-                            {/* Aktif */}
-                            <div className="flex items-center gap-2.5 bg-white/95 border border-emerald-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                                <span className="w-3 h-3 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50 shrink-0"></span>
-                                <div>
-                                    <strong className="text-emerald-700 block font-black text-xs">Aktif / Valid</strong>
-                                    <span className="text-[10px] text-slate-500">Masa berlaku &gt; 60 hari</span>
-                                </div>
-                            </div>
-
-                            {/* Segera Habis */}
-                            <div className="flex items-center gap-2.5 bg-white/95 border border-amber-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                                <span className="w-3 h-3 rounded-full bg-amber-400 shadow-sm shadow-amber-400/50 shrink-0"></span>
-                                <div>
-                                    <strong className="text-amber-700 block font-black text-xs">Segera Habis</strong>
-                                    <span className="text-[10px] text-slate-500">&le; 60 hari (Perpanjang)</span>
-                                </div>
-                            </div>
-
-                            {/* Kedaluwarsa */}
-                            <div className="flex items-center gap-2.5 bg-white/95 border border-rose-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                                <span className="w-3 h-3 rounded-full bg-rose-500 shadow-sm shadow-rose-500/50 shrink-0"></span>
-                                <div>
-                                    <strong className="text-rose-700 block font-black text-xs">Kedaluwarsa</strong>
-                                    <span className="text-[10px] text-slate-500">Lisensi tidak aktif / non-valid</span>
-                                </div>
-                            </div>
-
-                            {/* Seumur Hidup */}
-                            <div className="flex items-center gap-2.5 bg-white/95 border border-teal-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                                <span className="w-3 h-3 rounded-full bg-teal-500 shadow-sm shadow-teal-500/50 shrink-0"></span>
-                                <div>
-                                    <strong className="text-teal-700 block font-black text-xs">Seumur Hidup</strong>
-                                    <span className="text-[10px] text-slate-500">Tanpa tanggal kedaluwarsa</span>
-                                </div>
-                            </div>
-
-                            {/* Menunggu Verifikasi */}
-                            <div className="flex items-center gap-2.5 bg-white/95 border border-purple-200/80 rounded-xl px-3.5 py-2.5 shadow-2xs">
-                                <span className="w-3 h-3 rounded-full bg-purple-500 shadow-sm shadow-purple-500/50 shrink-0"></span>
-                                <div>
-                                    <strong className="text-purple-700 block font-black text-xs">Verifikasi User</strong>
-                                    <span className="text-[10px] text-slate-500">Menunggu ACC Admin HSE</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Matrix Table */}
-                    <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-xs">
-                                <thead>
-                                    <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="p-3.5 w-12 text-center">No</th>
-                                        <th className="p-3.5">Nama Pejabat / Karyawan</th>
-                                        <th className="p-3.5">Departemen</th>
-                                        <th className="p-3.5">Sertifikasi Dimiliki & Institusi</th>
-                                        <th className="p-3.5 text-center">Masa Berlaku & Status</th>
-                                        <th className="p-3.5 text-center">Aksi HSE</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 font-medium">
-                                    {loading ? (
-                                        <tr>
-                                            <td colSpan="6" className="p-8 text-center text-slate-400 font-bold">
-                                                <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat matriks sertifikasi...
-                                            </td>
+                        {/* COMPACT MATRIX TABLE */}
+                        <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse text-xs">
+                                    <thead>
+                                        <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
+                                            <th className="p-3.5 w-12 text-center">No</th>
+                                            <th className="p-3.5 min-w-[200px]">Karyawan</th>
+                                            <th className="p-3.5 min-w-[160px]">Departemen & Jabatan</th>
+                                            <th className="p-3.5 min-w-[260px]">Sertifikasi Dimiliki</th>
+                                            <th className="p-3.5 text-center min-w-[150px]">Status Masa Berlaku</th>
+                                            <th className="p-3.5 text-center w-28">Aksi</th>
                                         </tr>
-                                    ) : paginatedRows.length === 0 ? (
-                                        <tr>
-                                            <td colSpan="6" className="p-8 text-center text-slate-400 font-bold">Tidak ada data sertifikasi ditemukan.</td>
-                                        </tr>
-                                    ) : (
-                                        paginatedRows.map((row, idx) => {
-                                            const emp = row.employee;
-                                            const itemNumber = (currentPage - 1) * itemsPerPage + idx + 1;
-                                            
-                                            if (row.type === 'empty') {
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100 font-medium">
+                                        {loading ? (
+                                            <tr>
+                                                <td colSpan="6" className="p-8 text-center text-slate-400 font-bold">
+                                                    <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat matriks sertifikasi...
+                                                </td>
+                                            </tr>
+                                        ) : paginatedRows.length === 0 ? (
+                                            <tr>
+                                                <td colSpan="6" className="p-8 text-center text-slate-400 font-bold">Tidak ada data sertifikasi yang cocok.</td>
+                                            </tr>
+                                        ) : (
+                                            paginatedRows.map((row, idx) => {
+                                                const emp = row.employee;
+                                                const itemNumber = (currentPage - 1) * itemsPerPage + idx + 1;
+                                                const overall = getEmployeeOverallStatus(row.certs);
+
                                                 return (
-                                                    <tr key={`empty-${emp.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="p-3.5 text-center font-bold text-slate-400 text-[11px] align-top">
+                                                    <tr 
+                                                        key={`emp-${emp.id}-${idx}`} 
+                                                        onClick={() => setSelectedEmpDetail({ employee: emp, certs: row.certs })}
+                                                        className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                                                    >
+                                                        {/* No */}
+                                                        <td className="p-3.5 text-center font-bold text-slate-400 text-[11px] align-middle">
                                                             {itemNumber}
                                                         </td>
-                                                        <td className="p-3.5 align-top">
-                                                            <div className="flex items-start gap-2.5">
-                                                                <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
+
+                                                        {/* Karyawan */}
+                                                        <td className="p-3.5 font-bold text-slate-900 align-middle">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-900 to-red-900 text-white font-black text-[10px] flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                                                                     {(emp.nama || emp.nama_lengkap || 'U').charAt(0)}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-xs font-bold text-slate-900 leading-tight">{emp.nama || emp.nama_lengkap || '-'}</p>
+                                                                    <p className="text-xs font-bold text-slate-900 leading-tight group-hover:text-red-700 transition-colors">{emp.nama || emp.nama_lengkap || '-'}</p>
                                                                     {emp.nomor_pegawai && emp.nomor_pegawai !== '-' && (
                                                                         <p className="text-[10px] font-mono text-slate-400 mt-0.5">NIP: {emp.nomor_pegawai}</p>
                                                                     )}
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td className="p-3.5 text-slate-600 align-top">
-                                                            <div className="font-semibold text-slate-700">{emp.department || emp.departments?.name || '-'}</div>
+
+                                                        {/* Departemen & Jabatan */}
+                                                        <td className="p-3.5 text-slate-600 align-middle">
+                                                            <div className="font-semibold text-slate-800">{emp.department || emp.departments?.name || '-'}</div>
                                                             {emp.jabatan && emp.jabatan !== '-' && (
-                                                                <div className="text-[10px] text-slate-400">{emp.jabatan}</div>
+                                                                <div className="text-[10px] text-slate-400 font-medium">{emp.jabatan}</div>
                                                             )}
                                                         </td>
-                                                        <td colSpan="2" className="p-3.5 text-xs text-slate-400 italic text-center bg-slate-50/40 align-middle">
-                                                            Belum ada sertifikasi terdaftar / terunggah.
+
+                                                        {/* Sertifikasi Dimiliki (Render Colored Dot Chips) */}
+                                                        <td className="p-3.5 align-middle">
+                                                            {row.certs.length > 0 ? (
+                                                                <div className="flex flex-wrap gap-1.5 items-center">
+                                                                    {row.certs.map((cert, cIdx) => {
+                                                                        const item = getCertLegendItem(cert.nama_sertifikat || cert.certificate_name);
+                                                                        return (
+                                                                            <span 
+                                                                                key={cert.id || cIdx}
+                                                                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-bold bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-800 shadow-2xs transition"
+                                                                                title={`${item.name} (${cert.nomor_sertifikat || '-'})`}
+                                                                            >
+                                                                                <span 
+                                                                                    className="w-2.5 h-2.5 rounded-full shrink-0 shadow-xs" 
+                                                                                    style={{ backgroundColor: item.dot }}
+                                                                                ></span>
+                                                                                <span className="font-bold">{item.code}</span>
+                                                                            </span>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            ) : (
+                                                                <span className="text-[11px] text-slate-400 italic">Belum ada sertifikasi</span>
+                                                            )}
                                                         </td>
-                                                        <td className="p-3.5 text-center align-top">
-                                                            {canManage && (
-                                                                <button 
+
+                                                        {/* Status Masa Berlaku */}
+                                                        <td className="p-3.5 text-center align-middle">
+                                                            <span className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-black border ${overall.color}`}>
+                                                                {overall.text}
+                                                            </span>
+                                                        </td>
+
+                                                        {/* Aksi */}
+                                                        <td className="p-3.5 text-center align-middle" onClick={e => e.stopPropagation()}>
+                                                            <div className="flex items-center justify-center gap-1.5">
+                                                                <button
                                                                     type="button"
-                                                                    onClick={() => { 
-                                                                        resetForm();
-                                                                        setSelectedUserId(emp.id); 
-                                                                        setShowUploadModal(true); 
-                                                                    }} 
-                                                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto cursor-pointer"
+                                                                    onClick={() => setSelectedEmpDetail({ employee: emp, certs: row.certs })}
+                                                                    className="px-2.5 py-1 bg-slate-900 hover:bg-red-700 text-white text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                                                                    title="Lihat Detail Sertifikat Karyawan"
                                                                 >
-                                                                    <Upload size={12} /> Upload
+                                                                    <Eye size={12} /> Detail
                                                                 </button>
-                                                            )}
+                                                                {canManage && (
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            resetForm();
+                                                                            setSelectedUserId(emp.id);
+                                                                            setShowUploadModal(true);
+                                                                        }}
+                                                                        className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-700 rounded-lg transition cursor-pointer"
+                                                                        title="Upload Sertifikat Baru untuk Karyawan Ini"
+                                                                    >
+                                                                        <Plus size={14} />
+                                                                    </button>
+                                                                )}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
-                                            }
-
-                                            return (
-                                                <tr key={`emp-${emp.id}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
-                                                    {/* No */}
-                                                    <td className="p-3.5 text-center font-bold text-slate-400 text-[11px] align-top">
-                                                        {itemNumber}
-                                                    </td>
-
-                                                    {/* Karyawan */}
-                                                    <td className="p-3.5 font-bold text-slate-900 align-top">
-                                                        <div className="flex items-start gap-2.5">
-                                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-900 to-red-900 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
-                                                                {(emp.nama || emp.nama_lengkap || 'U').charAt(0)}
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs font-bold text-slate-900 leading-tight">{emp.nama || emp.nama_lengkap || '-'}</p>
-                                                                {emp.nomor_pegawai && emp.nomor_pegawai !== '-' && (
-                                                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">NIP: {emp.nomor_pegawai}</p>
-                                                                )}
-                                                                <span className="inline-block mt-1 text-[9px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
-                                                                    {row.certs.length} Sertifikat Dimiliki
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Departemen & Jabatan */}
-                                                    <td className="p-3.5 text-slate-600 align-top">
-                                                        <div className="font-semibold text-slate-700">{emp.department || emp.departments?.name || '-'}</div>
-                                                        {emp.jabatan && emp.jabatan !== '-' && (
-                                                            <div className="text-[10px] text-slate-400">{emp.jabatan}</div>
-                                                        )}
-                                                    </td>
-
-                                                    {/* Sertifikasi Dimiliki */}
-                                                    <td className="p-3.5 align-top">
-                                                        <div className="flex flex-col gap-2.5">
-                                                            {row.certs.map((cert, cIdx) => (
-                                                                <div key={cert.id || cIdx} className="flex items-start gap-2">
-                                                                    <Award size={15} className="text-red-700 shrink-0 mt-0.5" />
-                                                                    <div>
-                                                                        <p className="font-bold text-slate-900 text-xs leading-tight">{cert.nama_sertifikat || cert.certificate_name}</p>
-                                                                        <span className="text-[10px] font-mono text-slate-500 font-bold block mt-0.5">
-                                                                            No: {cert.nomor_sertifikat || cert.certificate_number || '-'} • <span className="text-slate-400 font-normal">{cert.institusi_penerbit || 'K3/HSE'}</span>
-                                                                        </span>
-                                                                    </div>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Masa Berlaku & Status */}
-                                                    <td className="p-3.5 text-center align-top">
-                                                        <div className="flex flex-col gap-2.5">
-                                                            {row.certs.map((cert, cIdx) => {
-                                                                const status = getStatusIndicator(cert);
-                                                                return (
-                                                                    <div key={cert.id || cIdx} className="flex items-center justify-center gap-2 min-h-[30px]">
-                                                                        <span className="text-[11px] font-mono font-bold text-slate-700">
-                                                                            {cert.is_lifetime ? 'Seumur Hidup' : `s/d ${cert.tanggal_kadaluarsa || '-'}`}
-                                                                        </span>
-                                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${status.color}`}>
-                                                                            {status.text}
-                                                                        </span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Aksi HSE */}
-                                                    <td className="p-3.5 text-center align-top">
-                                                        <div className="flex flex-col gap-2.5 items-center">
-                                                            {row.certs.map((cert, cIdx) => {
-                                                                const hasFile = Boolean(cert.file_url || cert.file_path);
-                                                                return (
-                                                                    <div key={cert.id || cIdx} className="flex items-center justify-center gap-1.5 min-h-[30px]">
-                                                                        {hasFile ? (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => {
-                                                                                    setPreviewDoc({ 
-                                                                                        id: cert.id,
-                                                                                        url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
-                                                                                        name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
-                                                                                        userCerts: row.certs.map(c => ({
-                                                                                            id: c.id,
-                                                                                            url: c.file_url || c.file_path,
-                                                                                            name: `${emp.nama || emp.nama_lengkap} - ${c.nama_sertifikat}`,
-                                                                                            nama_sertifikat: c.nama_sertifikat,
-                                                                                            nomor_sertifikat: c.nomor_sertifikat,
-                                                                                            is_lifetime: c.is_lifetime,
-                                                                                            tanggal_kadaluarsa: c.tanggal_kadaluarsa,
-                                                                                            file_url: c.file_url || c.file_path,
-                                                                                            karyawan: emp
-                                                                                        })),
-                                                                                        karyawan: emp
-                                                                                    });
-                                                                                }}
-                                                                                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-2xs border border-red-200 cursor-pointer"
-                                                                                title="Lihat & Pratinjau Berkas Sertifikat"
-                                                                            >
-                                                                                <Eye size={12} /> Preview
-                                                                            </button>
-                                                                        ) : (
-                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">
-                                                                                Kosong
-                                                                            </span>
-                                                                        )}
-                                                                        {canManage && (
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={() => setCertToDelete({
-                                                                                    id: cert.id,
-                                                                                    nama_sertifikat: cert.nama_sertifikat || cert.certificate_name,
-                                                                                    nomor_sertifikat: cert.nomor_sertifikat || cert.certificate_number,
-                                                                                    institusi_penerbit: cert.institusi_penerbit,
-                                                                                    tanggal_kadaluarsa: cert.tanggal_kadaluarsa,
-                                                                                    is_lifetime: cert.is_lifetime,
-                                                                                    employeeName: emp.nama || emp.nama_lengkap,
-                                                                                    employeeDept: emp.department || emp.departments?.name,
-                                                                                    employeeNip: emp.nomor_pegawai
-                                                                                })}
-                                                                                className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                                                                title="Hapus Sertifikat Ini"
-                                                                            >
-                                                                                <Trash2 size={13} />
-                                                                            </button>
-                                                                        )}
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Pagination Controls */}
-                        {!loading && displayRows.length > 0 && (
-                            <div className="p-4 border-t border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-xs font-bold text-slate-500">
-                                        Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, displayRows.length)} dari {displayRows.length} Data Sertifikasi
-                                    </span>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-slate-500">Tampilkan:</span>
-                                        <select
-                                            value={itemsPerPage}
-                                            onChange={(e) => {
-                                                setItemsPerPage(Number(e.target.value));
-                                                setCurrentPage(1);
-                                            }}
-                                            className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 rounded-lg p-1.5 outline-none cursor-pointer"
-                                        >
-                                            <option value={10}>10</option>
-                                            <option value={25}>25</option>
-                                            <option value={50}>50</option>
-                                            <option value={100}>100</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-1.5">
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                                        disabled={currentPage === 1}
-                                        className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-                                    >
-                                        Prev
-                                    </button>
-                                    
-                                    <div className="flex items-center gap-1">
-                                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                                            let pageNum;
-                                            if (totalPages <= 5) {
-                                                pageNum = i + 1;
-                                            } else if (currentPage <= 3) {
-                                                pageNum = i + 1;
-                                            } else if (currentPage >= totalPages - 2) {
-                                                pageNum = totalPages - 4 + i;
-                                            } else {
-                                                pageNum = currentPage - 2 + i;
-                                            }
-                                            return (
-                                                <button
-                                                    key={pageNum}
-                                                    onClick={() => setCurrentPage(pageNum)}
-                                                    className={`w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${
-                                                        currentPage === pageNum
-                                                            ? 'bg-red-700 text-white shadow-xs font-black'
-                                                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
-                                                    }`}
-                                                >
-                                                    {pageNum}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-
-                                    <button
-                                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                                        disabled={currentPage === totalPages}
-                                        className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-                                    >
-                                        Next
-                                    </button>
-                                </div>
+                                            })
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
-                        )}
+
+                            {/* Pagination Controls */}
+                            {!loading && displayRows.length > 0 && (
+                                <div className="p-4 border-t border-slate-100 bg-white flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-xs font-bold text-slate-500">
+                                            Menampilkan {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, displayRows.length)} dari {displayRows.length} Karyawan
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-500">Tampilkan:</span>
+                                            <select
+                                                value={itemsPerPage}
+                                                onChange={(e) => {
+                                                    setItemsPerPage(Number(e.target.value));
+                                                    setCurrentPage(1);
+                                                }}
+                                                className="bg-slate-50 border border-slate-200 text-xs font-bold text-slate-700 rounded-lg p-1.5 outline-none cursor-pointer"
+                                            >
+                                                <option value={10}>10</option>
+                                                <option value={25}>25</option>
+                                                <option value={50}>50</option>
+                                                <option value={100}>100</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                                            disabled={currentPage === 1}
+                                            className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                                        >
+                                            Prev
+                                        </button>
+                                        
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                                let pageNum;
+                                                if (totalPages <= 5) {
+                                                    pageNum = i + 1;
+                                                } else if (currentPage <= 3) {
+                                                    pageNum = i + 1;
+                                                } else if (currentPage >= totalPages - 2) {
+                                                    pageNum = totalPages - 4 + i;
+                                                } else {
+                                                    pageNum = currentPage - 2 + i;
+                                                }
+                                                return (
+                                                    <button
+                                                        key={pageNum}
+                                                        onClick={() => setCurrentPage(pageNum)}
+                                                        className={`w-8 h-8 rounded-xl text-xs font-bold transition cursor-pointer ${
+                                                            currentPage === pageNum
+                                                                ? 'bg-red-700 text-white shadow-xs font-black'
+                                                                : 'bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200'
+                                                        }`}
+                                                    >
+                                                        {pageNum}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <button
+                                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                                            disabled={currentPage === totalPages}
+                                            className="px-3 py-1.5 border border-slate-200 text-xs font-bold text-slate-600 rounded-xl hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+                                        >
+                                            Next
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* LEGENDA & KETERANGAN MATRIKS SERTIFIKASI K3 */}
-            <div className="mt-6 bg-white rounded-3xl p-5 sm:p-6 border border-slate-200 shadow-sm animate-in fade-in">
-                <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100 flex-wrap gap-2">
-                    <div className="flex items-center gap-2.5">
-                        <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold">
-                            <Award size={18} />
+            {/* PORTALED EMPLOYEE CERTIFICATION DETAIL MODAL (WHEN ROW OR DETAIL IS CLICKED) */}
+            {selectedEmpDetail && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+                    <div className="bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl border border-slate-100 max-h-[90vh] overflow-y-auto space-y-5 animate-in zoom-in-95">
+                        {/* Header Profile */}
+                        <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                            <div className="flex items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-slate-900 to-red-900 text-white font-black text-sm flex items-center justify-center shrink-0 shadow-md">
+                                    {(selectedEmpDetail.employee.nama || selectedEmpDetail.employee.nama_lengkap || 'U').charAt(0)}
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900">
+                                        {selectedEmpDetail.employee.nama || selectedEmpDetail.employee.nama_lengkap}
+                                    </h3>
+                                    <p className="text-xs text-slate-500 font-medium mt-0.5">
+                                        {selectedEmpDetail.employee.jabatan || 'Staff'} • {selectedEmpDetail.employee.department || selectedEmpDetail.employee.departments?.name || 'Operasional'}
+                                    </p>
+                                    {selectedEmpDetail.employee.nomor_pegawai && (
+                                        <span className="text-[10px] font-mono text-slate-400 block mt-0.5">
+                                            No. Pegawai: {selectedEmpDetail.employee.nomor_pegawai}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            <button 
+                                onClick={() => setSelectedEmpDetail(null)} 
+                                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition"
+                            >
+                                <X size={18} />
+                            </button>
                         </div>
-                        <div>
-                            <h3 className="text-sm font-black text-slate-900">Keterangan & Legenda Sertifikasi Kompetensi K3</h3>
-                            <p className="text-[11px] text-slate-500 font-medium">Daftar kode & warna lisensi resmi operasional PT DEA GLOBAL NIAGA.</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={() => setShowAddTypeModal(true)}
-                        className="px-3.5 py-1.5 bg-slate-50 hover:bg-red-50 border border-slate-200 hover:border-red-200 text-slate-700 hover:text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                    >
-                        <Plus size={13} /> Tambah Jenis Sertifikasi Baru
-                    </button>
-                </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                    {[
-                        { code: 'POP', name: 'Pengawas Operasional Pertama', color: 'bg-emerald-50 text-emerald-700 border-emerald-300' },
-                        { code: 'POM', name: 'Pengawas Operasional Madya', color: 'bg-cyan-50 text-cyan-700 border-cyan-300' },
-                        { code: 'POU', name: 'Pengawas Operasional Utama', color: 'bg-indigo-50 text-indigo-700 border-indigo-300' },
-                        { code: 'AK3U', name: 'Ahli K3 Umum (Kemnaker/BNSP)', color: 'bg-red-50 text-red-700 border-red-300' },
-                        { code: 'AK3 Listrik', name: 'Ahli K3 Spesialis Listrik', color: 'bg-amber-50 text-amber-700 border-amber-300' },
-                        { code: 'Teknisi Listrik', name: 'Teknisi K3 Listrik & Daya', color: 'bg-orange-50 text-orange-700 border-orange-300' },
-                        { code: 'CSMS', name: 'Contractor Safety Management', color: 'bg-purple-50 text-purple-700 border-purple-300' },
-                        { code: 'SMKP', name: 'SMKP Minerba Audit', color: 'bg-rose-50 text-rose-700 border-rose-300' },
-                        { code: 'WAH / TKPK', name: 'Working at Height / Ketinggian', color: 'bg-sky-50 text-sky-700 border-sky-300' },
-                        { code: 'P3K / First Aid', name: 'Pertolongan Pertama (P3K)', color: 'bg-green-50 text-green-700 border-green-300' },
-                        { code: 'LOTOTO', name: 'Lock Out Tag Out Try Out', color: 'bg-violet-50 text-violet-700 border-violet-300' },
-                        { code: 'Pilot Drone', name: 'Sertifikasi Pilot Drone', color: 'bg-slate-50 text-slate-700 border-slate-300' },
-                        { code: 'Fiber Optic (FO)', name: 'Instalasi & Splicing FO', color: 'bg-blue-50 text-blue-700 border-blue-300' },
-                        { code: 'MTCNA/MTCRE', name: 'MikroTik Certified Network', color: 'bg-teal-50 text-teal-700 border-teal-300' },
-                        { code: 'Ubiquiti', name: 'Ubiquiti Enterprise Wireless', color: 'bg-blue-50 text-blue-700 border-blue-300' },
-                        { code: 'Doc Control', name: 'Document Control Administrasi', color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-300' },
-                    ].map((item, idx) => (
-                        <div key={idx} className="p-3 bg-slate-50/70 rounded-2xl border border-slate-100 flex flex-col gap-1 hover:bg-slate-50 transition">
-                            <div className="flex items-center justify-between">
-                                <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border ${item.color}`}>
-                                    {item.code}
+                        {/* Summary Badges */}
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600">Total Sertifikasi Dimiliki</span>
+                                <span className="text-sm font-black text-slate-900 px-2.5 py-0.5 bg-white rounded-lg border border-slate-200">
+                                    {selectedEmpDetail.certs.length} Sertifikat
                                 </span>
                             </div>
-                            <span className="text-xs font-bold text-slate-800 line-clamp-1">{item.name}</span>
+                            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-600">Status Validitas</span>
+                                <span className={`text-[11px] font-black px-2.5 py-1 rounded-full border ${getEmployeeOverallStatus(selectedEmpDetail.certs).color}`}>
+                                    {getEmployeeOverallStatus(selectedEmpDetail.certs).text}
+                                </span>
+                            </div>
                         </div>
-                    ))}
-                </div>
-            </div>
+
+                        {/* Certificates List */}
+                        <div className="space-y-3">
+                            <h4 className="text-xs font-black text-slate-400 uppercase tracking-widest">
+                                Daftar Rincian Sertifikat & Lisensi ({selectedEmpDetail.certs.length})
+                            </h4>
+
+                            {selectedEmpDetail.certs.length === 0 ? (
+                                <div className="p-8 text-center text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                    <Award size={32} className="mx-auto text-slate-300 mb-2" />
+                                    <p className="font-bold text-xs text-slate-600">Belum ada sertifikasi K3 yang tercatat</p>
+                                    <p className="text-[11px] text-slate-400 mt-0.5">Upload sertifikat baru untuk menambahkan lisensi kompetensi karyawan ini.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {selectedEmpDetail.certs.map((cert, cIdx) => {
+                                        const status = getStatusIndicator(cert);
+                                        const legendItem = getCertLegendItem(cert.nama_sertifikat || cert.certificate_name);
+                                        const hasFile = Boolean(cert.file_url || cert.file_path);
+
+                                        return (
+                                            <div 
+                                                key={cert.id || cIdx}
+                                                className="p-4 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-slate-300 transition flex flex-col md:flex-row items-start md:items-center justify-between gap-3.5"
+                                            >
+                                                <div className="flex items-start gap-3 min-w-0">
+                                                    <span 
+                                                        className="w-4 h-4 rounded-full shrink-0 mt-1 shadow-xs" 
+                                                        style={{ backgroundColor: legendItem.dot }}
+                                                    ></span>
+                                                    <div className="min-w-0">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <h5 className="text-xs font-black text-slate-900">
+                                                                {cert.nama_sertifikat || cert.certificate_name}
+                                                            </h5>
+                                                            <span className={`px-2 py-0.2 rounded-md text-[10px] font-black border ${status.color}`}>
+                                                                {status.text}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-[11px] text-slate-500 font-mono mt-0.5">
+                                                            No: <strong>{cert.nomor_sertifikat || cert.certificate_number || '-'}</strong> • <span className="text-slate-400">{cert.institusi_penerbit || 'Lembaga Resmi K3'}</span>
+                                                        </p>
+                                                        <p className="text-[11px] text-slate-600 mt-1 font-medium">
+                                                            Masa Berlaku: <strong>{cert.is_lifetime ? 'Seumur Hidup' : `${cert.tanggal_diterbitkan || '-'} s/d ${cert.tanggal_kadaluarsa || '-'}`}</strong>
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                                                    {hasFile ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setPreviewDoc({
+                                                                id: cert.id,
+                                                                url: cert.file_url || cert.file_path || cert.attachments || cert.url,
+                                                                name: `${selectedEmpDetail.employee.nama || selectedEmpDetail.employee.nama_lengkap} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
+                                                                userCerts: selectedEmpDetail.certs.map(c => ({
+                                                                    id: c.id,
+                                                                    url: c.file_url || c.file_path,
+                                                                    name: `${selectedEmpDetail.employee.nama || selectedEmpDetail.employee.nama_lengkap} - ${c.nama_sertifikat}`,
+                                                                    nama_sertifikat: c.nama_sertifikat,
+                                                                    nomor_sertifikat: c.nomor_sertifikat,
+                                                                    is_lifetime: c.is_lifetime,
+                                                                    tanggal_kadaluarsa: c.tanggal_kadaluarsa,
+                                                                    file_url: c.file_url || c.file_path,
+                                                                    karyawan: selectedEmpDetail.employee
+                                                                })),
+                                                                karyawan: selectedEmpDetail.employee
+                                                            })}
+                                                            className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-2xs border border-blue-200 cursor-pointer"
+                                                        >
+                                                            <Eye size={13} /> Pratinjau Berkas
+                                                        </button>
+                                                    ) : (
+                                                        <span className="text-[10px] text-slate-400 italic bg-slate-100 px-2 py-1 rounded-lg">Tidak ada berkas</span>
+                                                    )}
+
+                                                    {canManage && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                setCertToDelete({
+                                                                    id: cert.id,
+                                                                    nama_sertifikat: cert.nama_sertifikat || cert.certificate_name,
+                                                                    nomor_sertifikat: cert.nomor_sertifikat || cert.certificate_number,
+                                                                    institusi_penerbit: cert.institusi_penerbit,
+                                                                    tanggal_kadaluarsa: cert.tanggal_kadaluarsa,
+                                                                    is_lifetime: cert.is_lifetime,
+                                                                    employeeName: selectedEmpDetail.employee.nama || selectedEmpDetail.employee.nama_lengkap,
+                                                                    employeeDept: selectedEmpDetail.employee.department || selectedEmpDetail.employee.departments?.name,
+                                                                    employeeNip: selectedEmpDetail.employee.nomor_pegawai
+                                                                });
+                                                            }}
+                                                            className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-xl transition cursor-pointer"
+                                                            title="Hapus Sertifikat Ini"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
+                            {canManage && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        resetForm();
+                                        setSelectedUserId(selectedEmpDetail.employee.id);
+                                        setShowUploadModal(true);
+                                    }}
+                                    className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                                >
+                                    <Plus size={14} /> Upload Sertifikat Baru
+                                </button>
+                            )}
+                            <button
+                                type="button"
+                                onClick={() => setSelectedEmpDetail(null)}
+                                className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer ml-auto"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+            )}
 
             {/* PORTALED LINKEDIN-STYLE UPLOAD MODAL */}
             {showUploadModal && typeof document !== 'undefined' && createPortal(
