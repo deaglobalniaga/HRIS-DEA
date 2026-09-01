@@ -8,7 +8,7 @@ import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
   UserCheck, UserX, RefreshCw,
   TrendingUp, PieChart as PieChartIcon, CalendarDays, X,
-  Calendar, Bell, Gift, Building2
+  Calendar, Bell, Gift, Building2, Award
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -206,13 +206,13 @@ const HRGADashboard = () => {
           onClick={() => navigate('/organization?tab=departments')} 
         />
         <TopBadge 
-          icon={FileText} 
-          value={stats.totalDocuments || 0} 
-          title="Dokumen Karyawan" 
-          subtitle="Berkas & sertifikat karyawan" 
+          icon={Award} 
+          value={stats.totalCertificates || 0} 
+          title="Sertifikasi Karyawan" 
+          subtitle="Matriks kompetensi & lisensi" 
           colorClass="text-teal-600" 
           bgClass="bg-teal-50"
-          onClick={() => navigate('/organization?tab=employees')} 
+          onClick={() => navigate('/organization?tab=certifications')} 
         />
       </div>
 
