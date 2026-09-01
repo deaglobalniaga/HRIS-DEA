@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
+const { verifyToken, canManageLeaves } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/leaveController');
 const multer = require('multer');
 const path = require('path');
@@ -12,10 +12,10 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 router.get('/leave-status', verifyToken, controller.get_leave_status);
 router.get('/leaves', verifyToken, controller.get_leave_status);
 
-// POST Record Leave Block (Admin HRGA Only - pure log recorder)
-router.post('/leaves', verifyToken, isAdmin, upload.single('document'), controller.post_leaves);
+// POST Record Leave Block (HRGA & Superadmin Only - HSE forbidden)
+router.post('/leaves', verifyToken, canManageLeaves, upload.single('document'), controller.post_leaves);
 
-// DELETE Leave Record
-router.delete('/leaves/:id', verifyToken, isAdmin, controller.delete_leave);
+// DELETE Leave Record (HRGA & Superadmin Only - HSE forbidden)
+router.delete('/leaves/:id', verifyToken, canManageLeaves, controller.delete_leave);
 
 module.exports = router;

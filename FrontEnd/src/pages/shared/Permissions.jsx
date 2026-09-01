@@ -9,8 +9,16 @@ const Permissions = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const role = (user?.role || '').toLowerCase();
-  const isAdmin = ['admin', 'superadmin', 'super_admin', 'hr', 'hrga_admin', 'hse_admin'].includes(role) ||
-    role.includes('admin') || role.includes('hr');
+  const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+  const username = (user?.username || '').toLowerCase();
+
+  const isSuperAdmin = ['superadmin', 'super_admin'].includes(role) || username === 'arya_admin';
+  const isHSE = role === 'hse_admin' || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') || username === 'hse_admin';
+  const isHRAdmin = (['admin', 'hrga_admin', 'hr'].includes(role) || dept.includes('hr') || dept.includes('hrga') || username === 'admin') && !isHSE;
+
+  // Only HRGA and Superadmin are authorized to record or delete leaves. HSE is strictly forbidden.
+  const canManage = isSuperAdmin || isHRAdmin;
+  const isAdmin = isSuperAdmin || isHRAdmin;
 
   const [leaves, setLeaves] = useState([]);
   const [employees, setEmployees] = useState([]);

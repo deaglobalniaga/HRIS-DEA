@@ -147,7 +147,7 @@ cron.schedule('30 9 * * *', async () => {
             link: '/attendance-hub',
             is_read: false
         }));
-        await supabase.from('notifications').insert(notifRows).catch(() => {});
+        await supabase.from('notifications').insert(notifRows);
 
         // 5. Send push notifications
         if (subs && subs.length > 0) {

@@ -72,20 +72,72 @@ const createNotification = async ({ userId = null, targetRole = null, title, mes
     }
 };
 
-// Helper: Notify all admins/HR or Superadmin (Individual records per user for clean isolation)
-const notifyRole = async (role, title, message, type = 'info', link = null) => {
+// Helper: Notify specific role or department (Only users that actually belong to that role/department)
+const notifyRole = async (targetGroup, title, message, type = 'info', link = null) => {
     try {
-        let userQuery = supabase.from('users').select('id, roles(name)').neq('is_active', false);
-        if (role && role !== 'all') {
-            const { data: roleData } = await supabase.from('roles').select('id').ilike('name', role).maybeSingle();
-            if (roleData) {
-                userQuery = userQuery.eq('role_id', roleData.id);
-            }
+        const group = (targetGroup || 'all').toLowerCase();
+        
+        if (group === 'all') {
+            // General broadcast to all users
+            await supabase.from('notifications').insert({
+                user_id: null,
+                target_role: 'all',
+                title,
+                message,
+                type,
+                link,
+                is_read: false
+            });
+            return;
         }
-        const { data: users } = await userQuery;
-        if (users && users.length > 0) {
-            // Create a separate notification row for each user so delete/read actions are 100% private to each user
-            const records = users.map(u => ({
+
+        // Fetch all active users with their role and department
+        const { data: usersWithDept, error } = await supabase
+            .from('users')
+            .select(`
+                id,
+                username,
+                roles (name),
+                employees (
+                    department_id,
+                    departments (name)
+                )
+            `)
+            .neq('is_active', false);
+
+        if (error) {
+            console.error('Error fetching users for notifyRole:', error);
+            return;
+        }
+
+        // Filter target recipients based on targetGroup
+        const targetUsers = (usersWithDept || []).filter(u => {
+            const roleName = (u.roles?.name || '').toLowerCase();
+            const emp = Array.isArray(u.employees) ? u.employees[0] : u.employees;
+            const deptName = (emp?.departments?.name || '').toLowerCase();
+            const username = (u.username || '').toLowerCase();
+
+            const isSuperAdmin = roleName === 'superadmin' || username === 'arya_admin';
+            const isHR = (roleName === 'admin' && (deptName.includes('hr') || deptName.includes('hrga') || username === 'admin')) || isSuperAdmin;
+            const isHSE = (roleName === 'admin' && (deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || username === 'hse_admin')) || isSuperAdmin;
+
+            if (group === 'hr' || group === 'hrga' || group === 'hrga_admin') {
+                return isHR;
+            }
+            if (group === 'hse' || group === 'hse_admin') {
+                return isHSE;
+            }
+            if (group === 'superadmin' || group === 'super_admin') {
+                return isSuperAdmin;
+            }
+            if (group === 'admin') {
+                return roleName === 'admin' || isSuperAdmin;
+            }
+            return false;
+        });
+
+        if (targetUsers.length > 0) {
+            const records = targetUsers.map(u => ({
                 user_id: u.id,
                 target_role: null,
                 title,
@@ -95,20 +147,10 @@ const notifyRole = async (role, title, message, type = 'info', link = null) => {
                 is_read: false
             }));
             await supabase.from('notifications').insert(records);
-            await sendWebPush(users.map(u => u.id), title, message);
-        } else {
-            await supabase.from('notifications').insert({
-                user_id: null,
-                target_role: role || 'all',
-                title,
-                message,
-                type,
-                link,
-                is_read: false
-            });
+            await sendWebPush(targetUsers.map(u => u.id), title, message);
         }
     } catch (err) {
-        console.error(`Failed to notify role ${role}:`, err.message);
+        console.error(`Failed to notify role ${targetGroup}:`, err.message);
     }
 };
 
@@ -116,45 +158,104 @@ const notifyRole = async (role, title, message, type = 'info', link = null) => {
 exports.get_notifications = async (req, res) => {
     try {
         const userId = req.userId;
-        const userRole = (req.userRole || req.role || 'user').toLowerCase();
+        if (!userId) {
+            return res.json({ notifications: [], unreadCount: 0 });
+        }
 
         // 1. Auto cleanup notifications older than 30 days
         const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
         await supabase.from('notifications').delete().lt('created_at', thirtyDaysAgo);
 
-        // 2. Determine which broadcast target_roles apply to this user
-        const allowedRoles = ['all'];
-        if (['superadmin', 'super_admin'].includes(userRole)) {
-            allowedRoles.push('superadmin', 'super_admin', 'admin', 'hr', 'hrga_admin', 'hse_admin', 'hse');
-        } else if (['hse_admin', 'hse'].includes(userRole)) {
-            allowedRoles.push('hse_admin', 'hse', 'admin');
-        } else if (['admin', 'hrga_admin', 'hr'].includes(userRole)) {
-            allowedRoles.push('admin', 'hrga_admin', 'hr');
+        // 2. Fetch current user's profile to know exact role, department, and full name
+        const { data: userProfile } = await supabase
+            .from('users')
+            .select(`
+                id,
+                username,
+                roles (name),
+                employees (
+                    nama_lengkap,
+                    departments (name)
+                )
+            `)
+            .eq('id', userId)
+            .maybeSingle();
+
+        const roleName = (userProfile?.roles?.name || req.userRole || 'user').toLowerCase();
+        const emp = Array.isArray(userProfile?.employees) ? userProfile.employees[0] : userProfile?.employees;
+        const deptName = (emp?.departments?.name || '').toLowerCase();
+        const username = (userProfile?.username || '').toLowerCase();
+        const myFullName = (emp?.nama_lengkap || '').toLowerCase();
+
+        const isSuperAdmin = roleName === 'superadmin' || username === 'arya_admin';
+        const isHSE = username === 'hse_admin' || deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || deptName.includes('pengelola k3');
+        const isHR = (roleName === 'admin' && (deptName.includes('hr') || deptName.includes('hrga') || username === 'admin')) || isSuperAdmin;
+
+        // 3. Determine which broadcast target_roles apply to this user
+        const allowedTargetRoles = ['all'];
+        if (isSuperAdmin) {
+            allowedTargetRoles.push('superadmin', 'admin', 'hr', 'hrga', 'hse', 'hse_admin');
+        } else if (isHSE) {
+            allowedTargetRoles.push('hse', 'hse_admin');
+        } else if (isHR) {
+            allowedTargetRoles.push('hr', 'hrga', 'hrga_admin', 'admin');
         } else {
-            allowedRoles.push('user', 'karyawan', 'employee');
+            allowedTargetRoles.push('user', 'karyawan', 'employee');
         }
 
-        // Broadcast condition: user_id must be null AND target_role in allowed roles
-        const roleFilters = allowedRoles.map(r => `and(user_id.is.null,target_role.ilike.${r})`).join(',');
-
+        const roleFilters = allowedTargetRoles.map(r => `and(user_id.is.null,target_role.ilike.${r})`).join(',');
+        
         let query = supabase
             .from('notifications')
             .select('*')
             .order('created_at', { ascending: false })
-            .limit(50);
+            .limit(60);
 
-        if (userId) {
-            query = query.or(`user_id.eq.${userId},${roleFilters}`);
-        } else {
-            query = query.or(roleFilters);
-        }
+        query = query.or(`user_id.eq.${userId},${roleFilters}`);
 
         const { data, error } = await query;
         if (error) throw error;
 
-        const notifications = data || [];
-        const unreadCount = notifications.filter(n => !n.is_read).length;
+        let notifications = data || [];
 
+        // Strict Role Information Boundary Filtering:
+        notifications = notifications.filter(n => {
+            const title = (n.title || '').toLowerCase();
+            const msg = (n.message || '').toLowerCase();
+            const isLeaveRelated = title.includes('cuti') || title.includes('izin') || title.includes('roster') || msg.includes('cuti') || msg.includes('roster') || msg.includes('libur 13/1');
+
+            // 1. HSE Boundary: HSE role must NEVER see other employees' leave/cuti requests
+            if (isHSE && !isSuperAdmin) {
+                if (isLeaveRelated) {
+                    // Only show if it's about the HSE user's own leave
+                    const isOwnLeave = (myFullName && msg.includes(myFullName)) || (username && msg.includes(username));
+                    return isOwnLeave;
+                }
+            }
+
+            // 2. HRGA Boundary: HRGA should not receive HSE-only certification verification requests
+            if (isHR && !isSuperAdmin && !isHSE) {
+                if (title === 'pengajuan sertifikasi' && n.target_role === 'hse_admin') {
+                    return false;
+                }
+            }
+
+            // 3. Regular Employee Boundary: Regular employees can only see their own personal notifications or 'all' broadcasts
+            if (!isHR && !isHSE && !isSuperAdmin) {
+                if (n.target_role && n.target_role !== 'all') {
+                    return false;
+                }
+                // If it's a leave notification, ensure it's about themselves
+                if (isLeaveRelated) {
+                    const isOwnLeave = (myFullName && msg.includes(myFullName)) || (username && msg.includes(username)) || n.user_id === userId;
+                    return isOwnLeave;
+                }
+            }
+
+            return true;
+        });
+
+        const unreadCount = notifications.filter(n => !n.is_read).length;
         res.json({ notifications, unreadCount });
     } catch (err) {
         console.error('Get notifications error:', err);

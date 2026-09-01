@@ -146,6 +146,50 @@ const optionalAuth = async (req, res, next) => {
     next();
 };
 
+// Dedicated Leave & Roster Guard: HSE role is strictly forbidden from recording or deleting leaves
+const canManageLeaves = async (req, res, next) => {
+    try {
+        const userId = req.userId;
+        const role = (req.userRole || req.user?.role || '').toLowerCase();
+
+        if (['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super')) {
+            return next();
+        }
+
+        const { data: userProfile } = await supabase
+            .from('users')
+            .select(`
+                username,
+                roles (name),
+                employees (
+                    departments (name)
+                )
+            `)
+            .eq('id', userId)
+            .maybeSingle();
+
+        const roleName = (userProfile?.roles?.name || role).toLowerCase();
+        const username = (userProfile?.username || '').toLowerCase();
+        const emp = Array.isArray(userProfile?.employees) ? userProfile.employees[0] : userProfile?.employees;
+        const deptName = (emp?.departments?.name || '').toLowerCase();
+
+        const isSuper = roleName === 'superadmin' || username === 'arya_admin';
+        const isHSE = username === 'hse_admin' || deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || deptName.includes('pengelola k3');
+        const isHR = (roleName === 'admin' && (deptName.includes('hr') || deptName.includes('hrga') || username === 'admin')) || isSuper;
+
+        if (!isHSE && (isSuper || isHR)) {
+            return next();
+        }
+
+        return res.status(403).json({ 
+            message: 'Akses ditolak: Hanya HRGA dan Superadmin yang berwenang mengelola pencatatan cuti/roster. Role HSE tidak memiliki akses ini.' 
+        });
+    } catch (err) {
+        console.error('canManageLeaves check error:', err);
+        return res.status(500).json({ message: 'Gagal memvalidasi hak akses cuti.' });
+    }
+};
+
 module.exports = {
     verifyToken,
     optionalAuth,
@@ -153,5 +197,6 @@ module.exports = {
     isSuperAdmin,
     isHRGA,
     isHSE,
-    isSelfOrAdmin
+    isSelfOrAdmin,
+    canManageLeaves
 };

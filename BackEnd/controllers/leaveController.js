@@ -1,5 +1,5 @@
 const supabase = require('../config/supabase');
-const { notifyRole } = require('./notificationController');
+const { notifyRole, createNotification } = require('./notificationController');
 const { uploadToSupabaseStorage } = require('../utils/storage');
 const { getWitaDateStr } = require('../utils/dateTime');
 
@@ -115,8 +115,21 @@ exports.post_leaves = async (req, res) => {
 
         // Fetch user info for notification safely
         try {
-            const { data: empData } = await supabase.from('employees').select('nama_lengkap').eq('id', employee_id).single();
+            const { data: empData } = await supabase.from('employees').select('nama_lengkap, user_id').eq('id', employee_id).maybeSingle();
             const empName = empData?.nama_lengkap || 'Karyawan';
+
+            // 1. Notify the individual employee directly
+            if (empData?.user_id) {
+                await createNotification({
+                    userId: empData.user_id,
+                    title: 'Pencatatan Cuti / Roster',
+                    message: `Jadwal ${normalizedLeaveType} Anda (${start_date} s/d ${end_date}) telah dicatat oleh HRGA.`,
+                    type: 'leave_request',
+                    link: '/calendar'
+                });
+            }
+
+            // 2. Notify HRGA & Superadmin only (HSE and other employees will NOT receive this)
             await notifyRole('hr', 'Pencatatan Cuti / Roster', `${empName} telah dicatat ${normalizedLeaveType} (${start_date} s/d ${end_date}).`, 'leave_request', '/calendar');
         } catch (notifErr) {
             console.warn('Notify leave error (non-fatal):', notifErr.message);
