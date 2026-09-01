@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
     Award, Upload, Trash2, Search, FileText, Plus, Eye, CheckCircle2, 
     AlertTriangle, X, RefreshCw, Filter, ShieldCheck, Download,
-    ExternalLink, Building, Calendar, Check, HelpCircle
+    ExternalLink, Building, Calendar, Check, HelpCircle, FileCheck
 } from 'lucide-react';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';

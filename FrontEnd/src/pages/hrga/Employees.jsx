@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Search, Filter, MoreVertical, Briefcase, UserPlus, X, AlertCircle, Upload, Edit, Trash2, ArrowRight, ArrowLeft, Download, FileSpreadsheet } from 'lucide-react';
+import { Search, Filter, MoreVertical, Briefcase, UserPlus, X, AlertCircle, Upload, Edit, Trash2, ArrowRight, ArrowLeft, Download, FileSpreadsheet, Eye } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
