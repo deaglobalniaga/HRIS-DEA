@@ -22,12 +22,13 @@ const verifyToken = async (req, res, next) => {
         const secret = await getJwtSecret();
         let decoded = null;
         try {
-            decoded = jwt.verify(tokenString, secret);
+            // 5 minutes (300 seconds) clock tolerance prevents clock skew between client & server from causing false expirations
+            decoded = jwt.verify(tokenString, secret, { clockTolerance: 300 });
         } catch (err) {
             // If primary token failed and a cookie exists (or vice versa), try cookie as fallback
             if (authHeader && req.cookies?.access_token && tokenString !== req.cookies.access_token) {
                 try {
-                    decoded = jwt.verify(req.cookies.access_token, secret);
+                    decoded = jwt.verify(req.cookies.access_token, secret, { clockTolerance: 300 });
                 } catch (fErr) {}
             }
 
@@ -135,7 +136,7 @@ const optionalAuth = async (req, res, next) => {
     if (tokenString) {
         try {
             const secret = await getJwtSecret();
-            const decoded = jwt.verify(tokenString, secret);
+            const decoded = jwt.verify(tokenString, secret, { clockTolerance: 300 });
             if (decoded) {
                 req.user = decoded;
                 req.userId = decoded.id;

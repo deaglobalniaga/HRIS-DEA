@@ -14,18 +14,25 @@ export const setAuthToken = (token) => {
     }
 };
 
+let isRedirecting = false;
+
 // Response interceptor for auto-logout on 401
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        const isLoginRequest = error.config && error.config.url && error.config.url.includes('/auth/login');
+        const url = error.config?.url || '';
+        const isAuthRequest = url.includes('/auth/login') || url.includes('/auth/forgot-password') || url.includes('/auth/reset-password') || url.includes('/auth/verify-reset-otp');
         
-        if (error.response && error.response.status === 401 && !isLoginRequest) {
+        if (error.response && error.response.status === 401 && !isAuthRequest) {
             localStorage.removeItem('token');
             localStorage.removeItem('user_data');
-            // Redirect to login page immediately
-            if (window.location.pathname !== '/login') {
-                window.location.href = '/login';
+            setAuthToken(null);
+
+            // Avoid loop if already redirecting or already on login page
+            if (!isRedirecting && window.location.pathname !== '/login') {
+                isRedirecting = true;
+                setTimeout(() => { isRedirecting = false; }, 3000);
+                window.location.replace('/login');
             }
         }
         return Promise.reject(error);

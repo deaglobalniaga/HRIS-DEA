@@ -27,29 +27,27 @@ export const AuthProvider = ({ children }) => {
         if (token) {
             setAuthToken(token);
 
-            // Auto-logout logic based on JWT expiry
+            // Auto-logout timer based on JWT expiry (with safe clock-skew guard)
             try {
                 const payload = JSON.parse(atob(token.split('.')[1]));
                 const expiryTime = payload.exp * 1000;
                 const timeout = expiryTime - Date.now();
 
-                if (timeout <= 0) {
-                    logout();
-                    window.location.href = '/login';
-                    return;
-                } else {
+                // Only set auto-logout timer if timeout is in the future (> 10s)
+                // Never aggressively logout based solely on client clock; let server verify via fetchProfile
+                if (timeout > 10000) {
                     const timer = setTimeout(() => {
-                        logout();
-                        window.location.href = '/login'; // Auto redirect to login upon expiry
+                        logout(true);
                     }, timeout);
 
                     fetchProfile();
                     return () => clearTimeout(timer);
+                } else {
+                    fetchProfile();
                 }
             } catch (e) {
-                console.error("Token parse error", e);
-                logout();
-                window.location.href = '/login';
+                console.warn("Token inspection note:", e.message);
+                fetchProfile();
             }
         } else {
             setAuthToken(null);
@@ -61,13 +59,14 @@ export const AuthProvider = ({ children }) => {
     const fetchProfile = async () => {
         try {
             const res = await api.get('/auth/profile');
-            setUser(res.data);
-            localStorage.setItem('user_data', JSON.stringify(res.data));
+            if (res.data) {
+                setUser(res.data);
+                localStorage.setItem('user_data', JSON.stringify(res.data));
+            }
         } catch (err) {
             console.error('Fetch profile error:', err);
             if (err.response && err.response.status === 401) {
-                logout();
-                window.location.href = '/login';
+                logout(true);
             }
         } finally {
             setLoading(false);
@@ -82,23 +81,28 @@ export const AuthProvider = ({ children }) => {
         setAuthToken(newToken);
         localStorage.setItem('token', newToken);
         localStorage.setItem('user_data', JSON.stringify(userData));
+        setLoading(false);
     };
 
-    const logout = async () => {
+    const logout = async (redirect = true) => {
+        // Synchronously wipe storage and state immediately to prevent redirect loop
+        localStorage.removeItem('token');
+        localStorage.removeItem('user_data');
+        setAuthToken(null);
+        setToken(null);
+        setUser(null);
+
         setIsLoggingOut(true);
         try {
             await api.post('/auth/logout').catch(() => {});
         } catch (e) {}
 
         setTimeout(() => {
-            setToken(null);
-            setUser(null);
-            localStorage.removeItem('token');
-            localStorage.removeItem('user_data');
-            setAuthToken(null);
             setIsLoggingOut(false);
-            window.location.href = '/login';
-        }, 700);
+            if (redirect && window.location.pathname !== '/login') {
+                window.location.replace('/login');
+            }
+        }, 350);
     };
 
     return (

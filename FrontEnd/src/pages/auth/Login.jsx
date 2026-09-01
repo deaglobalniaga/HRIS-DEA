@@ -206,13 +206,13 @@ const Login = () => {
             setLockoutLevel(0);
             setLockoutUntil(0);
 
-            // Trigger Smooth Login Transition Overlay
+            // Synchronously store credentials in context & storage first
+            login(response.data.token, response.data.user);
             setIsLoggingIn(true);
             addToast(`Selamat datang kembali, ${response.data.user?.nama || 'User'}!`, 'success');
             setTimeout(() => {
-                login(response.data.token, response.data.user);
-                navigate('/dashboard');
-            }, 650);
+                navigate('/dashboard', { replace: true });
+            }, 350);
         } catch (error) {
             console.error('Login error:', error);
             handleFailedAttempt();

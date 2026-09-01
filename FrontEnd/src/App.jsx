@@ -28,10 +28,11 @@ import PushManager from './components/common/PushManager';
 import UniversalErrorPage from './components/common/UniversalErrorPage';
 import SplashPreloader from './components/common/SplashPreloader';
 
+import AuthTransitionOverlay from './components/common/AuthTransitionOverlay';
 import { useAuth } from './context/AuthContext';
 
 function AppRoutes() {
-  const { token, user } = useAuth();
+  const { token, user, loading } = useAuth();
   const isAuthenticated = !!token;
   const role = (user?.role || '').toLowerCase();
   const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
@@ -40,6 +41,11 @@ function AppRoutes() {
   const isHRAdmin = isAdmin;
   const canAccessOrg = isAdmin;
 
+  // Prevent premature redirect bounce while initializing credentials
+  if (loading && token) {
+    return <AuthTransitionOverlay />;
+  }
+
   return (
     <>
       <SplashPreloader />
@@ -47,10 +53,10 @@ function AppRoutes() {
       <Routes>
         {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" />} />
-        <Route path="/signup" element={!isAuthenticated ? <Signup /> : <Navigate to="/dashboard" />} />
-        <Route path="/forgot-password" element={!isAuthenticated ? <ForgotPassword /> : <Navigate to="/dashboard" />} />
-        <Route path="/reset-password" element={!isAuthenticated ? <ResetPassword /> : <Navigate to="/dashboard" />} />
+        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/signup" element={!isAuthenticated ? <Signup /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/forgot-password" element={!isAuthenticated ? <ForgotPassword /> : <Navigate to="/dashboard" replace />} />
+        <Route path="/reset-password" element={!isAuthenticated ? <ResetPassword /> : <Navigate to="/dashboard" replace />} />
         
         {/* Universal Error & Status Pages (400+) */}
         <Route path="/error" element={<UniversalErrorPage />} />
@@ -68,7 +74,7 @@ function AppRoutes() {
         <Route path="/inventory" element={<Navigate to="/dashboard" replace />} />
 
         {/* Protected HRIS Routes */}
-        <Route path="/" element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" />}>
+        <Route path="/" element={isAuthenticated ? <MainLayout /> : <Navigate to="/login" replace />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="attendance-hub" element={<AttendanceHub />} />

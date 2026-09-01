@@ -10,13 +10,20 @@ import React, { useState, useEffect } from 'react';
  * - No loading/progress bar
  * - Seamless exit dissolve
  */
-export default function SplashPreloader({ onFinish, minDuration = 1500 }) {
+export default function SplashPreloader({ onFinish, minDuration = 1200 }) {
   const [logoEntered, setLogoEntered] = useState(false);
   const [textRevealed, setTextRevealed] = useState(false);
   const [phase, setPhase] = useState('init'); // 'init' | 'logo' | 'text' | 'exit'
-  const [visible, setVisible] = useState(true);
+  const [visible, setVisible] = useState(() => {
+    // Only display once per browser tab session to prevent flashing during app usage
+    const hasShown = sessionStorage.getItem('hris_splash_shown');
+    return !hasShown;
+  });
 
   useEffect(() => {
+    if (!visible) return;
+    sessionStorage.setItem('hris_splash_shown', 'true');
+
     // 1. Logo morph/rotate entrance immediately
     const tLogo = setTimeout(() => {
       setLogoEntered(true);
