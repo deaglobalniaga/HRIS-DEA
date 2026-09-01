@@ -431,26 +431,14 @@ exports.clock_in_out = async (req, res) => {
         const checkOutEnd = companySettings.checkOutEnd || '23:59';
         const maxLateMinutes = parseInt(companySettings.maxLateMinutes, 10) || 30;
 
-        // Local WITA Time Calculation
-        const formatter = new Intl.DateTimeFormat('en-US', {
-            timeZone: 'Asia/Makassar',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false
-        });
-        const parts = formatter.formatToParts(new Date());
-        const timeMap = {};
-        parts.forEach(p => timeMap[p.type] = p.value);
-
-        const today = `${timeMap.year}-${timeMap.month}-${timeMap.day}`;
-        const currentHour = parseInt(timeMap.hour, 10);
-        const currentMinute = parseInt(timeMap.minute, 10);
-        const currentTotalMinutes = currentHour * 60 + currentMinute;
-        const currentTimeDisplay = `${String(currentHour).padStart(2, '0')}:${String(currentMinute).padStart(2, '0')} WITA`;
+        // Local WITA Time Calculation via central dateTime utility
+        const { getWitaDateStr, getWitaTimeStr } = require('../utils/dateTime');
+        const today = getWitaDateStr();
+        const currentTimeDisplay = `${getWitaTimeStr()} WITA`;
         const now = new Date().toISOString();
+
+        const [currH, currM] = getWitaTimeStr().split(':').map(Number);
+        const currentTotalMinutes = (currH || 0) * 60 + (currM || 0);
 
         const parseTimeToMinutes = (tStr) => {
             if (!tStr) return 0;
@@ -464,7 +452,7 @@ exports.clock_in_out = async (req, res) => {
         const outStartMin = parseTimeToMinutes(checkOutStart);
         const outEndMin = parseTimeToMinutes(checkOutEnd);
 
-        // Check if employee already clocked in today
+        // Check if employee already has attendance record for today (strictly 1 row per employee per day)
         const { data: existingLog, error: fetchErr } = await supabase
             .from('attendance_logs')
             .select('*')
@@ -489,7 +477,24 @@ exports.clock_in_out = async (req, res) => {
         let resultLog = null;
 
         if (isClockOutMode) {
-            // CLOCK OUT SCHEDULE WINDOW VALIDATION
+            // CLOCK OUT MODE
+
+            // 1. MUST HAVE CHECKED IN FIRST TODAY
+            if (!existingLog || !existingLog.check_in) {
+                return res.status(400).json({
+                    message: `Presensi Pulang ditolak: Anda belum melakukan Presensi Masuk (Check-In) hari ini. Presensi Pulang hanya dapat diproses setelah Check-In tercatat agar total jam kerja dapat terhitung dengan benar.`
+                });
+            }
+
+            // 2. ONLY 1 CHECK-OUT ALLOWED PER DAY
+            if (existingLog.check_out) {
+                const outTime = new Date(existingLog.check_out).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' });
+                return res.status(400).json({
+                    message: `Anda sudah menyelesaikan Presensi Pulang (Check-Out) hari ini pada pukul ${outTime} WITA. Presensi Pulang hanya dapat dilakukan 1 kali sehari.`
+                });
+            }
+
+            // 3. CLOCK OUT SCHEDULE WINDOW VALIDATION
             if (currentTotalMinutes < outStartMin) {
                 return res.status(400).json({
                     message: `Presensi pulang ditolak: Belum memasuki jadwal jam kepulangan kantor (Jadwal pulang buka mulai jam ${checkOutStart} WITA, waktu saat ini: ${currentTimeDisplay}).`
@@ -502,20 +507,7 @@ exports.clock_in_out = async (req, res) => {
                 });
             }
 
-            // 2. CHECK-IN MANDATORY VALIDATION: Must have checked in today first!
-            if (!existingLog || !existingLog.check_in) {
-                return res.status(400).json({
-                    message: `Presensi pulang ditolak: Anda belum melakukan Presensi Masuk (Check-In) hari ini. Presensi Pulang tidak dapat diproses tanpa data Check-In agar total jam kerja dapat terhitung dengan benar. Silakan hubungi HRGA untuk pengajuan penyesuaian kehadiran.`
-                });
-            }
-
-            if (existingLog.check_out) {
-                return res.status(400).json({
-                    message: 'Anda sudah menyelesaikan presensi pulang hari ini.'
-                });
-            }
-
-            // 3. Update existing morning check-in log with checkout time
+            // 4. Update existing morning check-in log with checkout time
             actionType = 'Clock Out';
             const { data, error } = await supabase
                 .from('attendance_logs')
@@ -531,19 +523,24 @@ exports.clock_in_out = async (req, res) => {
             resultLog = data;
         } else {
             // CLOCK IN MODE
+
+            // 1. ONLY 1 CHECK-IN ALLOWED PER DAY
             if (existingLog) {
+                const inTime = existingLog.check_in 
+                    ? new Date(existingLog.check_in).toLocaleTimeString('id-ID', { timeZone: 'Asia/Makassar', hour: '2-digit', minute: '2-digit' }) 
+                    : '';
                 if (existingLog.check_in && !existingLog.check_out) {
                     return res.status(400).json({
-                        message: 'Anda sudah melakukan presensi masuk hari ini. Saat ini menunggu jadwal jam pulang kantor.'
+                        message: `Anda sudah melakukan Presensi Masuk (Check-In) hari ini pada pukul ${inTime} WITA. Presensi Masuk hanya dapat dilakukan 1 kali per hari. Harap tunggu jam kepulangan kantor untuk melakukan Presensi Pulang.`
                     });
                 } else if (existingLog.check_in && existingLog.check_out) {
                     return res.status(400).json({
-                        message: 'Anda sudah menyelesaikan seluruh presensi masuk dan pulang untuk hari ini.'
+                        message: 'Anda sudah menyelesaikan seluruh rangkaian presensi masuk dan pulang untuk hari ini. Presensi hanya berlaku 1 kali per hari.'
                     });
                 }
             }
 
-            // CLOCK IN SCHEDULE WINDOW VALIDATION
+            // 2. CLOCK IN SCHEDULE WINDOW VALIDATION
             if (currentTotalMinutes < inStartMin) {
                 return res.status(400).json({
                     message: `Presensi masuk ditolak: Belum memasuki jadwal jam masuk kerja (Jadwal buka jam ${checkInStart} WITA, waktu saat ini: ${currentTimeDisplay}).`
@@ -574,7 +571,14 @@ exports.clock_in_out = async (req, res) => {
                 .select('*')
                 .single();
 
-            if (error) throw error;
+            if (error) {
+                if (error.code === '23505') { // Postgres Unique Violation
+                    return res.status(400).json({
+                        message: 'Presensi Masuk sudah pernah tercatat untuk hari ini. Presensi masuk hanya dapat dilakukan 1 kali per hari.'
+                    });
+                }
+                throw error;
+            }
             resultLog = data;
         }
 
