@@ -54,7 +54,7 @@ const Timesheet = () => {
             const rawList = res.data?.report || res.data?.data || [];
             const mappedData = rawList.map(item => {
                 const presentDays = item.hadir ?? item.present_days ?? 0;
-                const totalHours = item.total_hours ?? (presentDays * 8);
+                const totalHours = (item.total_hours !== undefined && item.total_hours !== null) ? item.total_hours : 0;
                 const lateHours = item.late_hours ?? (item.late_minutes ? (item.late_minutes / 60).toFixed(1) : 0);
                 const effectiveWorkDays = 20; // 20 working days standard per month
                 const attendanceRate = Math.min(100, ((presentDays / effectiveWorkDays) * 100)).toFixed(1);

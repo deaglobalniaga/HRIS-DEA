@@ -92,10 +92,10 @@ exports.get_attendance_monthly = async (req, res) => {
             const absentDays = Math.max(0, totalWorkDays - hadirDays - cutiDays - sakitDays - izinDays);
             let totalHours = 0;
             const mappedLogs = empLogs.map(l => {
-                let dur = 8.0;
+                let dur = 0.0;
                 if (l.check_in && l.check_out) {
                     const diff = (new Date(l.check_out) - new Date(l.check_in)) / (1000 * 60 * 60);
-                    dur = (diff > 0 && diff < 24) ? +diff.toFixed(1) : 8.0;
+                    dur = (diff > 0 && diff < 24) ? +diff.toFixed(1) : 0.0;
                 }
                 totalHours += dur;
                 return {

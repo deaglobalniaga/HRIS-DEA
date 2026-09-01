@@ -99,9 +99,6 @@ exports.get_dashboard_stats = async (req, res) => {
                         totalHours += dur;
                         countWithHours++;
                     }
-                } else if (l.check_in) {
-                    totalHours += 8.0;
-                    countWithHours++;
                 }
             });
 
