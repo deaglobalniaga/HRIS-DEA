@@ -15,4 +15,7 @@ router.put('/notifications/read-all', verifyToken, controller.mark_all_read);
 // DELETE all user notifications
 router.delete('/notifications/clear-all', verifyToken, controller.delete_all);
 
+// DELETE single notification for current user
+router.delete('/notifications/:id', verifyToken, controller.delete_notification);
+
 module.exports = router;

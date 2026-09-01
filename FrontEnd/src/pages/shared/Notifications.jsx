@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Bell, CheckCircle, Info, AlertTriangle, AlertCircle, CalendarClock, 
-  Loader2, RefreshCw, ShieldAlert, ArrowRight, ExternalLink 
+  Loader2, RefreshCw, ShieldAlert, ArrowRight, ExternalLink, Trash2 
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
@@ -30,19 +30,34 @@ const Notifications = () => {
   const handleMarkAllRead = async () => {
     try {
       await api.put('/hris/notifications/read-all');
-      fetchNotifications();
+      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     } catch (err) {
-      console.error(err);
+      console.error('Mark all read error:', err);
     }
   };
 
   const handleClearAll = async () => {
-    if (!window.confirm('Hapus semua riwayat notifikasi?')) return;
+    if (!window.confirm('Hapus semua riwayat notifikasi untuk akun Anda?')) return;
     try {
+      setLoading(true);
       await api.delete('/hris/notifications/clear-all');
-      fetchNotifications();
+      setNotifications([]);
     } catch (err) {
-      console.error(err);
+      console.error('Clear all notifications error:', err);
+      fetchNotifications();
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteSingle = async (e, notifId) => {
+    e.stopPropagation();
+    try {
+      setNotifications(prev => prev.filter(n => n.id !== notifId));
+      await api.delete(`/hris/notifications/${notifId}`);
+    } catch (err) {
+      console.error('Delete notif error:', err);
+      fetchNotifications();
     }
   };
 
@@ -136,9 +151,10 @@ const Notifications = () => {
           </button>
           <button
             onClick={handleClearAll}
-            className="px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"
+            disabled={loading || notifications.length === 0}
+            className="px-4 py-2.5 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer"
           >
-            Hapus Semua
+            <Trash2 size={15} /> Hapus Semua
           </button>
         </div>
       </div>
@@ -180,14 +196,23 @@ const Notifications = () => {
                           <span className="w-2 h-2 rounded-full bg-red-600 shrink-0" />
                         )}
                       </div>
-                      <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-1 rounded-md">
-                        {new Date(notif.created_at).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold text-slate-400 whitespace-nowrap bg-slate-50 px-2 py-1 rounded-md">
+                          {new Date(notif.created_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                        <button
+                          onClick={(e) => handleDeleteSingle(e, notif.id)}
+                          title="Hapus notifikasi ini"
+                          className="p-1 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </div>
                     <p className={`text-xs ${notif.is_read ? 'text-slate-500 font-medium' : 'text-slate-700 font-bold'} leading-relaxed`}>
                       {notif.message}

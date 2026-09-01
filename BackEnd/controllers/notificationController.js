@@ -252,7 +252,21 @@ exports.get_notifications = async (req, res) => {
                 }
             }
 
+            // 4. Exclude notifications that current user has dismissed / deleted
+            if (Array.isArray(n.dismissed_by) && n.dismissed_by.includes(userId)) {
+                return false;
+            }
+
             return true;
+        });
+
+        // Map dynamic read status for this user
+        notifications = notifications.map(n => {
+            const isRead = n.is_read || (Array.isArray(n.read_by) && n.read_by.includes(userId));
+            return {
+                ...n,
+                is_read: Boolean(isRead)
+            };
         });
 
         const unreadCount = notifications.filter(n => !n.is_read).length;
@@ -267,10 +281,26 @@ exports.get_notifications = async (req, res) => {
 exports.mark_read = async (req, res) => {
     try {
         const { id } = req.params;
-        await supabase
+        const userId = req.userId;
+
+        const { data: notif } = await supabase
             .from('notifications')
-            .update({ is_read: true })
-            .eq('id', id);
+            .select('id, user_id, read_by')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (!notif) {
+            return res.json({ message: 'Notification not found' });
+        }
+
+        if (notif.user_id === userId) {
+            await supabase.from('notifications').update({ is_read: true }).eq('id', id);
+        } else {
+            const readBy = Array.isArray(notif.read_by) ? notif.read_by : [];
+            if (userId && !readBy.includes(userId)) {
+                await supabase.from('notifications').update({ read_by: [...readBy, userId] }).eq('id', id);
+            }
+        }
 
         res.json({ message: 'Notification marked as read' });
     } catch (err) {
@@ -278,15 +308,34 @@ exports.mark_read = async (req, res) => {
     }
 };
 
-// PUT /api/notifications/read-all — Mark all notifications as read
+// PUT /api/notifications/read-all — Mark all notifications as read for current user
 exports.mark_all_read = async (req, res) => {
     try {
         const userId = req.userId;
         if (userId) {
+            // 1. Mark personal notifications as read
             await supabase
                 .from('notifications')
                 .update({ is_read: true })
                 .eq('user_id', userId);
+
+            // 2. Mark broadcast notifications as read for this user
+            const { data: broadcasts } = await supabase
+                .from('notifications')
+                .select('id, read_by')
+                .is('user_id', null);
+
+            if (broadcasts && broadcasts.length > 0) {
+                for (const b of broadcasts) {
+                    const readBy = Array.isArray(b.read_by) ? b.read_by : [];
+                    if (!readBy.includes(userId)) {
+                        await supabase
+                            .from('notifications')
+                            .update({ read_by: [...readBy, userId] })
+                            .eq('id', b.id);
+                    }
+                }
+            }
         }
 
         res.json({ message: 'All notifications marked as read' });
@@ -295,19 +344,77 @@ exports.mark_all_read = async (req, res) => {
     }
 };
 
-// DELETE /api/notifications/clear-all — Delete all user notifications
+// DELETE /api/notifications/clear-all — Delete all notifications for current user
 exports.delete_all = async (req, res) => {
     try {
         const userId = req.userId;
         if (userId) {
+            // 1. Delete all individual notifications specifically belonging to this user
             await supabase
                 .from('notifications')
                 .delete()
                 .eq('user_id', userId);
+
+            // 2. For broadcast notifications (user_id IS NULL), mark as dismissed for this user
+            const { data: broadcasts } = await supabase
+                .from('notifications')
+                .select('id, dismissed_by')
+                .is('user_id', null);
+
+            if (broadcasts && broadcasts.length > 0) {
+                for (const b of broadcasts) {
+                    const dismissed = Array.isArray(b.dismissed_by) ? b.dismissed_by : [];
+                    if (!dismissed.includes(userId)) {
+                        await supabase
+                            .from('notifications')
+                            .update({ dismissed_by: [...dismissed, userId] })
+                            .eq('id', b.id);
+                    }
+                }
+            }
         }
 
         res.json({ message: 'All notifications deleted' });
     } catch (err) {
+        console.error('Delete all notifications error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// DELETE /api/notifications/:id — Delete single notification for current user
+exports.delete_notification = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.userId;
+        if (!userId) {
+            return res.status(401).json({ error: 'User tidak terautentikasi' });
+        }
+
+        const { data: notif } = await supabase
+            .from('notifications')
+            .select('id, user_id, dismissed_by')
+            .eq('id', id)
+            .maybeSingle();
+
+        if (!notif) {
+            return res.json({ message: 'Notifikasi tidak ditemukan' });
+        }
+
+        if (notif.user_id === userId) {
+            await supabase.from('notifications').delete().eq('id', id);
+        } else {
+            const dismissed = Array.isArray(notif.dismissed_by) ? notif.dismissed_by : [];
+            if (!dismissed.includes(userId)) {
+                await supabase
+                    .from('notifications')
+                    .update({ dismissed_by: [...dismissed, userId] })
+                    .eq('id', id);
+            }
+        }
+
+        res.json({ message: 'Notifikasi berhasil dihapus' });
+    } catch (err) {
+        console.error('Delete single notification error:', err);
         res.status(500).json({ error: err.message });
     }
 };
