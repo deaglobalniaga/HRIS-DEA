@@ -281,12 +281,6 @@ const HSEDashboard = () => {
               <ShieldCheck size={13} className="text-emerald-700" /> 
               <span>HSE Command Center</span>
             </div>
-            <button
-              onClick={() => navigate('/organization?tab=certifications')}
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-2xl shadow-md shadow-emerald-600/25 transition-all cursor-pointer"
-            >
-              <Award size={14} /> Kelola Sertifikasi K3
-            </button>
           </div>
         </div>
 
