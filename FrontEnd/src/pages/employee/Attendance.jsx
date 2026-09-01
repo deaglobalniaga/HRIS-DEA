@@ -662,36 +662,17 @@ const Attendance = () => {
     }
   };
 
-  // Hands-Free Auto Attendance Countdown (3... 2... 1... Auto Submit!)
+  // Manual Confirmation Mode: Face verification lights up action button
   useEffect(() => {
-    if (isCameraDisabled || loading || autoTriggered || attendanceMode === 'locked' || attendanceMode === 'already_in' || attendanceMode === 'completed') {
+    if (isCameraDisabled || loading || attendanceMode === 'locked' || attendanceMode === 'already_in' || attendanceMode === 'completed') {
       setCountdown(null);
       return;
     }
 
     if (!recognizedEmployee) {
       setCountdown(null);
-      return;
     }
-
-    // Face verified & schedule valid! Start 3-second countdown
-    let remaining = 3;
-    setCountdown(3);
-
-    const interval = setInterval(() => {
-      remaining -= 1;
-      if (remaining <= 0) {
-        clearInterval(interval);
-        setCountdown(0);
-        setAutoTriggered(true);
-        handleClockAction(attendanceMode);
-      } else {
-        setCountdown(remaining);
-      }
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [recognizedEmployee?.id, attendanceMode, isCameraDisabled, loading, autoTriggered]);
+  }, [recognizedEmployee?.id, attendanceMode, isCameraDisabled, loading]);
 
   const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
   const formattedDateBadge = `${currentTime.getDate()} ${monthNames[currentTime.getMonth()]} ${currentTime.getFullYear()}`;
