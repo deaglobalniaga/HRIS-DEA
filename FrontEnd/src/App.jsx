@@ -34,7 +34,9 @@ function AppRoutes() {
   const { token, user } = useAuth();
   const isAuthenticated = !!token;
   const role = (user?.role || '').toLowerCase();
-  const isAdmin = ['admin', 'superadmin', 'super_admin', 'hr', 'hrga_admin', 'hse_admin'].includes(role);
+  const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+  const isHSERole = role.includes('hse') || dept.includes('hse') || dept.includes('k3') || dept.includes('safety');
+  const isAdmin = ['admin', 'superadmin', 'super_admin', 'hr', 'hrga_admin', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hr') || isHSERole;
   const isHRAdmin = isAdmin;
   const canAccessOrg = isAdmin;
 

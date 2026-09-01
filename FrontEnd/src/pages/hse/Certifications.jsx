@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { 
     Award, Upload, Trash2, Search, FileText, Plus, Eye, CheckCircle2, 
@@ -10,11 +11,19 @@ import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import PdfViewerModal from '../../components/PdfViewerModal';
 
+const parseDateSafe = (dStr) => {
+    if (!dStr) return null;
+    const clean = String(dStr).split('T')[0];
+    const d = new Date(clean + 'T00:00:00');
+    return isNaN(d.getTime()) ? null : d;
+};
+
 const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const { user } = useAuth();
     const { addToast } = useToast();
+    const [searchParams, setSearchParams] = useSearchParams();
     const role = (user?.role || '').toLowerCase();
-    const canManage = ['admin', 'superadmin', 'super_admin', 'hse_admin'].includes(role) || role.includes('admin') || role.includes('hse');
+    const canManage = ['admin', 'superadmin', 'super_admin', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hse');
 
     const [certifications, setCertifications] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -30,19 +39,16 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [savingType, setSavingType] = useState(false);
 
     // Filter Expiry State ('ALL' | 'expiring' | 'expired' | 'active')
-    const getInitialExpiryFilter = () => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('expiry') || 'ALL';
-    };
-    const [expiryFilter, setExpiryFilter] = useState(getInitialExpiryFilter());
+    const [expiryFilter, setExpiryFilter] = useState(searchParams.get('expiry') || 'ALL');
+    const [activeTab, setActiveTab] = useState(searchParams.get('subtab') || 'matrix'); // 'matrix' | 'pending'
+    const [actionLoading, setActionLoading] = useState(null);
 
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const exp = params.get('expiry') || 'ALL';
-        if (exp !== expiryFilter) {
-            setExpiryFilter(exp);
-        }
-    }, [window.location.search]);
+        const exp = searchParams.get('expiry') || 'ALL';
+        setExpiryFilter(exp);
+        const sub = searchParams.get('subtab') || 'matrix';
+        setActiveTab(sub);
+    }, [searchParams]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -56,22 +62,6 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [uploading, setUploading] = useState(false);
     const [certToDelete, setCertToDelete] = useState(null);
     const [deletingCert, setDeletingCert] = useState(false);
-    
-    const getInitialSubtab = () => {
-        const params = new URLSearchParams(window.location.search);
-        return params.get('subtab') || 'matrix';
-    };
-
-    const [activeTab, setActiveTab] = useState(getInitialSubtab()); // 'matrix' | 'pending'
-    const [actionLoading, setActionLoading] = useState(null);
-
-    useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
-        const sub = params.get('subtab');
-        if (sub && sub !== activeTab) {
-            setActiveTab(sub);
-        }
-    }, [window.location.search]);
     
     // LinkedIn-Style Form state
     const [selectedUserId, setSelectedUserId] = useState('');
@@ -273,7 +263,10 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         if (cert.is_lifetime || !cert.tanggal_kadaluarsa) {
             return { color: 'bg-teal-100 text-teal-800 border-teal-300', text: 'Seumur Hidup' };
         }
-        const expiredDate = new Date(cert.tanggal_kadaluarsa + 'T00:00:00');
+        const expiredDate = parseDateSafe(cert.tanggal_kadaluarsa);
+        if (!expiredDate) {
+            return { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', text: 'Aktif' };
+        }
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const diffDays = Math.round((expiredDate - today) / (1000 * 60 * 60 * 24));
@@ -288,11 +281,13 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        employees.forEach(emp => {
+        (employees || []).forEach(emp => {
+            if (!emp) return;
             const empId = emp.id;
             // Only include approved certificates in the general matrix (exclude rejected and pending)
-            const empCerts = certifications.filter(c => 
-                ((c.karyawan && (c.karyawan.id === empId || c.karyawan.nama_lengkap === emp.nama_lengkap)) ||
+            const empCerts = (certifications || []).filter(c => 
+                c &&
+                ((c.karyawan && (c.karyawan.id === empId || c.karyawan.nama_lengkap === emp.nama_lengkap || c.karyawan.nama === emp.nama)) ||
                 c.user_id === empId || 
                 c.employee_id === empId) &&
                 c.status !== 'Rejected' && 
@@ -317,7 +312,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                     if (c.is_lifetime || !c.tanggal_kadaluarsa) {
                         return expiryFilter === 'active';
                     }
-                    const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+                    const expDate = parseDateSafe(c.tanggal_kadaluarsa);
+                    if (!expDate) return expiryFilter === 'active';
                     const diffDays = Math.round((expDate - today) / (1000 * 60 * 60 * 24));
 
                     if (expiryFilter === 'expired') {
@@ -372,7 +368,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const todayDateObj = new Date();
     todayDateObj.setHours(0, 0, 0, 0);
-    const approvedCertsList = certifications.filter(c => 
+    const approvedCertsList = (certifications || []).filter(c => 
+        c &&
         c.status !== 'Rejected' && 
         !c.notes?.includes('[STATUS:REJECTED]') &&
         c.status !== 'Pending' &&
@@ -381,21 +378,24 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const expiringCount = approvedCertsList.filter(c => {
         if (c.is_lifetime || !c.tanggal_kadaluarsa) return false;
-        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const expDate = parseDateSafe(c.tanggal_kadaluarsa);
+        if (!expDate) return false;
         const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
         return diff >= 0 && diff <= 60;
     }).length;
 
     const expiredCount = approvedCertsList.filter(c => {
         if (c.is_lifetime || !c.tanggal_kadaluarsa) return false;
-        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const expDate = parseDateSafe(c.tanggal_kadaluarsa);
+        if (!expDate) return false;
         const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
         return diff < 0;
     }).length;
 
     const activeCount = approvedCertsList.filter(c => {
         if (c.is_lifetime || !c.tanggal_kadaluarsa) return true;
-        const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+        const expDate = parseDateSafe(c.tanggal_kadaluarsa);
+        if (!expDate) return true;
         const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
         return diff > 60;
     }).length;

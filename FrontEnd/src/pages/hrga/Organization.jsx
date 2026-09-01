@@ -18,14 +18,8 @@ const Organization = () => {
   const username = (user?.username || '').toLowerCase();
 
   const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
-  const isAdmin = ['admin', 'hrga_admin', 'hr', 'hse_admin'].includes(role) || (role.includes('admin') && !isSuperAdmin);
-  const isHSEAdmin = role === 'hse_admin' || (
-    isAdmin && (
-      dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') ||
-      jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
-      username.includes('hse')
-    )
-  );
+  const isHSEAdmin = role === 'hse_admin' || role.includes('hse') || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || jabatan.includes('hse') || username.includes('hse');
+  const isAdmin = ['admin', 'hrga_admin', 'hr', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hr') || isHSEAdmin;
 
   // Default active tab based on role or URL query
   const getDefaultTab = () => {
