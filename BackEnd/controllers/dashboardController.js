@@ -320,13 +320,17 @@ exports.post_system_notes = async (req, res) => {
 
         const updatedNotes = [newNote, ...currentNotes];
 
-        await supabase
+        const { error: upsertErr } = await supabase
             .from('settings')
             .upsert({
                 setting_key: 'dashboard_system_notes',
-                setting_value: updatedNotes,
-                updated_at: new Date().toISOString()
+                setting_value: updatedNotes
             }, { onConflict: 'setting_key' });
+
+        if (upsertErr) {
+            console.error('Supabase upsert error saving note:', upsertErr);
+            return res.status(500).json({ error: upsertErr.message });
+        }
 
         res.status(201).json({ message: 'Catatan berhasil disimpan.', note: newNote });
     } catch (err) {
@@ -354,13 +358,17 @@ exports.delete_system_notes_id = async (req, res) => {
 
         const filtered = currentNotes.filter(n => n.id !== noteId);
 
-        await supabase
+        const { error: deleteErr } = await supabase
             .from('settings')
             .upsert({
                 setting_key: 'dashboard_system_notes',
-                setting_value: filtered,
-                updated_at: new Date().toISOString()
+                setting_value: filtered
             }, { onConflict: 'setting_key' });
+
+        if (deleteErr) {
+            console.error('Supabase error deleting note:', deleteErr);
+            return res.status(500).json({ error: deleteErr.message });
+        }
 
         res.json({ message: 'Catatan berhasil dihapus.' });
     } catch (err) {
