@@ -176,6 +176,23 @@ exports.get_dashboard_stats = async (req, res) => {
             console.error('Error fetching dashboard notes:', nErr);
         }
 
+        // 11. Count total uploaded employee documents and certificates
+        let totalDocuments = 0;
+        try {
+            const { count: docCount } = await supabase
+                .from('employee_documents')
+                .select('*', { count: 'exact', head: true });
+
+            const { count: certDocCount } = await supabase
+                .from('employee_certificates')
+                .select('*', { count: 'exact', head: true })
+                .not('file_url', 'is', null);
+
+            totalDocuments = (docCount || 0) + (certDocCount || 0);
+        } catch (docErr) {
+            console.error('Error counting documents:', docErr);
+        }
+
         res.json({
             totalEmployees: employeesCount,
             attendanceRate,
@@ -189,7 +206,8 @@ exports.get_dashboard_stats = async (req, res) => {
             notesList: Array.isArray(notesList) ? notesList : [],
             timeline,
             contractStats,
-            avgWorkHours
+            avgWorkHours,
+            totalDocuments
         });
     } catch (err) {
         console.error('Dashboard Stats Error:', err);

@@ -207,12 +207,12 @@ const HRGADashboard = () => {
         />
         <TopBadge 
           icon={FileText} 
-          value="0" 
-          title="Dokumen" 
-          subtitle="Penarikan kebijakan" 
+          value={stats.totalDocuments || 0} 
+          title="Dokumen Karyawan" 
+          subtitle="Berkas & sertifikat karyawan" 
           colorClass="text-teal-600" 
           bgClass="bg-teal-50"
-          onClick={() => navigate('/organization?tab=company')} 
+          onClick={() => navigate('/organization?tab=employees')} 
         />
       </div>
 
