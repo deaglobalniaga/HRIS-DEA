@@ -73,10 +73,14 @@ const HSEDashboard = () => {
         const certs = Array.isArray(certRes.data) ? certRes.data : [];
         const employees = Array.isArray(empRes.data) ? empRes.data : [];
 
-        // Cert type distribution
+        // Filter approved/active certs vs pending vs rejected
+        const approvedCerts = certs.filter(c => c.status === 'Approved' || (!c.status && c.is_approved !== false && !c.notes?.includes('[STATUS:REJECTED]')));
+        const pendingCerts = certs.filter(c => c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]'));
+
+        // Cert type distribution for approved certs
         const certCounts = {};
-        certs.forEach(c => {
-          const type = c.name || c.type || c.nama_sertifikat || 'Sertifikasi K3';
+        approvedCerts.forEach(c => {
+          const type = c.nama_sertifikat || c.name || c.type || 'Sertifikasi K3';
           certCounts[type] = (certCounts[type] || 0) + 1;
         });
 
@@ -88,25 +92,80 @@ const HSEDashboard = () => {
           standard: 'ESDM / Kemenaker RI'
         }));
 
-        const criticalCertAlerts = certs.map(c => ({
-          id: c.id,
-          name: c.karyawan?.nama_lengkap || c.karyawan?.nama || c.employee_name || c.holder_name || 'Karyawan',
-          nomor_pegawai: c.karyawan?.nomor_pegawai || '-',
-          cert: c.nama_sertifikat || c.name || c.type || 'Sertifikasi K3',
-          cert_number: c.nomor_sertifikat || c.certificate_number || '-',
-          dept: c.karyawan?.departemen || c.department || 'Operasional',
-          jabatan: c.karyawan?.jabatan || '-',
-          expiry: c.is_lifetime ? 'Seumur Hidup' : (c.tanggal_kadaluarsa || c.valid_until || c.expiry_date || 'Aktif'),
-          is_lifetime: c.is_lifetime,
-          status: (c.status === 'Pending' || (c.notes?.includes('[STATUS:PENDING]') && c.status !== 'Rejected')) ? 'Menunggu Verifikasi' : (c.status === 'Rejected' ? 'Ditolak' : (c.status || 'Aman')),
-          file_url: c.file_url || c.file_path,
-          created_at: c.created_at || c.tanggal_diterbitkan
-        }));
+        // Calculate precise expiration metrics for Approved certs
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
 
-        const activeCerts = certs.filter(c => c.status === 'Approved' || (!c.status && c.is_approved !== false));
-        const pending = certs.filter(c => c.status === 'Pending');
-        const expiring = certs.filter(c => c.status === 'Expiring Soon' || (c.status_text && c.status_text.includes('Segera'))).length;
-        const expired = certs.filter(c => c.status === 'Expired' || (c.status_text && c.status_text.includes('Kadaluarsa'))).length;
+        let expiringCount = 0;
+        let expiredCount = 0;
+
+        approvedCerts.forEach(c => {
+          if (c.is_lifetime || !c.tanggal_kadaluarsa) return;
+          const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+          const diffDays = Math.round((expDate - now) / (1000 * 60 * 60 * 24));
+
+          if (diffDays < 0) {
+            expiredCount++;
+          } else if (diffDays <= 60) {
+            expiringCount++;
+          }
+        });
+
+        // Group approved certificates by employee (1 employee = 1 table row)
+        const employeeMap = new Map();
+
+        employees.forEach(emp => {
+          const empId = emp.id;
+          const userCerts = approvedCerts.filter(c => 
+            (c.karyawan && (c.karyawan.id === empId || c.karyawan.nama_lengkap === emp.nama_lengkap)) ||
+            c.user_id === empId || 
+            c.employee_id === empId
+          );
+
+          if (userCerts.length > 0) {
+            const formattedUserCerts = userCerts.map(c => {
+              let statusText = 'Aktif';
+              let statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+
+              if (c.is_lifetime || !c.tanggal_kadaluarsa) {
+                statusText = 'Seumur Hidup';
+                statusColor = 'text-teal-700 bg-teal-50 border-teal-200';
+              } else {
+                const expDate = new Date(c.tanggal_kadaluarsa + 'T00:00:00');
+                const diffDays = Math.round((expDate - now) / (1000 * 60 * 60 * 24));
+                if (diffDays < 0) {
+                  statusText = 'Kedaluwarsa';
+                  statusColor = 'text-rose-700 bg-rose-50 border-rose-200';
+                } else if (diffDays <= 60) {
+                  statusText = diffDays === 0 ? 'Habis Hari Ini' : `Segera Habis (${diffDays} hr)`;
+                  statusColor = 'text-amber-700 bg-amber-50 border-amber-200';
+                }
+              }
+
+              return {
+                id: c.id,
+                cert: c.nama_sertifikat || c.name || 'Sertifikasi K3',
+                cert_number: c.nomor_sertifikat || c.certificate_number || '-',
+                expiry: c.is_lifetime ? 'Seumur Hidup' : (c.tanggal_kadaluarsa || '-'),
+                is_lifetime: c.is_lifetime,
+                status_text: statusText,
+                status_color: statusColor,
+                file_url: c.file_url || c.file_path
+              };
+            });
+
+            employeeMap.set(empId, {
+              id: empId,
+              name: emp.nama_lengkap || emp.nama || 'Karyawan',
+              nomor_pegawai: emp.nomor_pegawai || '-',
+              dept: emp.departemen || emp.department || 'Operasional',
+              jabatan: emp.jabatan || 'Staff',
+              certs: formattedUserCerts
+            });
+          }
+        });
+
+        const criticalCertAlerts = Array.from(employeeMap.values());
 
         // HSE Verification History Logs (Approved or Rejected by HSE Admin)
         const verificationLogs = certs
@@ -130,10 +189,10 @@ const HSEDashboard = () => {
 
         setHseData({
           totalEmployees: employees.length,
-          activeCertsCount: activeCerts.length,
-          pendingCertsCount: pending.length,
-          expiringCertsCount: expiring,
-          expiredCertsCount: expired,
+          activeCertsCount: approvedCerts.length,
+          pendingCertsCount: pendingCerts.length,
+          expiringCertsCount: expiringCount,
+          expiredCertsCount: expiredCount,
           certDistribution: certDistribution,
           verificationLogs: verificationLogs,
           criticalCertAlerts: criticalCertAlerts
@@ -615,12 +674,15 @@ const HSEDashboard = () => {
                   const filtered = hseData.criticalCertAlerts.filter(item => {
                     if (!searchRecent.trim()) return true;
                     const q = searchRecent.toLowerCase();
+                    const hasMatchingCert = (item.certs || []).some(c => 
+                      (c.cert || '').toLowerCase().includes(q) ||
+                      (c.cert_number || '').toLowerCase().includes(q)
+                    );
                     return (
                       (item.name || '').toLowerCase().includes(q) ||
-                      (item.cert || '').toLowerCase().includes(q) ||
                       (item.dept || '').toLowerCase().includes(q) ||
-                      (item.cert_number || '').toLowerCase().includes(q) ||
-                      (item.nomor_pegawai || '').toLowerCase().includes(q)
+                      (item.nomor_pegawai || '').toLowerCase().includes(q) ||
+                      hasMatchingCert
                     );
                   });
 
@@ -636,85 +698,104 @@ const HSEDashboard = () => {
                     );
                   }
 
-                  return displayed.map((item, idx) => (
-                    <tr key={item.id || idx} className="hover:bg-slate-50/70 transition">
-                      <td className="p-3 text-center font-bold text-slate-400 text-[11px]">
+                  return displayed.map((emp, idx) => (
+                    <tr key={emp.id || idx} className="hover:bg-slate-50/70 transition">
+                      <td className="p-3 text-center font-bold text-slate-400 text-[11px] align-top">
                         {idx + 1}
                       </td>
-                      <td className="p-3 font-bold text-slate-900">
-                        <div className="flex items-center gap-2.5">
-                          <div className="w-7 h-7 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] flex items-center justify-center shrink-0">
-                            {item.name ? item.name.charAt(0).toUpperCase() : 'K'}
+                      <td className="p-3 font-bold text-slate-900 align-top">
+                        <div className="flex items-start gap-2.5">
+                          <div className="w-8 h-8 rounded-full bg-emerald-100 text-emerald-800 font-black text-xs flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                            {emp.name ? emp.name.charAt(0).toUpperCase() : 'K'}
                           </div>
                           <div>
-                            <div className="font-bold text-slate-900 leading-tight">{item.name}</div>
-                            {item.nomor_pegawai && item.nomor_pegawai !== '-' && (
-                              <div className="text-[10px] font-mono text-slate-400">NIP: {item.nomor_pegawai}</div>
+                            <div className="font-bold text-slate-900 leading-tight">{emp.name}</div>
+                            {emp.nomor_pegawai && emp.nomor_pegawai !== '-' && (
+                              <div className="text-[10px] font-mono text-slate-400">NIP: {emp.nomor_pegawai}</div>
                             )}
+                            <span className="inline-block mt-1 text-[9px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-md border border-slate-200">
+                              {emp.certs?.length || 0} Sertifikat
+                            </span>
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-slate-600">
-                        <div className="font-semibold text-slate-700">{item.dept}</div>
-                        {item.jabatan && item.jabatan !== '-' && (
-                          <div className="text-[10px] text-slate-400">{item.jabatan}</div>
+                      <td className="p-3 text-slate-600 align-top">
+                        <div className="font-semibold text-slate-700">{emp.dept}</div>
+                        {emp.jabatan && emp.jabatan !== '-' && (
+                          <div className="text-[10px] text-slate-400">{emp.jabatan}</div>
                         )}
                       </td>
-                      <td className="p-3">
-                        <div className="flex flex-col items-start gap-1">
-                          <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 text-xs">
-                            {item.cert}
-                          </span>
-                          {item.cert_number && item.cert_number !== '-' && (
-                            <span className="text-[10px] font-mono text-slate-400 font-bold">
-                              No: {item.cert_number}
-                            </span>
-                          )}
+                      <td className="p-3 align-top">
+                        <div className="flex flex-col gap-2">
+                          {(emp.certs || []).map((c, cIdx) => (
+                            <div key={c.id || cIdx} className="flex flex-col items-start gap-0.5">
+                              <span className="font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-lg border border-blue-100 text-xs">
+                                {c.cert}
+                              </span>
+                              {c.cert_number && c.cert_number !== '-' && (
+                                <span className="text-[10px] font-mono text-slate-400 font-bold pl-0.5">
+                                  No: {c.cert_number}
+                                </span>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       </td>
-                      <td className="p-3 text-center">
-                        <span className={`font-bold px-2.5 py-0.5 rounded-full border text-xs ${
-                          item.is_lifetime || item.expiry?.includes('Seumur Hidup')
-                            ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
-                            : item.status === 'Menunggu Verifikasi'
-                            ? 'text-amber-700 bg-amber-50 border-amber-200'
-                            : 'text-slate-700 bg-slate-50 border-slate-200'
-                        }`}>
-                          {item.expiry}
-                        </span>
+                      <td className="p-3 text-center align-top">
+                        <div className="flex flex-col gap-2">
+                          {(emp.certs || []).map((c, cIdx) => (
+                            <div key={c.id || cIdx} className="flex items-center justify-center gap-1.5 min-h-[26px]">
+                              <span className="text-[11px] font-mono font-bold text-slate-600">
+                                {c.expiry}
+                              </span>
+                              <span className={`font-black px-2 py-0.5 rounded-full border text-[10px] ${c.status_color}`}>
+                                {c.status_text}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
                       </td>
-                      <td className="p-3 text-center">
-                        {item.file_url ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const userCerts = hseData.criticalCertAlerts.filter(c => c.name === item.name || c.id === item.id);
-                              setPreviewDoc({ 
-                                id: item.id,
-                                url: item.file_url, 
-                                name: `${item.name} - ${item.cert}`,
-                                userCerts: userCerts,
-                                karyawan: { nama_lengkap: item.name, nomor_pegawai: item.nomor_pegawai, departemen: item.dept, jabatan: item.jabatan },
-                                nama_sertifikat: item.cert,
-                                nomor_sertifikat: item.cert_number,
-                                is_lifetime: item.is_lifetime,
-                                tanggal_kadaluarsa: item.expiry
-                              });
-                            }}
-                            className="px-3 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition border border-emerald-200 flex items-center gap-1 mx-auto cursor-pointer"
-                            title="Pratinjau Dokumen Sertifikat"
-                          >
-                            <Eye size={13} /> Lihat File
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => navigate('/organization?tab=certifications')}
-                            className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs font-medium transition border border-slate-200 mx-auto cursor-pointer"
-                          >
-                            Detail
-                          </button>
-                        )}
+                      <td className="p-3 text-center align-top">
+                        <div className="flex flex-col gap-2 items-center">
+                          {(emp.certs || []).map((c, cIdx) => (
+                            <div key={c.id || cIdx} className="min-h-[26px] flex items-center">
+                              {c.file_url ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPreviewDoc({ 
+                                      id: c.id,
+                                      url: c.file_url, 
+                                      name: `${emp.name} - ${c.cert}`,
+                                      userCerts: emp.certs.map(uc => ({
+                                        id: uc.id,
+                                        url: uc.file_url,
+                                        name: `${emp.name} - ${uc.cert}`,
+                                        nama_sertifikat: uc.cert,
+                                        nomor_sertifikat: uc.cert_number,
+                                        is_lifetime: uc.is_lifetime,
+                                        tanggal_kadaluarsa: uc.expiry,
+                                        file_url: uc.file_url,
+                                        karyawan: { nama_lengkap: emp.name, nomor_pegawai: emp.nomor_pegawai, departemen: emp.dept, jabatan: emp.jabatan }
+                                      })),
+                                      karyawan: { nama_lengkap: emp.name, nomor_pegawai: emp.nomor_pegawai, departemen: emp.dept, jabatan: emp.jabatan },
+                                      nama_sertifikat: c.cert,
+                                      nomor_sertifikat: c.cert_number,
+                                      is_lifetime: c.is_lifetime,
+                                      tanggal_kadaluarsa: c.expiry
+                                    });
+                                  }}
+                                  className="px-2.5 py-0.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold transition border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                                  title="Pratinjau Dokumen Sertifikat"
+                                >
+                                  <Eye size={12} /> Lihat File
+                                </button>
+                              ) : (
+                                <span className="text-[10px] text-slate-400 italic">No File</span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
                       </td>
                     </tr>
                   ));

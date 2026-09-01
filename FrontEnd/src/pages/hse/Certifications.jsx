@@ -253,17 +253,18 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
             return { color: 'bg-rose-100 text-rose-800 border-rose-300', text: 'Ditolak HSE' };
         }
         if (cert.status === 'Pending' || cert.notes?.includes('[STATUS:PENDING]')) {
-            return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: 'Menunggu Verifikasi HSE' };
+            return { color: 'bg-purple-100 text-purple-800 border-purple-300', text: 'Menunggu Verifikasi' };
         }
         if (cert.is_lifetime || !cert.tanggal_kadaluarsa) {
-            return { color: 'bg-green-100 text-green-800 border-green-300', text: 'Seumur Hidup' };
+            return { color: 'bg-teal-100 text-teal-800 border-teal-300', text: 'Seumur Hidup' };
         }
-        const expiredDate = new Date(cert.tanggal_kadaluarsa);
+        const expiredDate = new Date(cert.tanggal_kadaluarsa + 'T00:00:00');
         const today = new Date();
-        const diffDays = Math.ceil((expiredDate - today) / (1000 * 60 * 60 * 24));
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((expiredDate - today) / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) return { color: 'bg-red-100 text-red-800 border-red-300', text: 'Kedaluwarsa' };
-        if (diffDays <= 60) return { color: 'bg-yellow-100 text-yellow-800 border-yellow-300', text: 'Segera Habis' };
+        if (diffDays <= 60) return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: diffDays === 0 ? 'Habis Hari Ini' : `Segera Habis (${diffDays} hr)` };
         return { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', text: 'Aktif' };
     };
 
@@ -271,28 +272,59 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         let rows = [];
         
         employees.forEach(emp => {
+            const empId = emp.id;
+            // Only include approved certificates in the general matrix (exclude rejected and pending)
             const empCerts = certifications.filter(c => 
-                (c.karyawan && c.karyawan.id === emp.id) ||
-                c.user_id === emp.id || 
-                c.employee_id === emp.id
+                ((c.karyawan && (c.karyawan.id === empId || c.karyawan.nama_lengkap === emp.nama_lengkap)) ||
+                c.user_id === empId || 
+                c.employee_id === empId) &&
+                c.status !== 'Rejected' && 
+                !c.notes?.includes('[STATUS:REJECTED]') &&
+                c.status !== 'Pending' &&
+                !c.notes?.includes('[STATUS:PENDING]')
             );
 
             const empName = emp.nama || emp.nama_lengkap || '';
-            const matchSearch = empName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (emp.jabatan || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-                (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase());
+            const empNip = emp.nomor_pegawai || '';
+            const empDept = emp.department || emp.departments?.name || '';
+            const empJabatan = emp.jabatan || '';
+
+            const term = searchTerm.toLowerCase().trim();
+            const hasMatchingCert = empCerts.some(c => 
+                (c.nama_sertifikat || c.certificate_name || '').toLowerCase().includes(term) ||
+                (c.nomor_sertifikat || c.certificate_number || '').toLowerCase().includes(term)
+            );
+
+            const matchSearch = !term ||
+                empName.toLowerCase().includes(term) ||
+                empNip.toLowerCase().includes(term) ||
+                empDept.toLowerCase().includes(term) ||
+                empJabatan.toLowerCase().includes(term) ||
+                hasMatchingCert;
             
-            if (empCerts.length > 0) {
-                empCerts.forEach(cert => {
-                    const certName = (cert.nama_sertifikat || cert.certificate_name || '').toLowerCase();
-                    const matchType = filterType === 'ALL' || certName.includes(filterType.toLowerCase());
-                    if (matchSearch && matchType) {
-                        rows.push({ type: 'cert', employee: emp, cert: cert });
-                    }
+            let filteredCerts = empCerts;
+            if (filterType !== 'ALL') {
+                filteredCerts = empCerts.filter(c => {
+                    const certName = (c.nama_sertifikat || c.certificate_name || '').toLowerCase();
+                    return certName.includes(filterType.toLowerCase());
                 });
+            }
+
+            if (empCerts.length > 0) {
+                if (matchSearch && (filterType === 'ALL' || filteredCerts.length > 0)) {
+                    rows.push({
+                        type: 'has_certs',
+                        employee: emp,
+                        certs: filterType === 'ALL' ? empCerts : filteredCerts
+                    });
+                }
             } else {
                 if (matchSearch && filterType === 'ALL') {
-                    rows.push({ type: 'empty', employee: emp, cert: null });
+                    rows.push({
+                        type: 'empty',
+                        employee: emp,
+                        certs: []
+                    });
                 }
             }
         });
@@ -587,12 +619,12 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                             <table className="w-full text-left border-collapse text-xs">
                                 <thead>
                                     <tr className="bg-slate-50 border-b border-slate-200 text-[10px] uppercase tracking-wider text-slate-500 font-bold">
-                                        <th className="p-3.5">Karyawan</th>
-                                        <th className="p-3.5">Sertifikat & Kompetensi</th>
-                                        <th className="p-3.5">Institusi Penerbit</th>
-                                        <th className="p-3.5">Masa Berlaku</th>
-                                        <th className="p-3.5 text-center">Status</th>
-                                        <th className="p-3.5 text-center">Aksi</th>
+                                        <th className="p-3.5 w-12 text-center">No</th>
+                                        <th className="p-3.5">Nama Pejabat / Karyawan</th>
+                                        <th className="p-3.5">Departemen</th>
+                                        <th className="p-3.5">Sertifikasi Dimiliki & Institusi</th>
+                                        <th className="p-3.5 text-center">Masa Berlaku & Status</th>
+                                        <th className="p-3.5 text-center">Aksi HSE</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 font-medium">
@@ -609,35 +641,48 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                     ) : (
                                         paginatedRows.map((row, idx) => {
                                             const emp = row.employee;
+                                            const itemNumber = (currentPage - 1) * itemsPerPage + idx + 1;
                                             
                                             if (row.type === 'empty') {
                                                 return (
                                                     <tr key={`empty-${emp.id}-${idx}`} className="hover:bg-slate-50/50 transition-colors">
-                                                        <td className="p-3.5">
-                                                            <div className="flex items-center gap-2.5">
-                                                                <div className="w-7 h-7 rounded-full bg-slate-200 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0">
+                                                        <td className="p-3.5 text-center font-bold text-slate-400 text-[11px] align-top">
+                                                            {itemNumber}
+                                                        </td>
+                                                        <td className="p-3.5 align-top">
+                                                            <div className="flex items-start gap-2.5">
+                                                                <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-600 font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5">
                                                                     {(emp.nama || emp.nama_lengkap || 'U').charAt(0)}
                                                                 </div>
                                                                 <div>
-                                                                    <p className="text-xs font-bold text-slate-900">{emp.nama || emp.nama_lengkap || '-'}</p>
-                                                                    <p className="text-[10px] text-slate-400">{emp.department || emp.departments?.name || '-'}</p>
+                                                                    <p className="text-xs font-bold text-slate-900 leading-tight">{emp.nama || emp.nama_lengkap || '-'}</p>
+                                                                    {emp.nomor_pegawai && emp.nomor_pegawai !== '-' && (
+                                                                        <p className="text-[10px] font-mono text-slate-400 mt-0.5">NIP: {emp.nomor_pegawai}</p>
+                                                                    )}
                                                                 </div>
                                                             </div>
                                                         </td>
-                                                        <td colSpan="4" className="p-3.5 text-xs text-slate-400 italic text-center bg-slate-50/40">
+                                                        <td className="p-3.5 text-slate-600 align-top">
+                                                            <div className="font-semibold text-slate-700">{emp.department || emp.departments?.name || '-'}</div>
+                                                            {emp.jabatan && emp.jabatan !== '-' && (
+                                                                <div className="text-[10px] text-slate-400">{emp.jabatan}</div>
+                                                            )}
+                                                        </td>
+                                                        <td colSpan="2" className="p-3.5 text-xs text-slate-400 italic text-center bg-slate-50/40 align-middle">
                                                             Belum ada sertifikasi terdaftar / terunggah.
                                                         </td>
-                                                        <td className="p-3.5 text-center">
+                                                        <td className="p-3.5 text-center align-top">
                                                             {canManage && (
                                                                 <button 
+                                                                    type="button"
                                                                     onClick={() => { 
                                                                         resetForm();
                                                                         setSelectedUserId(emp.id); 
                                                                         setShowUploadModal(true); 
                                                                     }} 
-                                                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto"
+                                                                    className="px-3 py-1 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg text-xs font-bold transition-all flex items-center gap-1 mx-auto cursor-pointer"
                                                                 >
-                                                                    <Upload size={12} /> Upload Sertifikat
+                                                                    <Upload size={12} /> Upload
                                                                 </button>
                                                             )}
                                                         </td>
@@ -645,108 +690,137 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                 );
                                             }
 
-                                            const cert = row.cert;
-                                            const status = getStatusIndicator(cert);
-                                            const hasFile = Boolean(cert.file_url || cert.file_path);
-
                                             return (
-                                                <tr key={`cert-${cert.id || idx}`} className="hover:bg-slate-50/60 transition-colors">
+                                                <tr key={`emp-${emp.id}-${idx}`} className="hover:bg-slate-50/60 transition-colors">
+                                                    {/* No */}
+                                                    <td className="p-3.5 text-center font-bold text-slate-400 text-[11px] align-top">
+                                                        {itemNumber}
+                                                    </td>
+
                                                     {/* Karyawan */}
-                                                    <td className="p-3.5">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-slate-900 to-red-900 text-white font-black text-[10px] flex items-center justify-center shrink-0">
+                                                    <td className="p-3.5 font-bold text-slate-900 align-top">
+                                                        <div className="flex items-start gap-2.5">
+                                                            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-slate-900 to-red-900 text-white font-black text-[10px] flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
                                                                 {(emp.nama || emp.nama_lengkap || 'U').charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs font-bold text-slate-900">{emp.nama || emp.nama_lengkap || '-'}</p>
-                                                                <p className="text-[10px] text-slate-400">{emp.department || emp.departments?.name || '-'}</p>
+                                                                <p className="text-xs font-bold text-slate-900 leading-tight">{emp.nama || emp.nama_lengkap || '-'}</p>
+                                                                {emp.nomor_pegawai && emp.nomor_pegawai !== '-' && (
+                                                                    <p className="text-[10px] font-mono text-slate-400 mt-0.5">NIP: {emp.nomor_pegawai}</p>
+                                                                )}
+                                                                <span className="inline-block mt-1 text-[9px] font-black bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md border border-slate-200">
+                                                                    {row.certs.length} Sertifikat Dimiliki
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </td>
 
-                                                    {/* Sertifikat */}
-                                                    <td className="p-3.5">
-                                                        <div className="flex items-center gap-2">
-                                                            <Award size={15} className="text-red-700 shrink-0" />
-                                                            <div>
-                                                                <p className="font-bold text-slate-900">{cert.nama_sertifikat || cert.certificate_name}</p>
-                                                                <span className="text-[10px] font-mono text-slate-400">{cert.nomor_sertifikat || cert.certificate_number || '-'}</span>
-                                                            </div>
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Institusi */}
-                                                    <td className="p-3.5 text-slate-600">
-                                                        {cert.institusi_penerbit || 'BNSP / Kemnaker / Minerba'}
-                                                    </td>
-
-                                                    {/* Masa Berlaku */}
-                                                    <td className="p-3.5">
-                                                        {cert.is_lifetime ? (
-                                                            <span className="text-slate-500 font-bold text-[11px]">Seumur Hidup</span>
-                                                        ) : (
-                                                            <div className="text-[11px]">
-                                                                <span className="text-slate-500">s/d </span>
-                                                                <span className="font-mono font-bold text-slate-800">{cert.tanggal_kadaluarsa || '-'}</span>
-                                                            </div>
+                                                    {/* Departemen & Jabatan */}
+                                                    <td className="p-3.5 text-slate-600 align-top">
+                                                        <div className="font-semibold text-slate-700">{emp.department || emp.departments?.name || '-'}</div>
+                                                        {emp.jabatan && emp.jabatan !== '-' && (
+                                                            <div className="text-[10px] text-slate-400">{emp.jabatan}</div>
                                                         )}
                                                     </td>
 
-                                                    {/* Status */}
-                                                    <td className="p-3.5 text-center">
-                                                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black border ${status.color}`}>
-                                                            {status.text}
-                                                        </span>
+                                                    {/* Sertifikasi Dimiliki */}
+                                                    <td className="p-3.5 align-top">
+                                                        <div className="flex flex-col gap-2.5">
+                                                            {row.certs.map((cert, cIdx) => (
+                                                                <div key={cert.id || cIdx} className="flex items-start gap-2">
+                                                                    <Award size={15} className="text-red-700 shrink-0 mt-0.5" />
+                                                                    <div>
+                                                                        <p className="font-bold text-slate-900 text-xs leading-tight">{cert.nama_sertifikat || cert.certificate_name}</p>
+                                                                        <span className="text-[10px] font-mono text-slate-500 font-bold block mt-0.5">
+                                                                            No: {cert.nomor_sertifikat || cert.certificate_number || '-'} • <span className="text-slate-400 font-normal">{cert.institusi_penerbit || 'K3/HSE'}</span>
+                                                                        </span>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
                                                     </td>
 
-                                                    {/* Aksi */}
-                                                    <td className="p-3.5 text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            {hasFile ? (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        const empCerts = certifications.filter(c => 
-                                                                            (c.karyawan && (c.karyawan.id === emp.id || c.karyawan.nama_lengkap === emp.nama_lengkap || c.karyawan.nama === emp.nama)) ||
-                                                                            c.user_id === emp.id || 
-                                                                            c.employee_id === emp.id
-                                                                        );
-                                                                        setPreviewDoc({ 
-                                                                            id: cert.id,
-                                                                            url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
-                                                                            name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
-                                                                            userCerts: empCerts,
-                                                                            karyawan: emp
-                                                                        });
-                                                                    }}
-                                                                    className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-sm border border-red-200 cursor-pointer"
-                                                                    title="Lihat & Pratinjau Berkas Sertifikat"
-                                                                >
-                                                                    <Eye size={13} /> Preview
-                                                                </button>
-                                                            ) : (
-                                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">
-                                                                    Kosong
-                                                                </span>
-                                                            )}
-                                                            {canManage && (
-                                                                <button
-                                                                    onClick={() => setCertToDelete({
-                                                                        id: cert.id,
-                                                                        nama_sertifikat: cert.nama_sertifikat || cert.certificate_name,
-                                                                        nomor_sertifikat: cert.nomor_sertifikat || cert.certificate_number,
-                                                                        institusi_penerbit: cert.institusi_penerbit,
-                                                                        tanggal_kadaluarsa: cert.tanggal_kadaluarsa,
-                                                                        is_lifetime: cert.is_lifetime,
-                                                                        employeeName: emp.nama || emp.nama_lengkap,
-                                                                        employeeDept: emp.department || emp.departments?.name,
-                                                                        employeeNip: emp.nomor_pegawai
-                                                                    })}
-                                                                    className="p-1.5 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                                                                    title="Hapus Sertifikat Ini"
-                                                                >
-                                                                    <Trash2 size={15} />
-                                                                </button>
-                                                            )}
+                                                    {/* Masa Berlaku & Status */}
+                                                    <td className="p-3.5 text-center align-top">
+                                                        <div className="flex flex-col gap-2.5">
+                                                            {row.certs.map((cert, cIdx) => {
+                                                                const status = getStatusIndicator(cert);
+                                                                return (
+                                                                    <div key={cert.id || cIdx} className="flex items-center justify-center gap-2 min-h-[30px]">
+                                                                        <span className="text-[11px] font-mono font-bold text-slate-700">
+                                                                            {cert.is_lifetime ? 'Seumur Hidup' : `s/d ${cert.tanggal_kadaluarsa || '-'}`}
+                                                                        </span>
+                                                                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${status.color}`}>
+                                                                            {status.text}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Aksi HSE */}
+                                                    <td className="p-3.5 text-center align-top">
+                                                        <div className="flex flex-col gap-2.5 items-center">
+                                                            {row.certs.map((cert, cIdx) => {
+                                                                const hasFile = Boolean(cert.file_url || cert.file_path);
+                                                                return (
+                                                                    <div key={cert.id || cIdx} className="flex items-center justify-center gap-1.5 min-h-[30px]">
+                                                                        {hasFile ? (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => {
+                                                                                    setPreviewDoc({ 
+                                                                                        id: cert.id,
+                                                                                        url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
+                                                                                        name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat K3'}`,
+                                                                                        userCerts: row.certs.map(c => ({
+                                                                                            id: c.id,
+                                                                                            url: c.file_url || c.file_path,
+                                                                                            name: `${emp.nama || emp.nama_lengkap} - ${c.nama_sertifikat}`,
+                                                                                            nama_sertifikat: c.nama_sertifikat,
+                                                                                            nomor_sertifikat: c.nomor_sertifikat,
+                                                                                            is_lifetime: c.is_lifetime,
+                                                                                            tanggal_kadaluarsa: c.tanggal_kadaluarsa,
+                                                                                            file_url: c.file_url || c.file_path,
+                                                                                            karyawan: emp
+                                                                                        })),
+                                                                                        karyawan: emp
+                                                                                    });
+                                                                                }}
+                                                                                className="px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-lg transition-colors flex items-center gap-1 shadow-2xs border border-red-200 cursor-pointer"
+                                                                                title="Lihat & Pratinjau Berkas Sertifikat"
+                                                                            >
+                                                                                <Eye size={12} /> Preview
+                                                                            </button>
+                                                                        ) : (
+                                                                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-400">
+                                                                                Kosong
+                                                                            </span>
+                                                                        )}
+                                                                        {canManage && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setCertToDelete({
+                                                                                    id: cert.id,
+                                                                                    nama_sertifikat: cert.nama_sertifikat || cert.certificate_name,
+                                                                                    nomor_sertifikat: cert.nomor_sertifikat || cert.certificate_number,
+                                                                                    institusi_penerbit: cert.institusi_penerbit,
+                                                                                    tanggal_kadaluarsa: cert.tanggal_kadaluarsa,
+                                                                                    is_lifetime: cert.is_lifetime,
+                                                                                    employeeName: emp.nama || emp.nama_lengkap,
+                                                                                    employeeDept: emp.department || emp.departments?.name,
+                                                                                    employeeNip: emp.nomor_pegawai
+                                                                                })}
+                                                                                className="p-1 hover:bg-red-50 text-slate-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
+                                                                                title="Hapus Sertifikat Ini"
+                                                                            >
+                                                                                <Trash2 size={13} />
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                );
+                                                            })}
                                                         </div>
                                                     </td>
                                                 </tr>

@@ -151,10 +151,46 @@ const formatCert = (cert) => {
         .replace(/Alasan:[^|]+(\|)?/g, '')
         .trim();
 
+    // Calculate WITA expiration status
+    const { getWitaDateStr } = require('../utils/dateTime');
+    const todayStr = getWitaDateStr();
+    let expiryStatus = 'Active';
+    let statusBadge = 'Aktif';
+    let daysRemaining = null;
+
+    if (status === 'Rejected') {
+        expiryStatus = 'Rejected';
+        statusBadge = 'Ditolak HSE';
+    } else if (status === 'Pending') {
+        expiryStatus = 'Pending';
+        statusBadge = 'Menunggu Verifikasi';
+    } else if (cert.is_lifetime || !cert.expired_date) {
+        expiryStatus = 'Lifetime';
+        statusBadge = 'Seumur Hidup';
+    } else {
+        const expDate = new Date(cert.expired_date + 'T00:00:00');
+        const todayDate = new Date(todayStr + 'T00:00:00');
+        daysRemaining = Math.round((expDate - todayDate) / (1000 * 60 * 60 * 24));
+
+        if (daysRemaining < 0) {
+            expiryStatus = 'Expired';
+            statusBadge = 'Kedaluwarsa';
+        } else if (daysRemaining <= 60) {
+            expiryStatus = 'Expiring Soon';
+            statusBadge = 'Segera Habis';
+        } else {
+            expiryStatus = 'Active';
+            statusBadge = 'Aktif';
+        }
+    }
+
     return {
         ...cert,
         id: cert.id,
         status: status,
+        expiry_status: expiryStatus,
+        status_badge: statusBadge,
+        days_remaining: daysRemaining,
         is_approved: isApproved,
         is_verified: isApproved,
         verified_by: verifiedBy,
