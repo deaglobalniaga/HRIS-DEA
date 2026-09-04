@@ -3,7 +3,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const controller = require('../controllers/certificationController');
-const { verifyToken, isHSE } = require('../middlewares/authMiddleware');
+const { verifyToken, isHSE, blockSuperAdmin } = require('../middlewares/authMiddleware');
 
 // Configure secure memory storage for cloud uploads
 const storage = multer.memoryStorage();
@@ -27,20 +27,20 @@ const upload = multer({
     }
 });
 
-// Personal Certifications (For any authenticated employee / PJO / user)
-router.get('/certifications/my-certifications', verifyToken, controller.get_my_certifications);
-router.post('/certifications/my-certifications', verifyToken, upload.any(), controller.add_my_certification);
+// Personal Certifications (Protected from Superadmin)
+router.get('/certifications/my-certifications', verifyToken, blockSuperAdmin, controller.get_my_certifications);
+router.post('/certifications/my-certifications', verifyToken, blockSuperAdmin, upload.any(), controller.add_my_certification);
 
-// General & Matrix Certifications
-router.get('/certifications', verifyToken, controller.get_certifications);
-router.get('/certifications/matrix', verifyToken, controller.get_matrix);
+// General & Matrix Certifications (Protected from Superadmin)
+router.get('/certifications', verifyToken, blockSuperAdmin, controller.get_certifications);
+router.get('/certifications/matrix', verifyToken, blockSuperAdmin, controller.get_matrix);
 router.get('/certificate-types', verifyToken, controller.get_certificate_types);
-router.post('/certificate-types', verifyToken, controller.create_certificate_type);
+router.post('/certificate-types', verifyToken, blockSuperAdmin, controller.create_certificate_type);
 
-// Admin & HSE Management
-router.post('/certifications', verifyToken, isHSE, upload.any(), controller.add_certification);
-router.patch('/certifications/:id/approve', verifyToken, isHSE, controller.approve_certification);
-router.patch('/certifications/:id/reject', verifyToken, isHSE, controller.reject_certification);
-router.delete('/certifications/:id', verifyToken, controller.delete_certification);
+// Admin & HSE Management (Protected from Superadmin)
+router.post('/certifications', verifyToken, blockSuperAdmin, isHSE, upload.any(), controller.add_certification);
+router.patch('/certifications/:id/approve', verifyToken, blockSuperAdmin, isHSE, controller.approve_certification);
+router.patch('/certifications/:id/reject', verifyToken, blockSuperAdmin, isHSE, controller.reject_certification);
+router.delete('/certifications/:id', verifyToken, blockSuperAdmin, controller.delete_certification);
 
 module.exports = router;

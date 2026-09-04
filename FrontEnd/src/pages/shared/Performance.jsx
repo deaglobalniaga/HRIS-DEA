@@ -1,21 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Target, Search, Plus, X, AlertCircle, CalendarDays, CheckCircle, RefreshCw, Activity, User, ShieldAlert, BadgeCheck, Filter } from 'lucide-react';
+import { Search, CalendarDays, CheckCircle, RefreshCw, Activity, User, ShieldAlert } from 'lucide-react';
 import api from '../../api/api';
-import { useAuth } from '../../context/AuthContext';
-import { useToast } from '../../context/ToastContext';
 
 const Performance = () => {
-    const { user } = useAuth();
-    const { addToast } = useToast();
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 10;
-    
-    // For Roster Offset editing
-    const [editingRosterUser, setEditingRosterUser] = useState(null);
-    const [newCycleDay, setNewCycleDay] = useState("");
 
     const fetchRosterStats = async () => {
         setLoading(true);
@@ -49,45 +41,6 @@ const Performance = () => {
     const totalPages = Math.max(1, Math.ceil(filteredStats.length / itemsPerPage));
     const currentStats = filteredStats.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    const handleUpdateRoster = async (userId, newRoster) => {
-        try {
-            await api.put(`/hris/performance/roster/${userId}`, { contract_type: newRoster });
-            setStats(prevStats => (prevStats || []).map(s => {
-                if (s.user_id === userId) {
-                    const rosterStr = newRoster === '6/2' ? '6/2 (PJO/Khusus)' : '8/2 (Staff)';
-                    return { ...s, roster_type: rosterStr };
-                }
-                return s;
-            }));
-            addToast(`Tipe roster berhasil diubah ke ${newRoster}`, 'success');
-            fetchRosterStats();
-        } catch (err) {
-            console.error("Failed to update roster", err);
-            addToast("Gagal memperbarui roster.", "error");
-        }
-    };
-
-    const submitRosterOffset = async () => {
-        if (!editingRosterUser || !newCycleDay) return;
-        const targetDay = parseInt(newCycleDay) - 1;
-        if (isNaN(targetDay)) return;
-        
-        const userStat = (stats || []).find(s => s.user_id === editingRosterUser);
-        if (!userStat) return;
-
-        const diff = targetDay - (userStat.current_cycle_day || 1);
-        const newOffset = (userStat.offset || 0) + diff;
-
-        try {
-            await api.put(`/hris/performance/roster/${editingRosterUser}`, { initial_work_days: newOffset });
-            addToast("Siklus roster berhasil disetel.", "success");
-            setEditingRosterUser(null);
-            fetchRosterStats();
-        } catch (err) {
-            addToast("Gagal menyetel siklus roster.", "error");
-        }
-    };
-
     const getStatusColor = (status) => {
         if (status === 'Cuti Roster') return 'bg-amber-100 text-amber-700 border-amber-200';
         return 'bg-green-100 text-green-700 border-green-200';
@@ -101,7 +54,7 @@ const Performance = () => {
     };
 
     const totalStaff = stats.length;
-    const workingCount = stats.filter(s => (s?.roster_status || '') === 'Masa Kerja').length;
+    const workingCount = stats.filter(s => (s?.roster_status || '') === 'On Site' || (s?.roster_status || '') === 'Masa Kerja').length;
     const cutiCount = stats.filter(s => (s?.roster_status || '') === 'Cuti Roster').length;
     const offCount = stats.filter(s => (s?.cycle_13_1 || '').includes('Off')).length;
 
@@ -211,7 +164,7 @@ const Performance = () => {
                                         </td>
                                         <td className="p-3 text-center">
                                             <span className={`px-2 py-0.5 rounded-full text-[10px] font-black border ${getStatusColor(item.roster_status)}`}>
-                                                {item.roster_status || 'Masa Kerja'}
+                                                {(item.roster_status === 'Masa Kerja' || !item.roster_status) ? 'On Site' : item.roster_status}
                                             </span>
                                         </td>
                                         <td className={`p-3 text-center font-bold text-[11px] ${get13_1Color(item.cycle_13_1)}`}>

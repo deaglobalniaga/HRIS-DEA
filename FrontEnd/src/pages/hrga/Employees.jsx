@@ -50,8 +50,10 @@ const Employees = ({ readOnly = false }) => {
     const { user } = useAuth();
     const role = (user?.role || '').toLowerCase();
     const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+    const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
+
     const isHSEAdmin = role === 'hse_admin' || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3');
-    const isHRAdmin = !isHSEAdmin && !readOnly && ['admin', 'hr', 'hrga_admin', 'superadmin', 'super_admin'].includes(role);
+    const isHRAdmin = !isHSEAdmin && !isSuperAdmin && !readOnly && ['admin', 'hr', 'hrga_admin'].includes(role);
     const isReadOnly = isHSEAdmin || readOnly;
 
     const { addToast } = useToast();

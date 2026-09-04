@@ -70,6 +70,16 @@ const isAdmin = (req, res, next) => {
     }
 };
 
+const blockSuperAdmin = (req, res, next) => {
+    const role = (req.userRole || req.user?.role || '').toLowerCase();
+    if (['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super')) {
+        return res.status(403).json({ 
+            message: 'Akses ditolak: Role Superadmin tidak memiliki wewenang untuk melihat, menambah, maupun mengedit data operasional karyawan, sertifikasi K3, atau data biometrik wajah demi privasi dan pemisahan tugas.' 
+        });
+    }
+    next();
+};
+
 const isSuperAdmin = (req, res, next) => {
     const role = (req.userRole || req.user?.role || '').toLowerCase();
     if (['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super')) {
@@ -81,27 +91,27 @@ const isSuperAdmin = (req, res, next) => {
 
 const isHRGA = (req, res, next) => {
     const role = (req.userRole || req.user?.role || '').toLowerCase();
-    if (
-        ['admin', 'superadmin', 'super_admin', 'super admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga', 'hse_admin'].includes(role) ||
-        role.includes('admin') ||
+    const isSuper = ['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super');
+    if (!isSuper && (
+        ['admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
         role.includes('hr')
-    ) {
+    )) {
         next();
     } else {
-        res.status(403).json({ message: 'Akses ditolak: Memerlukan hak akses Admin' });
+        res.status(403).json({ message: 'Akses ditolak: Memerlukan hak akses Admin HRGA (Superadmin tidak diizinkan mengelola data karyawan)' });
     }
 };
 
 const isHSE = (req, res, next) => {
     const role = (req.userRole || req.user?.role || '').toLowerCase();
-    if (
-        ['admin', 'superadmin', 'super_admin', 'super admin', 'hse_admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
-        role.includes('admin') ||
+    const isSuper = ['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super');
+    if (!isSuper && (
+        ['admin', 'hse_admin', 'hse', 'hse_officer', 'hrga_admin'].includes(role) ||
         role.includes('hse')
-    ) {
+    )) {
         next();
     } else {
-        res.status(403).json({ message: 'Akses ditolak: Memerlukan hak akses Admin' });
+        res.status(403).json({ message: 'Akses ditolak: Memerlukan hak akses Admin HSE (Superadmin tidak diizinkan mengelola sertifikat K3)' });
     }
 };
 
@@ -198,6 +208,7 @@ module.exports = {
     isSuperAdmin,
     isHRGA,
     isHSE,
+    blockSuperAdmin,
     isSelfOrAdmin,
     canManageLeaves
 };

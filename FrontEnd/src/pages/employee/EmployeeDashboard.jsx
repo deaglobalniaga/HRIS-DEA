@@ -86,7 +86,7 @@ const EmployeeDashboard = () => {
   };
 
   return (
-    <div className="flex flex-col w-full min-h-screen bg-slate-100 pb-20 font-sans select-none overflow-x-hidden">
+    <div className="flex flex-col w-full bg-slate-100 font-sans select-none overflow-x-hidden">
       {/* Header Banner with Parallelogram Geometry */}
       <div className="w-full bg-[#120202] text-white rounded-b-[36px] sm:rounded-b-[44px] px-4 sm:px-6 pt-5 pb-10 shadow-xl shadow-red-950/40 relative overflow-hidden">
         {/* Vertical Parallelogram Polygon Container (Red angled split matching design) */}

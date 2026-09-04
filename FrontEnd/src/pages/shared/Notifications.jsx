@@ -5,67 +5,97 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
+import { useToast } from '../../context/ToastContext';
 
 const Notifications = () => {
   const navigate = useNavigate();
+  const { addToast } = useToast();
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionInProgress, setActionInProgress] = useState(false);
 
-  const fetchNotifications = async () => {
-    setLoading(true);
+  const fetchNotifications = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const res = await api.get('/hris/notifications');
       setNotifications(res.data.notifications || []);
     } catch (err) {
       console.error('Fetch notifications error:', err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(true);
+
+    const onSync = () => {
+      fetchNotifications(false);
+    };
+
+    window.addEventListener('hris_notifications_updated', onSync);
+    return () => window.removeEventListener('hris_notifications_updated', onSync);
   }, []);
 
   const handleMarkAllRead = async () => {
+    if (actionInProgress) return;
+    setActionInProgress(true);
+    // Optimistic UI update
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
     try {
       await api.put('/hris/notifications/read-all');
-      setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+      addToast('Semua notifikasi ditandai telah dibaca', 'success');
+      window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
     } catch (err) {
       console.error('Mark all read error:', err);
+      addToast('Gagal menandai notifikasi dibaca', 'error');
+      fetchNotifications(false);
+    } finally {
+      setActionInProgress(false);
     }
   };
 
   const handleClearAll = async () => {
+    if (actionInProgress) return;
     if (!window.confirm('Hapus semua riwayat notifikasi untuk akun Anda?')) return;
+    setActionInProgress(true);
+    // Optimistic UI update
+    const prevNotifs = [...notifications];
+    setNotifications([]);
     try {
-      setLoading(true);
       await api.delete('/hris/notifications/clear-all');
-      setNotifications([]);
+      addToast('Semua riwayat notifikasi berhasil dibersihkan', 'info');
+      window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
     } catch (err) {
       console.error('Clear all notifications error:', err);
-      fetchNotifications();
+      addToast('Gagal menghapus notifikasi', 'error');
+      setNotifications(prevNotifs);
     } finally {
-      setLoading(false);
+      setActionInProgress(false);
     }
   };
 
   const handleDeleteSingle = async (e, notifId) => {
     e.stopPropagation();
+    // Optimistic UI update
+    setNotifications(prev => prev.filter(n => n.id !== notifId));
     try {
-      setNotifications(prev => prev.filter(n => n.id !== notifId));
       await api.delete(`/hris/notifications/${notifId}`);
+      addToast('Notifikasi dihapus', 'info');
+      window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
     } catch (err) {
       console.error('Delete notif error:', err);
-      fetchNotifications();
+      addToast('Gagal menghapus notifikasi', 'error');
+      fetchNotifications(false);
     }
   };
 
   const handleClickNotif = async (notif) => {
     if (!notif.is_read) {
+      setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
       try {
         await api.put(`/hris/notifications/${notif.id}/read`);
-        setNotifications(prev => prev.map(n => n.id === notif.id ? { ...n, is_read: true } : n));
+        window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
       } catch (e) {
         console.error('Mark read error:', e);
       }
@@ -137,21 +167,23 @@ const Notifications = () => {
         </div>
         <div className="flex gap-2">
           <button
-            onClick={fetchNotifications}
-            className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition shadow-sm"
+            onClick={() => fetchNotifications(true)}
+            disabled={loading || actionInProgress}
+            className="p-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl transition shadow-sm disabled:opacity-50"
             title="Muat Ulang"
           >
             <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
           </button>
           <button
             onClick={handleMarkAllRead}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm"
+            disabled={loading || actionInProgress || notifications.length === 0 || notifications.every(n => n.is_read)}
+            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <CheckCircle size={15} /> Tandai Dibaca
           </button>
           <button
             onClick={handleClearAll}
-            disabled={loading || notifications.length === 0}
+            disabled={loading || actionInProgress || notifications.length === 0}
             className="px-4 py-2.5 bg-red-50 hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed text-red-700 rounded-xl text-xs font-bold transition flex items-center gap-2 shadow-sm cursor-pointer"
           >
             <Trash2 size={15} /> Hapus Semua

@@ -176,7 +176,7 @@ const HRGADashboard = () => {
           subtitle="Rata-rata hari ini" 
           colorClass="text-emerald-600" 
           bgClass="bg-emerald-50"
-          onClick={() => navigate('/attendance-hub')} 
+          onClick={() => navigate('/attendance-hub?tab=monitor&subtab=sudah')} 
         />
         <TopBadge 
           icon={Gift} 
@@ -185,7 +185,7 @@ const HRGADashboard = () => {
           subtitle="Menunggu persetujuan" 
           colorClass="text-amber-500" 
           bgClass="bg-amber-50"
-          onClick={() => navigate('/attendance-hub', { state: { tab: 'permissions' } })} 
+          onClick={() => navigate('/attendance-hub?tab=permissions')} 
         />
         <TopBadge 
           icon={UserX} 
@@ -194,7 +194,7 @@ const HRGADashboard = () => {
           subtitle="Tanpa keterangan" 
           colorClass="text-rose-500" 
           bgClass="bg-rose-50"
-          onClick={() => navigate('/attendance-hub')} 
+          onClick={() => navigate('/attendance-hub?tab=monitor&subtab=tidak_hadir')} 
         />
         <TopBadge 
           icon={Building2} 
@@ -203,7 +203,7 @@ const HRGADashboard = () => {
           subtitle="Struktur organisasi" 
           colorClass="text-purple-600" 
           bgClass="bg-purple-50"
-          onClick={() => navigate('/organization?tab=departments')} 
+          onClick={() => navigate('/organization?tab=departments&subtab=manage')} 
         />
         <TopBadge 
           icon={Award} 
@@ -225,7 +225,7 @@ const HRGADashboard = () => {
               Kehadiran Hari Ini ({stats.todayArrivals?.length || 0})
             </h3>
             <span 
-              onClick={() => navigate('/attendance-hub')} 
+              onClick={() => navigate('/attendance-hub?tab=monitor&subtab=sudah')} 
               className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
             >
               Lihat semua
@@ -267,7 +267,7 @@ const HRGADashboard = () => {
               Cuti & Izin ({stats.activeLeavesList?.length || 0})
             </h3>
             <span 
-              onClick={() => navigate('/attendance-hub', { state: { tab: 'permissions' } })} 
+              onClick={() => navigate('/attendance-hub?tab=permissions')} 
               className="text-[11px] font-bold text-blue-600 hover:text-blue-800 cursor-pointer hover:underline"
             >
               Lihat semua

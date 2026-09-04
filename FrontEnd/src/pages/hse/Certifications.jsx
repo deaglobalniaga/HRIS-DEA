@@ -80,9 +80,10 @@ const getEmployeeOverallStatus = (certs = []) => {
 const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const { user } = useAuth();
     const { addToast } = useToast();
-    const [searchParams, setSearchParams] = useSearchParams();
+    const [searchParams] = useSearchParams();
     const role = (user?.role || '').toLowerCase();
-    const canManage = ['admin', 'superadmin', 'super_admin', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hse');
+    const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
+    const canManage = !isSuperAdmin && (['admin', 'hse_admin', 'hse', 'hse_officer', 'hrga_admin', 'hr'].includes(role) || (role.includes('admin') && !isSuperAdmin) || role.includes('hse'));
 
     const [certifications, setCertifications] = useState([]);
     const [employees, setEmployees] = useState([]);

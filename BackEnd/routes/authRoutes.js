@@ -6,7 +6,7 @@ const multer = require('multer');
 const authController = require('../controllers/authController');
 
 // Middlewares
-const { verifyToken, optionalAuth } = require('../middlewares/authMiddleware');
+const { verifyToken, optionalAuth, blockSuperAdmin } = require('../middlewares/authMiddleware');
 const verifyTurnstile = require('../middlewares/turnstileMiddleware');
 
 // MULTER CONFIG - Memory storage because we will upload to Supabase Bucket in controllers
@@ -51,11 +51,11 @@ router.patch('/recovery-email', verifyToken, authController.saveRecoveryEmail);
 router.get('/devices', verifyToken, authController.getUserDevices);
 router.delete('/devices/:id', verifyToken, authController.removeUserDevice);
 
-// Face Biometrics & Documents Management
-router.post('/face-enroll', verifyToken, authController.enrollFace);
-router.delete('/face-descriptor', verifyToken, authController.deleteFaceDescriptor);
-router.delete('/document/:id', verifyToken, authController.deleteDocument);
-router.delete('/document-by-type/:docType', verifyToken, authController.deleteDocumentByType);
+// Face Biometrics & Documents Management (Protected from Superadmin)
+router.post('/face-enroll', verifyToken, blockSuperAdmin, authController.enrollFace);
+router.delete('/face-descriptor', verifyToken, blockSuperAdmin, authController.deleteFaceDescriptor);
+router.delete('/document/:id', verifyToken, blockSuperAdmin, authController.deleteDocument);
+router.delete('/document-by-type/:docType', verifyToken, blockSuperAdmin, authController.deleteDocumentByType);
 
 module.exports = router;
 

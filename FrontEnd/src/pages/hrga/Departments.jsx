@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Layers, Users, Search, Edit3, Check, X,
   RefreshCw, ShieldCheck, Briefcase, Plus, Filter, AlertCircle,
@@ -10,7 +11,25 @@ import { useToast } from '../../context/ToastContext';
 
 const Departments = ({ readOnly = false }) => {
   const { addToast } = useToast();
-  const [subTab, setSubTab] = useState('chart'); // 'chart' | 'manage' | 'history'
+  const [searchParams, setSearchParams] = useSearchParams();
+  const querySub = searchParams.get('subtab');
+  const [subTab, setSubTab] = useState(querySub || 'chart'); // 'chart' | 'manage' | 'history'
+
+  useEffect(() => {
+    const s = searchParams.get('subtab');
+    if (s && s !== subTab) {
+      setSubTab(s);
+    }
+  }, [searchParams, subTab]);
+
+  const handleSubTabChange = (tab) => {
+    setSubTab(tab);
+    setSearchParams(prev => {
+      const p = new URLSearchParams(prev);
+      p.set('subtab', tab);
+      return p;
+    });
+  };
   const [employees, setEmployees] = useState([]);
   const [departmentsList, setDepartmentsList] = useState([]);
   const [historyLogs, setHistoryLogs] = useState([]);
@@ -163,7 +182,7 @@ const Departments = ({ readOnly = false }) => {
           <div className="flex flex-wrap p-1 bg-slate-100 rounded-2xl gap-1 w-full sm:w-auto">
             <button
               type="button"
-              onClick={() => setSubTab('chart')}
+              onClick={() => handleSubTabChange('chart')}
               className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 ${
                 subTab === 'chart' ? 'bg-red-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -172,7 +191,7 @@ const Departments = ({ readOnly = false }) => {
             </button>
             <button
               type="button"
-              onClick={() => setSubTab('manage')}
+              onClick={() => handleSubTabChange('manage')}
               className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 ${
                 subTab === 'manage' ? 'bg-red-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
               }`}
@@ -181,7 +200,7 @@ const Departments = ({ readOnly = false }) => {
             </button>
             <button
               type="button"
-              onClick={() => setSubTab('history')}
+              onClick={() => handleSubTabChange('history')}
               className={`flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-black transition flex items-center justify-center gap-1.5 ${
                 subTab === 'history' ? 'bg-red-700 text-white shadow-md' : 'text-slate-600 hover:text-slate-900'
               }`}

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import api from '../../api/api';
 
-const DailyAttendanceMonitorTab = () => {
+const DailyAttendanceMonitorTab = ({ initialSubTab = 'sudah' }) => {
   const [dailyStatus, setDailyStatus] = useState({
     date: new Date().toISOString().split('T')[0],
     summary: { total_karyawan: 0, sudah_absen: 0, belum_absen: 0, tidak_hadir: 0 },
@@ -14,7 +14,14 @@ const DailyAttendanceMonitorTab = () => {
     tidak_hadir: []
   });
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('sudah'); // 'sudah' | 'belum' | 'tidak_hadir'
+  const [activeTab, setActiveTab] = useState(initialSubTab || 'sudah'); // 'sudah' | 'belum' | 'tidak_hadir'
+
+  useEffect(() => {
+    if (initialSubTab) {
+      setActiveTab(initialSubTab);
+    }
+  }, [initialSubTab]);
+
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
 

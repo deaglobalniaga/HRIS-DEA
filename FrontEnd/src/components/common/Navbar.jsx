@@ -108,9 +108,15 @@ const Navbar = ({ toggleSidebar }) => {
     };
     window.addEventListener('focus', handleFocus);
 
+    const handleSync = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('hris_notifications_updated', handleSync);
+
     return () => {
       clearInterval(interval);
       window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('hris_notifications_updated', handleSync);
     };
   }, [user]);
 
@@ -171,10 +177,11 @@ const Navbar = ({ toggleSidebar }) => {
 
   const markAsRead = async () => {
       try {
+          setNotifications(prev => prev.map(n => ({...n, is_read: true})));
           await api.put('/hris/notifications/read-all');
-          setNotifications(notifications.map(n => ({...n, is_read: true})));
+          window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
       } catch (err) {
-          console.error(err);
+          console.error('Failed to mark all notifications as read', err);
       }
   };
 
@@ -331,6 +338,7 @@ const Navbar = ({ toggleSidebar }) => {
                                             try {
                                                 await api.put(`/hris/notifications/${notification.id}/read`);
                                                 setNotifications(prev => prev.map(n => n.id === notification.id ? { ...n, is_read: true } : n));
+                                                window.dispatchEvent(new CustomEvent('hris_notifications_updated'));
                                             } catch (e) {
                                                 console.error(e);
                                             }

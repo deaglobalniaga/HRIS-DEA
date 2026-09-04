@@ -162,11 +162,7 @@ exports.get_notifications = async (req, res) => {
             return res.json({ notifications: [], unreadCount: 0 });
         }
 
-        // 1. Auto cleanup notifications older than 30 days
-        const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-        await supabase.from('notifications').delete().lt('created_at', thirtyDaysAgo);
-
-        // 2. Fetch current user's profile to know exact role, department, and full name
+        // 1. Fetch current user's profile to know exact role, department, and full name
         const { data: userProfile } = await supabase
             .from('users')
             .select(`
@@ -235,17 +231,21 @@ exports.get_notifications = async (req, res) => {
 
             // 2. HRGA Boundary: HRGA should not receive HSE-only certification verification requests
             if (isHR && !isSuperAdmin && !isHSE) {
-                if (title === 'pengajuan sertifikasi' && n.target_role === 'hse_admin') {
+                if ((title.includes('sertifikasi') || title.includes('sertifikat')) && msg.includes('menunggu verifikasi')) {
                     return false;
                 }
             }
 
             // 3. Regular Employee Boundary: Regular employees can only see their own personal notifications or 'all' broadcasts
             if (!isHR && !isHSE && !isSuperAdmin) {
+                // Must NEVER see verification requests or admin approval tasks!
+                if (title.includes('pengajuan') || msg.includes('menunggu verifikasi') || msg.includes('silakan periksa') || title.includes('perangkat login baru')) {
+                    return false;
+                }
                 if (n.target_role && n.target_role !== 'all') {
                     return false;
                 }
-                // If it's a leave notification, ensure it's about themselves
+                // If it's a leave notification, ensure it's strictly about themselves
                 if (isLeaveRelated) {
                     const isOwnLeave = (myFullName && msg.includes(myFullName)) || (username && msg.includes(username)) || n.user_id === userId;
                     return isOwnLeave;
@@ -282,28 +282,24 @@ exports.mark_read = async (req, res) => {
     try {
         const { id } = req.params;
         const userId = req.userId;
-
-        const { data: notif } = await supabase
-            .from('notifications')
-            .select('id, user_id, read_by')
-            .eq('id', id)
-            .maybeSingle();
-
-        if (!notif) {
-            return res.json({ message: 'Notification not found' });
+        if (!userId) {
+            return res.status(401).json({ error: 'User tidak terautentikasi' });
         }
 
-        if (notif.user_id === userId) {
-            await supabase.from('notifications').update({ is_read: true }).eq('id', id);
-        } else {
-            const readBy = Array.isArray(notif.read_by) ? notif.read_by : [];
-            if (userId && !readBy.includes(userId)) {
-                await supabase.from('notifications').update({ read_by: [...readBy, userId] }).eq('id', id);
-            }
+        const { error } = await supabase.rpc('mark_single_notification_read', {
+            p_notif_id: id,
+            p_user_id: userId
+        });
+
+        if (error) {
+            console.error('RPC mark_single_notification_read error:', error);
+            // Fallback direct update
+            await supabase.from('notifications').update({ is_read: true }).eq('id', id).eq('user_id', userId);
         }
 
         res.json({ message: 'Notification marked as read' });
     } catch (err) {
+        console.error('mark_read error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -312,34 +308,23 @@ exports.mark_read = async (req, res) => {
 exports.mark_all_read = async (req, res) => {
     try {
         const userId = req.userId;
-        if (userId) {
-            // 1. Mark personal notifications as read
-            await supabase
-                .from('notifications')
-                .update({ is_read: true })
-                .eq('user_id', userId);
+        if (!userId) {
+            return res.status(401).json({ error: 'User tidak terautentikasi' });
+        }
 
-            // 2. Mark broadcast notifications as read for this user
-            const { data: broadcasts } = await supabase
-                .from('notifications')
-                .select('id, read_by')
-                .is('user_id', null);
+        const { error } = await supabase.rpc('mark_all_notifications_read', {
+            p_user_id: userId
+        });
 
-            if (broadcasts && broadcasts.length > 0) {
-                for (const b of broadcasts) {
-                    const readBy = Array.isArray(b.read_by) ? b.read_by : [];
-                    if (!readBy.includes(userId)) {
-                        await supabase
-                            .from('notifications')
-                            .update({ read_by: [...readBy, userId] })
-                            .eq('id', b.id);
-                    }
-                }
-            }
+        if (error) {
+            console.error('RPC mark_all_notifications_read error:', error);
+            // Fallback
+            await supabase.from('notifications').update({ is_read: true }).eq('user_id', userId);
         }
 
         res.json({ message: 'All notifications marked as read' });
     } catch (err) {
+        console.error('mark_all_read error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -348,30 +333,18 @@ exports.mark_all_read = async (req, res) => {
 exports.delete_all = async (req, res) => {
     try {
         const userId = req.userId;
-        if (userId) {
-            // 1. Delete all individual notifications specifically belonging to this user
-            await supabase
-                .from('notifications')
-                .delete()
-                .eq('user_id', userId);
+        if (!userId) {
+            return res.status(401).json({ error: 'User tidak terautentikasi' });
+        }
 
-            // 2. For broadcast notifications (user_id IS NULL), mark as dismissed for this user
-            const { data: broadcasts } = await supabase
-                .from('notifications')
-                .select('id, dismissed_by')
-                .is('user_id', null);
+        const { error } = await supabase.rpc('clear_all_notifications', {
+            p_user_id: userId
+        });
 
-            if (broadcasts && broadcasts.length > 0) {
-                for (const b of broadcasts) {
-                    const dismissed = Array.isArray(b.dismissed_by) ? b.dismissed_by : [];
-                    if (!dismissed.includes(userId)) {
-                        await supabase
-                            .from('notifications')
-                            .update({ dismissed_by: [...dismissed, userId] })
-                            .eq('id', b.id);
-                    }
-                }
-            }
+        if (error) {
+            console.error('RPC clear_all_notifications error:', error);
+            // Fallback
+            await supabase.from('notifications').delete().eq('user_id', userId);
         }
 
         res.json({ message: 'All notifications deleted' });
@@ -390,26 +363,15 @@ exports.delete_notification = async (req, res) => {
             return res.status(401).json({ error: 'User tidak terautentikasi' });
         }
 
-        const { data: notif } = await supabase
-            .from('notifications')
-            .select('id, user_id, dismissed_by')
-            .eq('id', id)
-            .maybeSingle();
+        const { error } = await supabase.rpc('delete_single_notification', {
+            p_notif_id: id,
+            p_user_id: userId
+        });
 
-        if (!notif) {
-            return res.json({ message: 'Notifikasi tidak ditemukan' });
-        }
-
-        if (notif.user_id === userId) {
-            await supabase.from('notifications').delete().eq('id', id);
-        } else {
-            const dismissed = Array.isArray(notif.dismissed_by) ? notif.dismissed_by : [];
-            if (!dismissed.includes(userId)) {
-                await supabase
-                    .from('notifications')
-                    .update({ dismissed_by: [...dismissed, userId] })
-                    .eq('id', id);
-            }
+        if (error) {
+            console.error('RPC delete_single_notification error:', error);
+            // Fallback
+            await supabase.from('notifications').delete().eq('id', id).eq('user_id', userId);
         }
 
         res.json({ message: 'Notifikasi berhasil dihapus' });

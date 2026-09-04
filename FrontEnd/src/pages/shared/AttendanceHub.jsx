@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
+import React from 'react';
+import { useLocation, useSearchParams } from 'react-router-dom';
 import { Clock, CalendarRange, ListFilter } from 'lucide-react';
 import Attendance from '../employee/Attendance';
 import Permissions from './Permissions';
@@ -23,23 +23,17 @@ const AttendanceHub = () => {
   // Pencatatan Cuti & Roster is strictly for HRGA and Superadmin. HSE cannot manage leaves.
   const canManageLeave = isSuperAdmin || isHRAdmin;
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const initialTab = (location.state?.tab === 'permissions' && !canManageLeave) 
-    ? 'attendance' 
-    : (location.state?.tab || 'attendance');
-  const [activeTab, setActiveTab] = useState(initialTab);
-  const [lastStateTab, setLastStateTab] = useState(location.state?.tab);
 
-  useEffect(() => {
-    if (location.state?.tab && location.state.tab !== lastStateTab && canViewTabs) {
-      setLastStateTab(location.state.tab);
-      if (location.state.tab === 'permissions' && !canManageLeave) {
-        setActiveTab('attendance');
-      } else {
-        setActiveTab(location.state.tab);
-      }
-    }
-  }, [location.state?.tab, canManageLeave, canViewTabs, lastStateTab]);
+  const queryTab = searchParams.get('tab') || location.state?.tab;
+  const activeTab = (queryTab === 'permissions' && !canManageLeave)
+    ? 'attendance'
+    : (queryTab || 'attendance');
+
+  const handleTabChange = (newTab) => {
+    setSearchParams({ tab: newTab });
+  };
 
   // For Superadmin or regular Employee/User, render pure Attendance Scanner directly
   if (!canViewTabs) {
@@ -53,7 +47,7 @@ const AttendanceHub = () => {
         <div className="flex flex-wrap gap-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-1.5 w-full xl:w-auto">
           {/* Tab 1: Presensi Wajah (First Tab) */}
           <button
-            onClick={() => setActiveTab('attendance')}
+            onClick={() => handleTabChange('attendance')}
             className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${
               activeTab === 'attendance' ? 'bg-gradient-to-r from-red-700 to-red-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
             }`}
@@ -64,7 +58,7 @@ const AttendanceHub = () => {
           {/* Tab 2: Daftar & Monitor Kehadiran (For Admin & HSE) */}
           {isAdmin && (
             <button
-              onClick={() => setActiveTab('monitor')}
+              onClick={() => handleTabChange('monitor')}
               className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${
                 activeTab === 'monitor' ? 'bg-gradient-to-r from-red-700 to-red-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
               }`}
@@ -76,7 +70,7 @@ const AttendanceHub = () => {
           {/* Tab 3: Pencatatan Cuti & Roster (Strictly for HRGA & Superadmin - HSE cannot manage leaves) */}
           {canManageLeave && (
             <button
-              onClick={() => setActiveTab('permissions')}
+              onClick={() => handleTabChange('permissions')}
               className={`flex-1 xl:flex-none flex items-center justify-center gap-2 px-5 py-2 rounded-xl text-xs font-black transition-all ${
                 activeTab === 'permissions' ? 'bg-gradient-to-r from-red-700 to-red-600 text-white shadow-md' : 'text-slate-600 hover:bg-slate-50'
               }`}
@@ -89,7 +83,9 @@ const AttendanceHub = () => {
 
       <div className="flex-1 w-full animate-in fade-in duration-300">
         {activeTab === 'attendance' && <Attendance />}
-        {activeTab === 'monitor' && isAdmin && <DailyAttendanceMonitorTab />}
+        {activeTab === 'monitor' && isAdmin && (
+          <DailyAttendanceMonitorTab initialSubTab={searchParams.get('subtab') || location.state?.subtab || 'sudah'} />
+        )}
         {activeTab === 'permissions' && canManageLeave && <Permissions />}
       </div>
     </div>

@@ -46,7 +46,7 @@ exports.get_roster_stats = async (req, res) => {
                 role: emp.jabatan || 'Staff',
                 division: emp.departments?.name || 'Operasional',
                 roster_type: is6_2 ? '6/2 (PJO/Khusus)' : '8/2 (Staff)',
-                roster_status: 'Masa Kerja',
+                roster_status: 'On Site',
                 current_cycle_day: cycleDay,
                 cycle_13_1: isOff ? 'Off 13/1' : `Hari ke-${cycleDay} dari 14`,
                 work_days_this_month: 18 + (i % 5),

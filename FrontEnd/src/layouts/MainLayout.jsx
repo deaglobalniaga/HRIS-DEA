@@ -67,7 +67,7 @@ const MainLayout = () => {
         </div>
 
         {/* Main Content Area with Blur-In Page Transition */}
-        <main className={`flex-1 w-full ${isEmployeeRole ? '' : 'px-4 pt-1.5 pb-4 sm:px-6 sm:pt-2 sm:pb-6'} lg:px-6 lg:pt-2.5 lg:pb-8 overflow-x-hidden overflow-y-auto flex flex-col pb-32`}>
+        <main className={`flex-1 w-full ${isEmployeeRole ? 'pb-20' : 'px-4 pt-1.5 pb-4 sm:px-6 sm:pt-2 sm:pb-6 pb-32'} lg:px-6 lg:pt-2.5 lg:pb-8 overflow-x-hidden overflow-y-auto flex flex-col`}>
           <div key={location.pathname} className="w-full flex-1 flex flex-col page-blur-in">
             <Outlet />
           </div>

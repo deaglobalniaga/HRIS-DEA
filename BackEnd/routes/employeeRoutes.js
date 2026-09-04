@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { verifyToken, isAdmin } = require('../middlewares/authMiddleware');
+const { verifyToken, isAdmin, blockSuperAdmin } = require('../middlewares/authMiddleware');
 const controller = require('../controllers/employeeController');
 const multer = require('multer');
 const path = require('path');
@@ -27,11 +27,11 @@ const upload = multer({
     }
 });
 
-// GET All Employees
-router.get('/employees', verifyToken, controller.get_employees);
+// GET All Employees (Protected from Superadmin)
+router.get('/employees', verifyToken, blockSuperAdmin, controller.get_employees);
 
-// GET Single Employee
-router.get('/employees/:id', verifyToken, controller.get_employee_by_id);
+// GET Single Employee (Protected from Superadmin)
+router.get('/employees/:id', verifyToken, blockSuperAdmin, controller.get_employee_by_id);
 
 // GET Departments
 router.get('/departments', verifyToken, controller.get_departments);
@@ -43,40 +43,40 @@ router.delete('/departments/:id', verifyToken, isAdmin, controller.delete_depart
 router.get('/organization/history', verifyToken, controller.get_organization_history);
 router.post('/organization/history', verifyToken, isAdmin, controller.save_organization_chart);
 
-// Bulk Operations (HRGA / Admin)
-router.post('/employees/bulk', verifyToken, isAdmin, controller.bulk_create_employees);
-router.delete('/employees/bulk', verifyToken, isAdmin, controller.bulk_delete_employees);
+// Bulk Operations (HRGA / Admin only - Protected from Superadmin)
+router.post('/employees/bulk', verifyToken, blockSuperAdmin, isAdmin, controller.bulk_create_employees);
+router.delete('/employees/bulk', verifyToken, blockSuperAdmin, isAdmin, controller.bulk_delete_employees);
 
-// POST New Employee (HRGA / Admin)
-router.post('/employees', verifyToken, isAdmin, upload.any(), controller.create_employee);
+// POST New Employee (HRGA / Admin only - Protected from Superadmin)
+router.post('/employees', verifyToken, blockSuperAdmin, isAdmin, upload.any(), controller.create_employee);
 
-// PUT Update Employee (HRGA / Admin)
-router.put('/employees/:id', verifyToken, isAdmin, upload.any(), controller.update_employee);
+// PUT Update Employee (HRGA / Admin only - Protected from Superadmin)
+router.put('/employees/:id', verifyToken, blockSuperAdmin, isAdmin, upload.any(), controller.update_employee);
 
-// DELETE Employee (HRGA / Admin)
-router.delete('/employees/:id', verifyToken, isAdmin, controller.delete_employee);
+// DELETE Employee (HRGA / Admin only - Protected from Superadmin)
+router.delete('/employees/:id', verifyToken, blockSuperAdmin, isAdmin, controller.delete_employee);
 
-// DELETE Employee Document (HRGA / Admin)
-router.delete('/employees/:id/documents/:docType', verifyToken, isAdmin, controller.delete_employee_document);
+// DELETE Employee Document (HRGA / Admin only - Protected from Superadmin)
+router.delete('/employees/:id/documents/:docType', verifyToken, blockSuperAdmin, isAdmin, controller.delete_employee_document);
 
-// PUT Verify & Activate New Employee Account (Super Admin)
-router.put('/employees/:id/verify', verifyToken, controller.verify_employee);
+// PUT Verify & Activate New Employee Account (HRGA Admin only)
+router.put('/employees/:id/verify', verifyToken, blockSuperAdmin, isAdmin, controller.verify_employee);
 
-// DELETE Reject & Clean up New Employee Account (Super Admin)
-router.delete('/employees/:id/reject', verifyToken, controller.reject_employee);
+// DELETE Reject & Clean up New Employee Account (HRGA Admin only)
+router.delete('/employees/:id/reject', verifyToken, blockSuperAdmin, isAdmin, controller.reject_employee);
 
 // ROLE REQUESTS (Admin HRGA Request & Super Admin Review)
 router.get('/role-requests', verifyToken, controller.get_role_requests);
 router.post('/role-requests', verifyToken, isAdmin, controller.create_role_request);
 router.put('/role-requests/:id/review', verifyToken, controller.review_role_request);
 
-// Biometric Face Recognition (Multi-Sample Database Preview & Enrollment)
-router.get('/employees/:id/face-samples', verifyToken, controller.get_face_samples);
-router.post('/employees/:id/face-samples', verifyToken, controller.save_face_samples);
-router.delete('/employees/:id/face-samples/:index', verifyToken, controller.delete_single_face_sample);
+// Biometric Face Recognition (Protected from Superadmin)
+router.get('/employees/:id/face-samples', verifyToken, blockSuperAdmin, controller.get_face_samples);
+router.post('/employees/:id/face-samples', verifyToken, blockSuperAdmin, controller.save_face_samples);
+router.delete('/employees/:id/face-samples/:index', verifyToken, blockSuperAdmin, controller.delete_single_face_sample);
 
-// GET Export Employees to Excel
-router.get('/employees/export/excel', verifyToken, isAdmin, controller.export_employees_excel);
+// GET Export Employees to Excel (Protected from Superadmin)
+router.get('/employees/export/excel', verifyToken, blockSuperAdmin, isAdmin, controller.export_employees_excel);
 
 module.exports = router;
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Users, Briefcase, Shield, Building, Award, ShieldCheck, Scan } from 'lucide-react';
 import Employees from './Employees';
@@ -19,28 +19,16 @@ const Organization = () => {
 
   const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
   const isHSEAdmin = role === 'hse_admin' || role.includes('hse') || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || jabatan.includes('hse') || username.includes('hse');
-  const isAdmin = ['admin', 'hrga_admin', 'hr', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hr') || isHSEAdmin;
+  // Superadmin is strictly excluded from operational admin (employees, certificates, face data)
+  const isAdmin = !isSuperAdmin && (['admin', 'hrga_admin', 'hr', 'hse_admin', 'hse', 'hse_officer'].includes(role) || role.includes('admin') || role.includes('hr') || isHSEAdmin);
 
-  // Default active tab based on role or URL query
-  const getDefaultTab = () => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam) return tabParam;
-    if (isSuperAdmin) return 'company';
-    if (isHSEAdmin) return 'certifications';
-    return 'employees';
-  };
-
-  const [activeTab, setActiveTab] = useState(getDefaultTab());
-
-  useEffect(() => {
-    const tabParam = searchParams.get('tab');
-    if (tabParam && tabParam !== activeTab) {
-      setActiveTab(tabParam);
-    }
-  }, [searchParams]);
+  // Derive activeTab directly from searchParams (safe and synchronized)
+  const tabParam = searchParams.get('tab');
+  const activeTab = (isSuperAdmin && ['employees', 'certifications', 'face_biometrics'].includes(tabParam))
+    ? 'company'
+    : (tabParam || (isSuperAdmin ? 'company' : isHSEAdmin ? 'certifications' : 'employees'));
 
   const handleTabChange = (tabName) => {
-    setActiveTab(tabName);
     setSearchParams({ tab: tabName });
   };
 
@@ -136,12 +124,12 @@ const Organization = () => {
       </div>
 
       <div className="flex-1 w-full animate-in fade-in duration-300">
-        {activeTab === 'employees' && isAdmin && <Employees readOnly={isHSEAdmin} />}
-        {activeTab === 'certifications' && isAdmin && <Certifications />}
+        {activeTab === 'employees' && !isSuperAdmin && isAdmin && <Employees readOnly={isHSEAdmin} />}
+        {activeTab === 'certifications' && !isSuperAdmin && isAdmin && <Certifications />}
         {activeTab === 'departments' && <Departments readOnly={isSuperAdmin} />}
-        {activeTab === 'face_biometrics' && isAdmin && <FaceEnrollmentTab readOnly={isHSEAdmin} />}
+        {activeTab === 'face_biometrics' && !isSuperAdmin && isAdmin && <FaceEnrollmentTab readOnly={isHSEAdmin} />}
         {activeTab === 'permissions' && (isAdmin || isSuperAdmin) && <AccessRights readOnly={isHSEAdmin} />}
-        {activeTab === 'company' && <CompanySettings />}
+        {activeTab === 'company' && isSuperAdmin && <CompanySettings />}
       </div>
     </div>
   );
