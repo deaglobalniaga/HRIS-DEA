@@ -82,8 +82,34 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const { addToast } = useToast();
     const [searchParams] = useSearchParams();
     const role = (user?.role || '').toLowerCase();
+    const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
+    const jabatan = (user?.jabatan || '').toLowerCase();
+    const username = (user?.username || '').toLowerCase();
+    const name = (user?.nama_lengkap || user?.name || '').toLowerCase();
+
     const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
-    const canManage = !isSuperAdmin && (['admin', 'hse_admin', 'hse', 'hse_officer', 'hrga_admin', 'hr'].includes(role) || (role.includes('admin') && !isSuperAdmin) || role.includes('hse'));
+
+    // HSE role: can add/edit/delete and approve/reject certifications
+    // Detected by role, username ('hse_admin'), department ('HSE'/'K3'), or position/name
+    const isHSERole = isSuperAdmin || (
+        ['hse_admin', 'hse', 'hse_officer'].includes(role) ||
+        (role.includes('hse') && !role.includes('hr')) ||
+        username === 'hse_admin' ||
+        username.includes('hse') ||
+        dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') ||
+        jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
+        name.includes('hse')
+    );
+
+    // HRGA: read-only for other employees' certs; can only submit their own
+    const isHRGARole = !isSuperAdmin && !isHSERole && (
+        ['admin', 'hrga_admin', 'hr_admin', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
+        role.includes('hr') || role.includes('admin') ||
+        username === 'admin' || dept.includes('hr') || dept.includes('hrga')
+    );
+
+    // canManage: can VIEW all cert data (both HSE and HRGA), but actions differ
+    const canManage = isHSERole || isHRGARole;
 
     const [certifications, setCertifications] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -512,7 +538,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
                     </button>
 
-                    {canManage && activeTab === 'matrix' && (
+                    {/* Hanya HSE yang bisa upload sertifikat untuk karyawan lain */}
+                    {isHSERole && activeTab === 'matrix' && (
                         <button
                             onClick={() => { resetForm(); setShowUploadModal(true); }}
                             className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white text-xs font-black rounded-xl shadow-md transition-all flex items-center gap-2"
@@ -532,12 +559,22 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 <ShieldCheck className="text-red-700" size={18} /> Permohonan Sertifikat & Lisensi Mandiri (Menunggu Verifikasi HSE)
                             </h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Tinjau berkas sertifikat yang diunggah oleh karyawan. Sertifikat yang disetujui akan resmi tercatat pada profil dan matriks perusahaan.
+                                {isHSERole
+                                    ? 'Tinjau berkas sertifikat yang diunggah oleh karyawan. Sertifikat yang disetujui akan resmi tercatat pada profil dan matriks perusahaan.'
+                                    : 'Mode baca — hanya Admin HSE yang berwenang menyetujui atau menolak permohonan sertifikasi karyawan.'
+                                }
                             </p>
                         </div>
-                        <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold">
-                            {pendingCerts.length} Menunggu Persetujuan
-                        </span>
+                        <div className="flex items-center gap-2">
+                            {isHRGARole && (
+                                <span className="px-2.5 py-1 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-[10px] font-bold flex items-center gap-1">
+                                    <Eye size={11} /> Hanya Baca
+                                </span>
+                            )}
+                            <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold">
+                                {pendingCerts.length} Menunggu Persetujuan
+                            </span>
+                        </div>
                     </div>
 
                     {loading ? (
@@ -623,22 +660,32 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                             )}
 
                                             <div className="flex items-center gap-2 ml-auto">
-                                                <button
-                                                    type="button"
-                                                    disabled={isBusy}
-                                                    onClick={() => handleReject(cert.id)}
-                                                    className="px-3 py-1.5 bg-slate-200 hover:bg-red-50 text-slate-700 hover:text-red-700 text-xs font-bold rounded-xl transition disabled:opacity-50"
-                                                >
-                                                    Tolak
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    disabled={isBusy}
-                                                    onClick={() => handleApprove(cert.id)}
-                                                    className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-sm transition flex items-center gap-1 disabled:opacity-50"
-                                                >
-                                                    <CheckCircle2 size={13} /> {isBusy ? "Memproses..." : "Terima & Setujui"}
-                                                </button>
+                                                {isHSERole ? (
+                                                    // HSE: tombol approve & reject
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() => handleReject(cert.id)}
+                                                            className="px-3 py-1.5 bg-slate-200 hover:bg-red-50 text-slate-700 hover:text-red-700 text-xs font-bold rounded-xl transition disabled:opacity-50"
+                                                        >
+                                                            Tolak
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() => handleApprove(cert.id)}
+                                                            className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-sm transition flex items-center gap-1 disabled:opacity-50"
+                                                        >
+                                                            <CheckCircle2 size={13} /> {isBusy ? "Memproses..." : "Terima & Setujui"}
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    // HRGA: informasi read-only
+                                                    <span className="text-[10px] text-slate-400 italic">
+                                                        Persetujuan hanya oleh Admin HSE
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -718,7 +765,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                             })}
                         </div>
 
-                        {canManage && (
+                        {isHSERole && (
                             <button
                                 type="button"
                                 onClick={() => setShowAddTypeModal(true)}
@@ -950,7 +997,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                                 >
                                                                     <Eye size={12} /> Detail
                                                                 </button>
-                                                                {canManage && (
+                                                                {isHSERole && (
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => {
@@ -1174,7 +1221,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                         <span className="text-[10px] text-slate-400 italic bg-slate-100 px-2 py-1 rounded-lg">Tidak ada berkas</span>
                                                     )}
 
-                                                    {canManage && (
+                                                    {isHSERole && (
                                                         <button
                                                             type="button"
                                                             onClick={() => {
@@ -1206,7 +1253,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
                         {/* Modal Footer */}
                         <div className="flex items-center justify-between pt-4 border-t border-slate-100 gap-3">
-                            {canManage && (
+                            {isHSERole && (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -1273,13 +1320,15 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 <div>
                                     <div className="flex items-center justify-between mb-1">
                                         <label className="text-slate-700 font-bold">Jenis / Nama Sertifikat <span className="text-red-600">*</span></label>
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAddTypeModal(true)}
-                                            className="text-[10px] text-red-700 hover:text-red-800 font-black flex items-center gap-0.5 cursor-pointer"
-                                        >
-                                            <Plus size={12} /> Tambah Jenis Baru
-                                        </button>
+                                        {isHSERole && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowAddTypeModal(true)}
+                                                className="text-[10px] text-red-700 hover:text-red-800 font-black flex items-center gap-0.5 cursor-pointer"
+                                            >
+                                                <Plus size={12} /> Tambah Jenis Baru
+                                            </button>
+                                        )}
                                     </div>
                                     <input
                                         type="text"
@@ -1517,7 +1566,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                     allCertificates={previewDoc?.userCerts || (previewDoc ? [previewDoc] : [])}
                     activeId={previewDoc?.id}
                     onClose={() => setPreviewDoc(null)}
-                    onDelete={canManage ? (doc) => setCertToDelete({
+                    onDelete={isHSERole ? (doc) => setCertToDelete({
                         id: doc.id,
                         nama_sertifikat: doc.title || doc.nama_sertifikat,
                         nomor_sertifikat: doc.certNumber,

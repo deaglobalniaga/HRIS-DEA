@@ -39,7 +39,8 @@ const PersonalCertifications = () => {
     isAdmin && (
       dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') ||
       jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
-      username.includes('hse')
+      username.includes('hse') ||
+      (user?.nama_lengkap || user?.name || '').toLowerCase().includes('hse')
     )
   );
 
@@ -100,7 +101,7 @@ const PersonalCertifications = () => {
       setCerts(res.data || []);
       setCertTypes(typesRes.data || []);
 
-      if (isHSEAdmin || isAdmin) {
+      if (isHSEAdmin) {
         try {
           const allCertsRes = await api.get('/hris/certifications');
           const allC = allCertsRes.data || [];
@@ -297,7 +298,7 @@ const PersonalCertifications = () => {
       </div>
 
       {/* 1.5 HSE Admin Banner - Direct Access to Pending Employee Verifications */}
-      {(isHSEAdmin || isAdmin) && (
+      {isHSEAdmin && (
         <div className="bg-gradient-to-r from-slate-900 via-red-950 to-slate-900 text-white rounded-3xl p-5 shadow-lg border border-red-800/40 flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="w-12 h-12 rounded-2xl bg-red-600/30 border border-red-500/40 flex items-center justify-center text-red-400 shrink-0">

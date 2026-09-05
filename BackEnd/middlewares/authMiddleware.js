@@ -102,16 +102,66 @@ const isHRGA = (req, res, next) => {
     }
 };
 
-const isHSE = (req, res, next) => {
-    const role = (req.userRole || req.user?.role || '').toLowerCase();
-    const isSuper = ['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super');
-    if (!isSuper && (
-        ['admin', 'hse_admin', 'hse', 'hse_officer', 'hrga_admin'].includes(role) ||
-        role.includes('hse')
-    )) {
-        next();
-    } else {
-        res.status(403).json({ message: 'Akses ditolak: Memerlukan hak akses Admin HSE (Superadmin tidak diizinkan mengelola sertifikat K3)' });
+const isHSE = async (req, res, next) => {
+    try {
+        const userId = req.userId;
+        const role = (req.userRole || req.user?.role || '').toLowerCase();
+        const isSuper = ['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super');
+        if (isSuper) return next();
+
+        // 1. If role is explicitly HRGA only, reject
+        const isHRGAOnly = ['hrga_admin', 'hr_admin', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
+            (role.includes('hr') && !role.includes('hse'));
+        if (isHRGAOnly) {
+            return res.status(403).json({ 
+                message: 'Akses ditolak: Hanya Admin HSE yang berwenang menyetujui, menolak, atau menambahkan sertifikasi karyawan. HRGA hanya dapat membaca data sertifikasi.' 
+            });
+        }
+
+        // 2. If role is explicitly HSE, allow
+        if (['hse_admin', 'hse', 'hse_officer'].includes(role) || (role.includes('hse') && !role.includes('hr'))) {
+            return next();
+        }
+
+        // 3. For role 'admin', disambiguate using username, department, and position
+        if (userId) {
+            const { data: userProfile } = await supabase
+                .from('users')
+                .select(`
+                    username,
+                    roles (name),
+                    employees (
+                        jabatan,
+                        nama_lengkap,
+                        departments (name)
+                    )
+                `)
+                .eq('id', userId)
+                .maybeSingle();
+
+            const username = (userProfile?.username || '').toLowerCase();
+            const emp = Array.isArray(userProfile?.employees) ? userProfile.employees[0] : userProfile?.employees;
+            const deptName = (emp?.departments?.name || '').toLowerCase();
+            const jabatan = (emp?.jabatan || '').toLowerCase();
+            const namaLengkap = (emp?.nama_lengkap || '').toLowerCase();
+
+            const isHSEUser = username === 'hse_admin' || 
+                username.includes('hse') ||
+                deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || deptName.includes('pengelola k3') ||
+                jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
+                namaLengkap.includes('hse');
+
+            if (isHSEUser) {
+                return next();
+            }
+        }
+
+        return res.status(403).json({ 
+            message: 'Akses ditolak: Hanya Admin HSE yang berwenang menyetujui, menolak, atau menambahkan sertifikasi karyawan. HRGA hanya dapat membaca data sertifikasi.' 
+        });
+    } catch (err) {
+        console.error('isHSE check error:', err);
+        return res.status(500).json({ message: 'Gagal memvalidasi hak akses HSE.' });
     }
 };
 

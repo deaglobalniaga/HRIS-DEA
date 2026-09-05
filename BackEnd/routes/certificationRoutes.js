@@ -41,6 +41,6 @@ router.post('/certificate-types', verifyToken, blockSuperAdmin, controller.creat
 router.post('/certifications', verifyToken, blockSuperAdmin, isHSE, upload.any(), controller.add_certification);
 router.patch('/certifications/:id/approve', verifyToken, blockSuperAdmin, isHSE, controller.approve_certification);
 router.patch('/certifications/:id/reject', verifyToken, blockSuperAdmin, isHSE, controller.reject_certification);
-router.delete('/certifications/:id', verifyToken, blockSuperAdmin, controller.delete_certification);
+router.delete('/certifications/:id', verifyToken, blockSuperAdmin, isHSE, controller.delete_certification);
 
 module.exports = router;
