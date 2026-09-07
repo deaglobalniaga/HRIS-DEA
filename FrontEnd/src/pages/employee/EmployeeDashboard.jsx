@@ -86,9 +86,9 @@ const EmployeeDashboard = () => {
   };
 
   return (
-    <div className="flex flex-col w-full max-w-md mx-auto font-sans select-none overflow-x-hidden gap-3.5 pb-8">
+    <div className="flex flex-col w-full font-sans select-none overflow-x-hidden pb-8">
       {/* Header Banner with Parallelogram Geometry */}
-      <div className="w-full bg-[#120202] text-white rounded-3xl sm:rounded-[36px] px-4 sm:px-6 pt-5 pb-6 shadow-xl shadow-red-950/40 relative overflow-hidden">
+      <div className="w-full bg-[#120202] text-white rounded-b-[36px] sm:rounded-b-[44px] px-4 sm:px-6 pt-11 sm:pt-12 pb-10 shadow-xl shadow-red-950/40 relative overflow-hidden">
         {/* Vertical Parallelogram Polygon Container (Red angled split matching design) */}
         <div
           className="absolute top-0 right-0 h-full w-[46%] sm:w-[40%] pointer-events-none z-0"
@@ -158,7 +158,7 @@ const EmployeeDashboard = () => {
       </div>
 
       {/* Main Container Content */}
-      <div className="w-full flex flex-col gap-3.5 relative z-20">
+      <div className="w-full max-w-md mx-auto px-4 -mt-5 flex flex-col gap-3.5 relative z-20">
         {/* Operational Banner */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex items-start gap-3">
           <div className="p-2.5 bg-red-50 text-red-600 rounded-xl shrink-0 mt-0.5">

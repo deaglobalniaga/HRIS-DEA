@@ -25,6 +25,15 @@ const MainLayout = () => {
   );
 
   const isEmployeeRole = role === 'user' || role === 'karyawan' || role === 'pjo';
+  const isEmployeeDashboard = isEmployeeRole && (location.pathname === '/' || location.pathname === '/dashboard');
+
+  // Dynamic theme-color for mobile status bar (dark for Employee Dashboard, clean slate for others)
+  useEffect(() => {
+    const metaTheme = document.querySelector('meta[name="theme-color"]');
+    if (metaTheme) {
+      metaTheme.setAttribute('content', isEmployeeDashboard ? '#120202' : '#f8fafc');
+    }
+  }, [isEmployeeDashboard]);
 
   // Smooth scroll to top on every route navigation
   useEffect(() => {
@@ -67,7 +76,7 @@ const MainLayout = () => {
         </div>
 
         {/* Main Content Area with Blur-In Page Transition */}
-        <main className={`flex-1 w-full px-3.5 pt-3.5 pb-24 sm:px-6 sm:pt-4 sm:pb-28 lg:px-6 lg:pt-2.5 lg:pb-8 overflow-x-hidden overflow-y-auto flex flex-col`}>
+        <main className={`flex-1 w-full ${isEmployeeDashboard ? 'px-0 pt-0 pb-24 lg:px-6 lg:pt-2.5 lg:pb-8' : 'px-3.5 pt-3.5 pb-24 sm:px-6 sm:pt-4 sm:pb-28 lg:px-6 lg:pt-2.5 lg:pb-8'} overflow-x-hidden overflow-y-auto flex flex-col`}>
           <div key={location.pathname} className="w-full flex-1 flex flex-col page-blur-in">
             <Outlet />
           </div>
