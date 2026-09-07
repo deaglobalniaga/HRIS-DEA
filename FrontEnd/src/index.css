@@ -64,19 +64,16 @@ body {
 @keyframes page-blur-in {
   0% {
     opacity: 0;
-    filter: blur(10px);
-    transform: scale(0.995);
+    filter: blur(8px);
   }
   100% {
     opacity: 1;
     filter: blur(0px);
-    transform: scale(1);
   }
 }
 
 .page-blur-in {
-  animation: page-blur-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  will-change: filter, opacity, transform;
+  animation: page-blur-in 0.28s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 /* Orbiting Rings Animations for Auth Transition */

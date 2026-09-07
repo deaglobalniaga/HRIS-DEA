@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import {
   Building2, Layers, Users, Search, Edit3, Check, X,
@@ -345,7 +346,7 @@ const Departments = ({ readOnly = false }) => {
           </div>
 
           {/* Modal Tambah Departemen Baru */}
-          {showAddDeptModal && (
+          {showAddDeptModal && typeof document !== 'undefined' && createPortal(
             <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
               <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 animate-in fade-in zoom-in-95">
                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
@@ -399,7 +400,8 @@ const Departments = ({ readOnly = false }) => {
                   </div>
                 </form>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
 
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Calendar as CalendarIcon, Users, Clock, AlertCircle, Plus, X, ChevronLeft, 
   ChevronRight, Bookmark, MapPin, Check, Info, Tag, Layers, CalendarCheck
@@ -496,8 +497,8 @@ const LeaveTimeline = () => {
       </div>
 
       {/* Add Agenda Modal with Strict Validation */}
-      {showAddAgendaModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {showAddAgendaModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
@@ -628,12 +629,13 @@ const LeaveTimeline = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Clickable Event Details Modal */}
-      {selectedAgendaDetail && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      {selectedAgendaDetail && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 border border-slate-100">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div className="flex items-center gap-2">
@@ -696,7 +698,8 @@ const LeaveTimeline = () => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

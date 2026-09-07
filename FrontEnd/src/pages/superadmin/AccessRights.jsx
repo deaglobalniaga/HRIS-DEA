@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Shield, Camera, MapPin, UserCheck, AlertTriangle, Search, RefreshCw, 
   CheckCircle2, Clock, Send, Check, X, FileText, UserPlus, Eye, BadgeCheck, AlertCircle,
@@ -803,8 +804,8 @@ const AccessRights = ({ readOnly = false }) => {
       </div>
 
       {/* MODAL: AJUKAN PERUBAHAN ROLE (ADMIN HRGA) */}
-      {isRequestModalOpen && selectedEmpForRequest && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      {isRequestModalOpen && selectedEmpForRequest && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -880,12 +881,13 @@ const AccessRights = ({ readOnly = false }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* MODAL: TINJAU PENGAJUAN ROLE (SUPER ADMIN) */}
-      {isReviewModalOpen && selectedRequestForReview && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+      {isReviewModalOpen && selectedRequestForReview && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
@@ -960,7 +962,8 @@ const AccessRights = ({ readOnly = false }) => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

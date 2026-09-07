@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { FileText, Plus, AlertCircle, UploadCloud, Eye, Trash2, CalendarRange, CheckCircle } from 'lucide-react';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
@@ -301,8 +302,8 @@ const Permissions = () => {
       </div>
 
       {/* Admin Add Leave Record Modal */}
-      {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+      {showAddModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl p-6 border border-slate-100 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-4">
               <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
@@ -425,7 +426,8 @@ const Permissions = () => {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* PDF Viewer Modal */}

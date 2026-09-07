@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Search, Filter, MoreVertical, Briefcase, UserPlus, X, AlertCircle, Upload, Edit, Trash2, ArrowRight, ArrowLeft, Download, FileSpreadsheet, Eye } from 'lucide-react';
 import { useToast } from '../../context/ToastContext';
 import Papa from 'papaparse';
@@ -1164,8 +1165,8 @@ const Employees = ({ readOnly = false }) => {
             </div>
 
             {/* Edit Employee WIZARD Modal */}
-            {showEditModal && selectedEmp && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            {showEditModal && selectedEmp && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                             <div>
@@ -1524,13 +1525,14 @@ const Employees = ({ readOnly = false }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
 
             {/* Add Employee WIZARD Modal */}
-            {showAddModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            {showAddModal && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[9999] flex items-center justify-center p-4">
                     <div className="bg-white rounded-[2rem] w-full max-w-4xl overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 max-h-[90vh] flex flex-col">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                             <div>
@@ -1873,7 +1875,8 @@ const Employees = ({ readOnly = false }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* Full-Screen Portal Import Modal with Customizable Template */}
@@ -1894,9 +1897,9 @@ const Employees = ({ readOnly = false }) => {
                 addToast={addToast}
             />
 
-            {selectedHSEEmployee && (
-                <div className="fixed inset-0 z-50 flex justify-end">
-                    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setSelectedHSEEmployee(null)}></div>
+            {selectedHSEEmployee && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 z-[9999] flex justify-end">
+                    <div className="fixed inset-0 bg-black/40 backdrop-blur-md" onClick={() => setSelectedHSEEmployee(null)}></div>
                     <div className="w-full max-w-md bg-white h-full shadow-2xl relative z-10 flex flex-col transform transition-transform">
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50">
                             <h2 className="text-lg font-black text-slate-800">Profil & Sertifikasi</h2>
@@ -1963,7 +1966,8 @@ const Employees = ({ readOnly = false }) => {
                             </div>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
             {/* FULL-PAGE MULTI-DOCUMENT VIEWER */}
