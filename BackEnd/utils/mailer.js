@@ -780,6 +780,88 @@ const getHseAdminEmails = async (supabaseClient) => {
     }
 };
 
+/**
+ * Resolves the personal/primary notification email for a user or employee.
+ * Strictly ensures security confirmations, OTPs, and notifications are sent
+ * to their actual personal email address, avoiding unrouted internal domains.
+ */
+const resolveUserPersonalEmail = async (supabaseClient, { userId, employeeId, userObj } = {}) => {
+    try {
+        if (!supabaseClient) return null;
+
+        let emp = null;
+        if (employeeId) {
+            const { data } = await supabaseClient
+                .from('employees')
+                .select('id, user_id, email')
+                .eq('id', employeeId)
+                .maybeSingle();
+            emp = data;
+        } else if (userId) {
+            const { data } = await supabaseClient
+                .from('employees')
+                .select('id, user_id, email')
+                .eq('user_id', userId)
+                .maybeSingle();
+            emp = data;
+        }
+
+        // Priority 1: employees.email (personal email registered in HRIS)
+        if (emp?.email && emp.email.includes('@')) {
+            const cleaned = emp.email.trim().toLowerCase();
+            if (!cleaned.endsWith('@deaglobalniaga.com')) {
+                return cleaned;
+            }
+        }
+
+        // 2. Fetch user record if needed
+        let user = userObj;
+        const targetUId = userId || emp?.user_id;
+        if (!user && targetUId) {
+            const { data } = await supabaseClient
+                .from('users')
+                .select('id, email, recovery_email')
+                .eq('id', targetUId)
+                .maybeSingle();
+            user = data;
+        }
+
+        // Priority 2: user.recovery_email
+        if (user?.recovery_email && user.recovery_email.includes('@')) {
+            const cleaned = user.recovery_email.trim().toLowerCase();
+            if (!cleaned.endsWith('@deaglobalniaga.com')) {
+                return cleaned;
+            }
+        }
+
+        // Priority 3: user.email (if not @deaglobalniaga.com)
+        if (user?.email && user.email.includes('@')) {
+            const cleaned = user.email.trim().toLowerCase();
+            if (!cleaned.endsWith('@deaglobalniaga.com')) {
+                return cleaned;
+            }
+        }
+
+        // Priority 4: if emp.email is set (even if company domain)
+        if (emp?.email && emp.email.includes('@')) {
+            return emp.email.trim().toLowerCase();
+        }
+
+        // Priority 5: Fallback to whatever is on user object
+        if (user?.recovery_email && user.recovery_email.includes('@')) {
+            return user.recovery_email.trim().toLowerCase();
+        }
+        if (user?.email && user.email.includes('@')) {
+            return user.email.trim().toLowerCase();
+        }
+
+        return null;
+    } catch (err) {
+        console.error('[MAILER] Error in resolveUserPersonalEmail:', err);
+        return null;
+    }
+};
+
 module.exports = {
     sendRequestNotification,
     sendPasswordResetOtpEmail,
@@ -790,5 +872,6 @@ module.exports = {
     sendCertRejectionEmail,
     sendCertExpiringEmail,
     sendSecurityActivityEmail,
-    getHseAdminEmails
+    getHseAdminEmails,
+    resolveUserPersonalEmail
 };

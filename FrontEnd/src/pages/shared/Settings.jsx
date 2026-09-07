@@ -147,6 +147,8 @@ const Settings = () => {
         const { name, value } = e.target;
         if (name === 'nama' || name === 'nama_lengkap') {
             setProfileData(prev => ({ ...prev, nama: value, nama_lengkap: value }));
+        } else if (name === 'email') {
+            setProfileData(prev => ({ ...prev, email: value, recovery_email: (!prev.recovery_email || prev.recovery_email === prev.email) ? value : prev.recovery_email }));
         } else {
             setProfileData(prev => ({ ...prev, [name]: value }));
         }
@@ -398,7 +400,7 @@ const Settings = () => {
             await api.patch('/auth/recovery-email', { email: cleanEmail });
             addToast('Email pemulihan berhasil disimpan!', 'success');
             login(token, { ...user, recovery_email: cleanEmail });
-            setProfileData(prev => ({ ...prev, recovery_email: cleanEmail }));
+            setProfileData(prev => ({ ...prev, recovery_email: cleanEmail, email: prev.email || cleanEmail }));
             fetchProfile();
         } catch(e) {
             addToast('Gagal menyimpan email pemulihan: ' + (e.response?.data?.error || e.message), 'error');

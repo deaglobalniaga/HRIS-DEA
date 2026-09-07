@@ -223,7 +223,9 @@ exports.create_employee = async (req, res) => {
         }
 
         // Guarantee unique email
-        let baseEmail = payload.email_office || payload.email || `${username}@deaglobalniaga.com`;
+        const personalEmail = (payload.email || '').trim().toLowerCase();
+        const officeEmail = (payload.email_office || personalEmail || '').trim().toLowerCase();
+        let baseEmail = officeEmail || personalEmail || `${username}@deaglobalniaga.com`;
         let email = baseEmail;
         let emailCounter = 1;
         while (true) {
@@ -240,6 +242,7 @@ exports.create_employee = async (req, res) => {
             .insert({
                 username,
                 email,
+                recovery_email: personalEmail || officeEmail || null,
                 password_hash: passwordHash,
                 role_id: roleData?.id,
                 is_active: false,
@@ -293,7 +296,7 @@ exports.create_employee = async (req, res) => {
         // 3. Create Employee Details
         await supabase.from('employee_details').insert({
             employee_id: newEmployee.id,
-            email_office: email,
+            email_office: officeEmail || email,
             status_pajak: payload.status_pajak || 'TK/0',
             npwp: payload.npwp || '',
             nomor_kpj: payload.nomor_kpj || '',
@@ -627,6 +630,9 @@ exports.update_employee = async (req, res) => {
             } else if (updates.email) {
                 userPayload.email = updates.email.trim().toLowerCase();
             }
+            if (updates.email) {
+                userPayload.recovery_email = updates.email.trim().toLowerCase();
+            }
 
             if (Object.keys(userPayload).length > 0) {
                 userPayload.updated_at = new Date();
@@ -844,6 +850,9 @@ exports.bulk_create_employees = async (req, res) => {
             if (existingEmp) {
                 // Update existing employee
                 await supabase.from('employees').update(empPayload).eq('id', existingEmp.id);
+                if (emailPersonal && existingEmp.user_id) {
+                    await supabase.from('users').update({ recovery_email: emailPersonal }).eq('id', existingEmp.user_id);
+                }
                 empId = existingEmp.id;
                 updatedCount++;
             } else {
@@ -860,6 +869,7 @@ exports.bulk_create_employees = async (req, res) => {
                 const { data: newUser } = await supabase.from('users').insert({
                     username,
                     email,
+                    recovery_email: emailPersonal || emailOffice || null,
                     password_hash: passwordHash,
                     role_id: defaultRole?.id,
                     is_active: true

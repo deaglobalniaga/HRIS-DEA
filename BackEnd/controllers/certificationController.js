@@ -656,7 +656,10 @@ exports.approve_certification = async (req, res) => {
             // Send confirmation email to employee
             (async () => {
                 try {
-                    let empEmail = data.employees?.email || data.employees?.email_office || null;
+                    let empEmail = await mailer.resolveUserPersonalEmail(supabase, { userId, employeeId: data.employees?.id, userObj: data.employees });
+                    if (!empEmail) {
+                        empEmail = data.employees?.email || data.employees?.email_office || null;
+                    }
                     if (!empEmail) {
                         const { data: uData } = await supabase.from('users').select('email, recovery_email').eq('id', userId).maybeSingle();
                         empEmail = uData?.recovery_email || uData?.email;
@@ -757,7 +760,10 @@ exports.reject_certification = async (req, res) => {
             // Send rejection email to employee with reason
             (async () => {
                 try {
-                    let empEmail = data.employees?.email || data.employees?.email_office || null;
+                    let empEmail = await mailer.resolveUserPersonalEmail(supabase, { userId, employeeId: data.employees?.id, userObj: data.employees });
+                    if (!empEmail) {
+                        empEmail = data.employees?.email || data.employees?.email_office || null;
+                    }
                     if (!empEmail) {
                         const { data: uData } = await supabase.from('users').select('email, recovery_email').eq('id', userId).maybeSingle();
                         empEmail = uData?.recovery_email || uData?.email;

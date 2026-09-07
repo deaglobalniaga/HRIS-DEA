@@ -26,7 +26,8 @@ exports.signup = async (req, res) => {
         const username = String(payload.username || '').trim();
         const password = String(payload.password || '').trim();
         const nama = String(payload.nama || payload.nama_lengkap || '').trim();
-        const email_office = String(payload.email_office || payload.email || '').trim();
+        const email_personal = String(payload.email || '').trim().toLowerCase();
+        const email_office = String(payload.email_office || email_personal || '').trim().toLowerCase();
 
         if (!username || !password || !nama) {
             return res.status(400).json({ message: 'Username, password, dan nama lengkap wajib diisi' });
@@ -43,11 +44,12 @@ exports.signup = async (req, res) => {
             return res.status(400).json({ message: 'Username sudah digunakan, silakan gunakan username lain' });
         }
 
-        if (email_office) {
+        const checkEmail = email_office || email_personal;
+        if (checkEmail) {
             const { data: existingEmail } = await supabase
                 .from('users')
                 .select('id')
-                .ilike('email', email_office)
+                .ilike('email', checkEmail)
                 .maybeSingle();
 
             if (existingEmail) {
@@ -83,6 +85,7 @@ exports.signup = async (req, res) => {
             .insert({
                 username,
                 email: email_office || `${username}@deaglobalniaga.com`,
+                recovery_email: email_personal || email_office || null,
                 password_hash: passwordHash,
                 role_id: roleId,
                 is_active: false,
@@ -116,6 +119,7 @@ exports.signup = async (req, res) => {
                 status_perkawinan: payload.status_perkawinan || '',
                 agama: payload.agama || '',
                 no_handphone: payload.no_handphone || '',
+                email: email_personal || null,
                 join_date: payload.join_date || new Date().toISOString().split('T')[0]
             })
             .select('id')
@@ -532,6 +536,9 @@ exports.getProfile = async (req, res) => {
         delete flattenedUser.password_hash;
         if (employeeData) {
             const { employee_details, employee_documents, departments, ...restEmp } = employeeData;
+            const officeEmail = (Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0]?.email_office : employeeData.employee_details?.email_office) || '';
+            const personalEmail = employeeData.email || user.recovery_email || (!user.email?.endsWith('@deaglobalniaga.com') ? user.email : '') || '';
+
             flattenedUser = { 
                 ...flattenedUser, 
                 ...employeeData,
@@ -539,13 +546,17 @@ exports.getProfile = async (req, res) => {
                 user_id: user.id,
                 employee_id: employeeData.id,
                 username: user.username,
-                email: user.email,
-                recovery_email: user.recovery_email,
+                email: personalEmail || user.email,
+                email_office: officeEmail,
+                recovery_email: user.recovery_email || personalEmail,
                 mfa_enabled: Boolean(user.mfa_enabled)
             };
             if (employeeData.departments) flattenedUser.department = employeeData.departments.name;
             if (employeeData.employee_details && employeeData.employee_details.length > 0) {
                 flattenedUser = { ...flattenedUser, ...(Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0] : employeeData.employee_details) };
+                // Keep authoritative personal email & office email
+                flattenedUser.email = personalEmail || user.email;
+                flattenedUser.email_office = officeEmail;
             }
             if (employeeData.employee_documents) {
                 flattenedUser.documents = employeeData.employee_documents;
@@ -589,8 +600,15 @@ exports.updateProfile = async (req, res) => {
     if (updates.pendidikan !== undefined || updates.education !== undefined || updates.pendidikan_terakhir !== undefined) employeeUpdates.pendidikan = updates.pendidikan || updates.education || updates.pendidikan_terakhir;
     if (updates.jurusan !== undefined || updates.major !== undefined) employeeUpdates.jurusan = updates.jurusan || updates.major;
 
+    // Email mapping: email is personal, email_office is office
+    if (updates.email !== undefined) {
+        employeeUpdates.email = updates.email ? String(updates.email).trim().toLowerCase() : null;
+    }
+    if (updates.email_office !== undefined) {
+        detailUpdates.email_office = updates.email_office ? String(updates.email_office).trim().toLowerCase() : '';
+    }
+
     // Contact details mapping
-    if (updates.email_office !== undefined) detailUpdates.email_office = updates.email_office;
     if (updates.kontak_darurat || updates.kontak_darurat_nama) {
         detailUpdates.kontak_darurat_nama = updates.kontak_darurat || updates.kontak_darurat_nama;
     }
@@ -603,12 +621,21 @@ exports.updateProfile = async (req, res) => {
 
     const targetUserId = req.userId || req.user?.id;
     try {
-        // 1. Update user record (email and recovery_email)
+        // 1. Update user record (email, recovery_email)
         const userUpdates = { updated_at: new Date() };
-        if (updates.email) userUpdates.email = String(updates.email).trim();
-        if (updates.recovery_email !== undefined) {
+        if (updates.email_office) {
+            userUpdates.email = String(updates.email_office).trim().toLowerCase();
+        } else if (updates.email && updates.email.endsWith('@deaglobalniaga.com')) {
+            userUpdates.email = String(updates.email).trim().toLowerCase();
+        }
+
+        // Link personal email directly to recovery_email
+        if (updates.email) {
+            userUpdates.recovery_email = String(updates.email).trim().toLowerCase();
+        } else if (updates.recovery_email !== undefined) {
             userUpdates.recovery_email = updates.recovery_email ? String(updates.recovery_email).trim() : null;
         }
+
         if (Object.keys(userUpdates).length > 1) {
             const { error: userErr } = await supabase.from('users').update(userUpdates).eq('id', targetUserId);
             if (userErr) console.error('Error updating users in updateProfile:', userErr);
@@ -747,9 +774,9 @@ exports.changePassword = async (req, res) => {
         // Dispatch security notification email asynchronously
         (async () => {
             try {
-                const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
-                const toEmail = u?.recovery_email || u?.email;
+                const toEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: req.userId });
                 if (toEmail) {
+                    const { data: u } = await supabase.from('users').select('username').eq('id', req.userId).maybeSingle();
                     const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
                     await mailer.sendSecurityActivityEmail({
                         toEmail,
@@ -810,8 +837,7 @@ exports.changeUsername = async (req, res) => {
         // Dispatch security notification email asynchronously
         (async () => {
             try {
-                const { data: u } = await supabase.from('users').select('email, recovery_email').eq('id', targetUserId).maybeSingle();
-                const toEmail = u?.recovery_email || u?.email;
+                const toEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: targetUserId });
                 if (toEmail) {
                     const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
                     await mailer.sendSecurityActivityEmail({
@@ -971,7 +997,7 @@ exports.sendMfaEmailOtp = async (req, res) => {
             return res.status(404).json({ message: 'Pengguna tidak ditemukan. Pastikan akun memiliki email terdaftar.' });
         }
 
-        const targetEmail = user.email || user.recovery_email;
+        const targetEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: user.id, userObj: user }) || user.recovery_email || user.email;
         if (!targetEmail) {
             return res.status(400).json({ message: 'Tidak ada email terdaftar untuk mengirim kode verifikasi' });
         }
@@ -1055,9 +1081,9 @@ exports.verifyMfa = async (req, res) => {
             // Dispatch security notification email asynchronously
             (async () => {
                 try {
-                    const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
-                    const toEmail = u?.recovery_email || u?.email;
+                    const toEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: req.userId });
                     if (toEmail) {
+                        const { data: u } = await supabase.from('users').select('username').eq('id', req.userId).maybeSingle();
                         const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
                         await mailer.sendSecurityActivityEmail({
                             toEmail,
@@ -1089,9 +1115,9 @@ exports.disableMfa = async (req, res) => {
         // Dispatch security notification email asynchronously
         (async () => {
             try {
-                const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
-                const toEmail = u?.recovery_email || u?.email;
+                const toEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: req.userId });
                 if (toEmail) {
+                    const { data: u } = await supabase.from('users').select('username').eq('id', req.userId).maybeSingle();
                     const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
                     await mailer.sendSecurityActivityEmail({
                         toEmail,
@@ -1134,12 +1160,8 @@ exports.sendMfaEmailOtp = async (req, res) => {
             return res.status(404).json({ message: 'Pengguna tidak ditemukan.' });
         }
 
-        // Determine destination email (recovery_email or primary email or employee email)
-        let targetEmail = user.recovery_email || user.email;
-        if (!targetEmail) {
-            const { data: emp } = await supabase.from('employees').select('id, email_office').eq('user_id', user.id).maybeSingle();
-            targetEmail = emp?.email_office;
-        }
+        // Determine destination email (Strictly prioritize personal email)
+        const targetEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: user.id, userObj: user }) || user.recovery_email || user.email;
 
         if (!targetEmail) {
             return res.status(400).json({ message: 'Tidak ada alamat email yang terdaftar untuk akun ini. Silakan hubungi Administrator HRGA/IT.' });
@@ -1178,7 +1200,7 @@ exports.sendMfaEmailOtp = async (req, res) => {
 exports.saveRecoveryEmail = async (req, res) => {
     const { email } = req.body;
     try {
-        const cleanEmail = email ? String(email).trim() : null;
+        const cleanEmail = email ? String(email).trim().toLowerCase() : null;
         const { data: userBefore } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
         const { error: updErr } = await supabase.from('users').update({ 
             recovery_email: cleanEmail,
@@ -1186,6 +1208,11 @@ exports.saveRecoveryEmail = async (req, res) => {
         }).eq('id', req.userId);
 
         if (updErr) throw updErr;
+
+        // Keep personal email in employees table in sync
+        if (cleanEmail) {
+            await supabase.from('employees').update({ email: cleanEmail }).eq('user_id', req.userId);
+        }
 
         await invalidateCache('user:*');
         await invalidateCache('emp:*');
@@ -1321,7 +1348,7 @@ exports.deleteDocumentByType = async (req, res) => {
     }
 };
 
-// Helper to safely find user by username, email, or recovery_email
+// Helper to safely find user by username, email, recovery_email, or employees.email
 const findUserForPasswordReset = async (rawIdentifier) => {
     if (!rawIdentifier) return null;
     const identifier = String(rawIdentifier).trim().toLowerCase();
@@ -1337,6 +1364,13 @@ const findUserForPasswordReset = async (rawIdentifier) => {
     // 3. By recovery_email
     const { data: u3 } = await supabase.from('users').select('*').ilike('recovery_email', identifier).maybeSingle();
     if (u3) return u3;
+
+    // 4. By personal email in employees table
+    const { data: emp } = await supabase.from('employees').select('user_id').ilike('email', identifier).maybeSingle();
+    if (emp?.user_id) {
+        const { data: u4 } = await supabase.from('users').select('*').eq('id', emp.user_id).maybeSingle();
+        if (u4) return u4;
+    }
 
     return null;
 };
@@ -1391,8 +1425,8 @@ exports.forgotPassword = async (req, res) => {
 
         if (updateErr) throw updateErr;
 
-        // Send Email with 6-digit OTP
-        const recipientEmail = user.recovery_email || user.email;
+        // Send Email with 6-digit OTP (Strictly personal email)
+        const recipientEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: user.id, userObj: user }) || user.recovery_email || user.email;
         await mailer.sendPasswordResetOtpEmail(recipientEmail, otpCode, 10);
 
         // Mask email for security display (e.g. ar***@outlook.co.id)
@@ -1498,7 +1532,7 @@ exports.resetPassword = async (req, res) => {
         // Dispatch security notification email asynchronously
         (async () => {
             try {
-                const toEmail = user.recovery_email || user.email;
+                const toEmail = await mailer.resolveUserPersonalEmail(supabase, { userId: user.id, userObj: user }) || user.recovery_email || user.email;
                 if (toEmail) {
                     const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
                     await mailer.sendSecurityActivityEmail({
