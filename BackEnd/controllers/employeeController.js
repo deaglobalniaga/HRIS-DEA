@@ -36,8 +36,9 @@ const formatEmployee = (emp) => {
         role: roleName,
         username: emp.users?.username || '',
         is_active: emp.users?.is_active ?? true,
-        email: emp.users?.email || detail.email_office || '',
+        email: emp.email || emp.users?.email || detail.email_office || '',
         email_office: detail.email_office || emp.users?.email || '',
+        roster_type: emp.roster_type || '8/2',
         kontak_darurat: detail.kontak_darurat_nama || emp.kontak_darurat || '',
         kontak_darurat_nama: detail.kontak_darurat_nama || emp.kontak_darurat || '',
         hubungan: detail.kontak_darurat_hubungan || emp.hubungan || '',
@@ -57,6 +58,10 @@ const formatEmployee = (emp) => {
         status_karyawan: emp.status_karyawan || 'Aktif',
         level: emp.level || 'LEVEL 6 (ENGINEER/TEKNISI)',
         jabatan: emp.jabatan || 'Staff',
+        camera_access: emp.camera_access ?? true,
+        gps_access: emp.gps_access ?? true,
+        attendance_camera_access: emp.camera_access ?? true,
+        attendance_gps_access: emp.gps_access ?? true,
         ktp_file_url: ktpDoc?.file_url || ktpDoc?.file_path || null,
         kk_file_url: kkDoc?.file_url || kkDoc?.file_path || null,
         npwp_file_url: npwpDoc?.file_url || npwpDoc?.file_path || null,
@@ -269,6 +274,10 @@ exports.create_employee = async (req, res) => {
                 status_perkawinan: payload.status_perkawinan || 'TK/0',
                 agama: payload.agama || 'Islam',
                 no_handphone: payload.no_handphone || payload.phone || '',
+                email: (payload.email || '').trim().toLowerCase() || null,
+                roster_type: payload.roster_type || '8/2',
+                camera_access: payload.camera_access !== undefined ? (payload.camera_access === true || payload.camera_access === 'true') : (payload.attendance_camera_access !== undefined ? (payload.attendance_camera_access === true || payload.attendance_camera_access === 'true') : true),
+                gps_access: payload.gps_access !== undefined ? (payload.gps_access === true || payload.gps_access === 'true') : (payload.attendance_gps_access !== undefined ? (payload.attendance_gps_access === true || payload.attendance_gps_access === 'true') : true),
                 join_date: payload.join_date || new Date().toISOString().split('T')[0]
             })
             .select('*')
@@ -289,6 +298,7 @@ exports.create_employee = async (req, res) => {
             npwp: payload.npwp || '',
             nomor_kpj: payload.nomor_kpj || '',
             nomor_jkn: payload.nomor_jkn || '',
+            nama_bank: payload.nama_bank || payload.bank || 'BCA',
             kontak_darurat_nama: payload.kontak_darurat_nama || payload.kontak_darurat || '',
             kontak_darurat_nomor: payload.kontak_darurat_nomor || payload.kontak_darurat_no || null,
             kontak_darurat_hubungan: payload.kontak_darurat_hubungan || payload.hubungan || '',
@@ -497,21 +507,36 @@ exports.update_employee = async (req, res) => {
             'nama_lengkap', 'nomor_pegawai', 'nomor_pkwt', 'perusahaan', 'penempatan',
             'jabatan', 'level', 'status_karyawan', 'nik', 'tempat_lahir', 'tanggal_lahir',
             'alamat', 'pendidikan', 'jurusan', 'status_perkawinan', 'agama', 'no_handphone',
-            'join_date', 'efektif_resign', 'face_descriptor',
+            'join_date', 'efektif_resign', 'face_descriptor', 'email', 'roster_type',
             'camera_access', 'gps_access'
         ];
 
-        if (updates.nama || updates.nama_lengkap || updates.full_name) empPayload.nama_lengkap = updates.nama || updates.nama_lengkap || updates.full_name;
-        if (updates.no_ktp || updates.nik || updates.nik_internal) empPayload.nik = updates.nik || updates.no_ktp || updates.nik_internal;
-        if (updates.no_pkwt || updates.nomor_pkwt || updates.no_kontrak || updates.nomor_kontrak) empPayload.nomor_pkwt = updates.nomor_pkwt || updates.no_pkwt || updates.nomor_kontrak || updates.no_kontrak;
-        if (updates.tempat_lahir || updates.birth_place) empPayload.tempat_lahir = updates.tempat_lahir || updates.birth_place;
+        if (updates.nama || updates.nama_lengkap || updates.full_name) empPayload.nama_lengkap = (updates.nama || updates.nama_lengkap || updates.full_name).trim();
+        if (updates.no_ktp || updates.nik || updates.nik_internal) empPayload.nik = (updates.nik || updates.no_ktp || updates.nik_internal).trim();
+        if (updates.no_pkwt || updates.nomor_pkwt || updates.no_kontrak || updates.nomor_kontrak) empPayload.nomor_pkwt = (updates.nomor_pkwt || updates.no_pkwt || updates.nomor_kontrak || updates.no_kontrak).trim();
+        if (updates.tempat_lahir || updates.birth_place) empPayload.tempat_lahir = (updates.tempat_lahir || updates.birth_place).trim();
         if (updates.tanggal_lahir || updates.birth_date) empPayload.tanggal_lahir = updates.tanggal_lahir || updates.birth_date;
-        if (updates.alamat || updates.address) empPayload.alamat = updates.alamat || updates.address;
-        if (updates.pendidikan || updates.education || updates.pendidikan_terakhir) empPayload.pendidikan = updates.pendidikan || updates.education || updates.pendidikan_terakhir;
-        if (updates.jurusan || updates.major) empPayload.jurusan = updates.jurusan || updates.major;
-        if (updates.no_handphone || updates.no_hp || updates.phone) empPayload.no_handphone = updates.no_handphone || updates.no_hp || updates.phone;
+        if (updates.alamat || updates.address) empPayload.alamat = (updates.alamat || updates.address).trim();
+        if (updates.pendidikan || updates.education || updates.pendidikan_terakhir) empPayload.pendidikan = (updates.pendidikan || updates.education || updates.pendidikan_terakhir).trim();
+        if (updates.jurusan || updates.major) empPayload.jurusan = (updates.jurusan || updates.major).trim();
+        if (updates.no_handphone || updates.no_hp || updates.phone) empPayload.no_handphone = (updates.no_handphone || updates.no_hp || updates.phone).trim();
+        if (updates.email !== undefined) empPayload.email = updates.email ? updates.email.trim().toLowerCase() : null;
+        if (updates.roster_type) empPayload.roster_type = updates.roster_type.trim();
+
+        // Handle camera & GPS access from both naming conventions
+        if (updates.camera_access !== undefined) empPayload.camera_access = updates.camera_access === true || updates.camera_access === 'true';
+        else if (updates.attendance_camera_access !== undefined) empPayload.camera_access = updates.attendance_camera_access === true || updates.attendance_camera_access === 'true';
+
+        if (updates.gps_access !== undefined) empPayload.gps_access = updates.gps_access === true || updates.gps_access === 'true';
+        else if (updates.attendance_gps_access !== undefined) empPayload.gps_access = updates.attendance_gps_access === true || updates.attendance_gps_access === 'true';
+
+        // Allow clearing efektif_resign if empty string
+        if (updates.efektif_resign !== undefined) {
+            empPayload.efektif_resign = updates.efektif_resign ? updates.efektif_resign : null;
+        }
+
         empKeys.forEach(k => {
-            if (updates[k] !== undefined && updates[k] !== '') {
+            if (updates[k] !== undefined && updates[k] !== '' && empPayload[k] === undefined) {
                 empPayload[k] = updates[k];
             }
         });
@@ -544,6 +569,11 @@ exports.update_employee = async (req, res) => {
             const { error: updErr } = await supabase.from('employees').update(empPayload).eq('id', targetEmpId);
             if (updErr) {
                 console.error('Error updating employees table:', updErr);
+                return res.status(400).json({
+                    message: updErr.message?.includes('duplicate key') || updErr.code === '23505'
+                        ? 'Gagal menyimpan: NIK atau Nomor Pegawai sudah digunakan oleh karyawan lain!'
+                        : `Gagal memperbarui data karyawan: ${updErr.message}`
+                });
             }
         }
 
@@ -552,22 +582,33 @@ exports.update_employee = async (req, res) => {
         const detailKeys = [
             'email_office', 'status_pajak', 'npwp', 'nomor_kpj', 'nomor_jkn',
             'kontak_darurat_nama', 'kontak_darurat_nomor', 'kontak_darurat_hubungan',
-            'nama_rekening', 'nomor_rekening'
+            'nama_bank', 'nama_rekening', 'nomor_rekening'
         ];
-        if (updates.kontak_darurat || updates.kontak_darurat_nama) detailPayload.kontak_darurat_nama = updates.kontak_darurat || updates.kontak_darurat_nama;
-        if (updates.kontak_darurat_no || updates.kontak_darurat_nomor) detailPayload.kontak_darurat_nomor = updates.kontak_darurat_no || updates.kontak_darurat_nomor;
-        if (updates.hubungan || updates.kontak_darurat_hubungan) detailPayload.kontak_darurat_hubungan = updates.hubungan || updates.kontak_darurat_hubungan;
-        if (updates.nama_rekening || updates.nama || updates.nama_lengkap) detailPayload.nama_rekening = updates.nama_rekening || updates.nama || updates.nama_lengkap;
+        if (updates.kontak_darurat || updates.kontak_darurat_nama) detailPayload.kontak_darurat_nama = (updates.kontak_darurat || updates.kontak_darurat_nama).trim();
+        if (updates.kontak_darurat_no || updates.kontak_darurat_nomor) detailPayload.kontak_darurat_nomor = (updates.kontak_darurat_no || updates.kontak_darurat_nomor).trim();
+        if (updates.hubungan || updates.kontak_darurat_hubungan) detailPayload.kontak_darurat_hubungan = (updates.hubungan || updates.kontak_darurat_hubungan).trim();
+        if (updates.nama_bank || updates.bank) detailPayload.nama_bank = (updates.nama_bank || updates.bank).trim();
+        if (updates.nama_rekening) detailPayload.nama_rekening = updates.nama_rekening.trim();
+        if (updates.nomor_rekening) detailPayload.nomor_rekening = updates.nomor_rekening.trim();
+        if (updates.email_office !== undefined) detailPayload.email_office = updates.email_office ? updates.email_office.trim().toLowerCase() : '';
+
         detailKeys.forEach(k => {
-            if (updates[k] !== undefined) detailPayload[k] = updates[k];
+            if (updates[k] !== undefined && detailPayload[k] === undefined) detailPayload[k] = updates[k];
         });
 
         if (Object.keys(detailPayload).length > 0) {
             const { data: existingDetail } = await supabase.from('employee_details').select('id').eq('employee_id', targetEmpId).maybeSingle();
+            let detailErr = null;
             if (existingDetail) {
-                await supabase.from('employee_details').update(detailPayload).eq('employee_id', targetEmpId);
+                const { error } = await supabase.from('employee_details').update(detailPayload).eq('employee_id', targetEmpId);
+                detailErr = error;
             } else {
-                await supabase.from('employee_details').insert({ employee_id: targetEmpId, ...detailPayload });
+                const { error } = await supabase.from('employee_details').insert({ employee_id: targetEmpId, ...detailPayload });
+                detailErr = error;
+            }
+            if (detailErr) {
+                console.error('Error updating employee_details:', detailErr);
+                return res.status(400).json({ message: `Gagal memperbarui rincian karyawan: ${detailErr.message}` });
             }
         }
 
@@ -581,11 +622,18 @@ exports.update_employee = async (req, res) => {
             if (updates.is_active !== undefined) {
                 userPayload.is_active = updates.is_active === true || updates.is_active === 'true' || updates.is_active === 1;
             }
-            if (updates.email_office || updates.email) userPayload.email = updates.email_office || updates.email;
+            if (updates.email_office) {
+                userPayload.email = updates.email_office.trim().toLowerCase();
+            } else if (updates.email) {
+                userPayload.email = updates.email.trim().toLowerCase();
+            }
 
             if (Object.keys(userPayload).length > 0) {
                 userPayload.updated_at = new Date();
-                await supabase.from('users').update(userPayload).eq('id', currentEmp.user_id);
+                const { error: userUpdErr } = await supabase.from('users').update(userPayload).eq('id', currentEmp.user_id);
+                if (userUpdErr) {
+                    console.error('Error updating users table:', userUpdErr);
+                }
             }
         }
 
@@ -628,7 +676,25 @@ exports.update_employee = async (req, res) => {
         await invalidateCache('dashboard:*');
         await invalidateCache('master:departments');
 
-        res.json({ message: 'Data karyawan berhasil diperbarui' });
+        // Fetch fresh updated employee
+        const { data: updatedRawEmp } = await supabase
+            .from('employees')
+            .select(`
+                *,
+                departments (id, name, cost_center),
+                users (id, username, email, is_active, role_id, roles (id, name)),
+                employee_details (*),
+                employee_documents (*)
+            `)
+            .eq('id', targetEmpId)
+            .single();
+
+        const freshEmp = formatEmployee(updatedRawEmp);
+
+        res.json({
+            message: 'Data karyawan berhasil diperbarui',
+            employee: freshEmp
+        });
     } catch (err) {
         console.error('Update Employee Error:', err);
         res.status(500).json({ error: err.message });
@@ -744,6 +810,10 @@ exports.bulk_create_employees = async (req, res) => {
                 if (byNama) existingEmp = byNama;
             }
 
+            const emailPersonal = getVal('email', 'email_pribadi', 'personal_email');
+            const rosterType = getVal('roster_type', 'roster', 'tipe_roster', 'tipe roster') || '8/2';
+            const namaBank = getVal('nama_bank', 'bank', 'nama bank') || 'BCA';
+
             const empPayload = {
                 nama_lengkap: nama,
                 nomor_pegawai: nomorPegawai,
@@ -753,9 +823,11 @@ exports.bulk_create_employees = async (req, res) => {
                 jabatan,
                 level,
                 status_karyawan: statusKaryawan,
+                roster_type: rosterType,
                 join_date: joinDate,
                 updated_at: new Date()
             };
+            if (emailPersonal) empPayload.email = emailPersonal;
             if (nik) empPayload.nik = nik;
             if (nomorPkwt) empPayload.nomor_pkwt = nomorPkwt;
             if (tempatLahir) empPayload.tempat_lahir = tempatLahir;
@@ -808,6 +880,7 @@ exports.bulk_create_employees = async (req, res) => {
                     npwp: npwp || '',
                     nomor_kpj: nomorKpj || '',
                     nomor_jkn: nomorJkn || '',
+                    nama_bank: namaBank,
                     kontak_darurat_nama: kontakDaruratNama || '',
                     kontak_darurat_nomor: kontakDaruratNomor || '',
                     kontak_darurat_hubungan: kontakDaruratHubungan || '',

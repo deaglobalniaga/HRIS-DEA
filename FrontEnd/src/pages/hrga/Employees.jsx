@@ -198,7 +198,7 @@ const Employees = ({ readOnly = false }) => {
 
     const fetchEmployees = async () => {
         try {
-            const res = await api.get('/hris/employees');
+            const res = await api.get('/hris/employees', { params: { _t: Date.now() } });
             setEmployees(res.data);
         } catch (err) {
             console.error("Failed to fetch employees", err);
@@ -554,10 +554,10 @@ const Employees = ({ readOnly = false }) => {
         try {
             const formData = new FormData();
             const whitelist = [
-                'nama', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'agama', 'pendidikan', 'jurusan', 'status_perkawinan', 'no_handphone', 'kontak_darurat', 'hubungan', 'kontak_darurat_nomor',
+                'nama', 'nama_lengkap', 'tempat_lahir', 'tanggal_lahir', 'alamat', 'agama', 'pendidikan', 'jurusan', 'status_perkawinan', 'no_handphone', 'kontak_darurat', 'hubungan', 'kontak_darurat_nomor',
                 'nomor_pkwt', 'perusahaan', 'penempatan', 'department', 'cost_center', 'jabatan', 'level', 'status_karyawan', 'nik', 'nomor_pegawai', 'email', 'email_office', 'join_date', 'efektif_resign',
                 'status_pajak', 'npwp', 'nomor_kpj', 'nomor_jkn', 'no_ktp', 'nama_rekening', 'nomor_rekening', 'nama_bank',
-                'role', 'roster_type', 'attendance_camera_access', 'attendance_gps_access'
+                'role', 'roster_type', 'camera_access', 'gps_access', 'attendance_camera_access', 'attendance_gps_access'
             ];
 
             whitelist.forEach(key => {
@@ -573,9 +573,13 @@ const Employees = ({ readOnly = false }) => {
             if (selectedEmp.ijazah_file instanceof File) formData.append('ijazah_file', selectedEmp.ijazah_file);
 
             const empId = selectedEmp.id || selectedEmp._id;
-            await api.put(`/hris/employees/${empId}`, formData, {
+            const res = await api.put(`/hris/employees/${empId}`, formData, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
+
+            if (res.data?.employee) {
+                setEmployees(prev => prev.map(item => (item.id === res.data.employee.id ? res.data.employee : item)));
+            }
 
             addToast('Data karyawan berhasil diperbarui!', 'success');
             setShowEditModal(false);
@@ -1190,11 +1194,11 @@ const Employees = ({ readOnly = false }) => {
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-700 mb-2">Nama Lengkap <span className="text-red-500">*</span></label>
-                                                <input type="text" required value={selectedEmp.nama} onChange={e => setSelectedEmp({ ...selectedEmp, nama: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none" placeholder="Masukkan nama lengkap" />
+                                                <input type="text" required value={selectedEmp.nama || selectedEmp.nama_lengkap || ''} onChange={e => setSelectedEmp({ ...selectedEmp, nama: e.target.value, nama_lengkap: e.target.value })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none" placeholder="Masukkan nama lengkap" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-700 mb-2">NIK (16 Digit KTP) <span className="text-red-500">*</span></label>
-                                                <input type="text" maxLength={16} required value={selectedEmp.nik} onChange={e => setSelectedEmp({ ...selectedEmp, nik: e.target.value.replace(/\D/g, '') })} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none" placeholder="16 digit NIK KTP" />
+                                                <input type="text" maxLength={16} required value={selectedEmp.nik || selectedEmp.no_ktp || ''} onChange={e => { const val = e.target.value.replace(/\D/g, ''); setSelectedEmp({ ...selectedEmp, nik: val, no_ktp: val }); }} className="w-full bg-slate-50 border border-slate-200 text-gray-900 font-bold rounded-xl px-4 py-3 outline-none" placeholder="16 digit NIK KTP" />
                                             </div>
                                             <div>
                                                 <label className="block text-xs font-bold text-slate-700 mb-2">Tempat Lahir <span className="text-red-500">*</span></label>
