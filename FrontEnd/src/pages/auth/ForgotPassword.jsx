@@ -92,10 +92,9 @@ const ForgotPassword = () => {
         }
     };
 
-    // 2. Step 2: Verify 6-Digit OTP & Advance to Step 3
-    const handleVerifyOtp = async (e) => {
-        e.preventDefault();
-        const cleanOtp = String(otp || '').replace(/\D/g, '').trim();
+    // 2. Step 2: Auto-verify 6-Digit OTP & Advance to Step 3
+    const verifyOtpCode = async (targetOtp) => {
+        const cleanOtp = String(targetOtp || otp || '').replace(/\D/g, '').trim();
         const activeEmail = email.trim() || sessionStorage.getItem('hris_reset_email') || '';
 
         if (!activeEmail) {
@@ -105,11 +104,10 @@ const ForgotPassword = () => {
         }
 
         if (cleanOtp.length !== 6) {
-            setStatus({ loading: false, success: false, error: 'Kode verifikasi harus 6 digit angka.' });
             return;
         }
 
-        setStatus({ loading: true, success: false, error: null, message: '' });
+        setStatus({ loading: true, success: false, error: null, message: 'Memverifikasi kode...' });
 
         try {
             const res = await api.post('/auth/verify-reset-otp', {
@@ -130,6 +128,25 @@ const ForgotPassword = () => {
                 success: false,
                 error: getFriendlyErrorMessage(err, 'Kode OTP tidak valid atau telah kedaluwarsa.')
             });
+        }
+    };
+
+    const handleOtpChange = (e) => {
+        const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        setOtp(val);
+        if (val.length === 6 && !status.loading) {
+            verifyOtpCode(val);
+        }
+    };
+
+    const handleOtpPaste = (e) => {
+        e.preventDefault();
+        const pasted = e.clipboardData.getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+        if (pasted) {
+            setOtp(pasted);
+            if (pasted.length === 6 && !status.loading) {
+                verifyOtpCode(pasted);
+            }
         }
     };
 
@@ -319,25 +336,32 @@ const ForgotPassword = () => {
                                 <div className="relative">
                                     <input 
                                         type="text" 
-                                        required 
+                                        inputMode="numeric"
+                                        pattern="[0-9]*"
                                         maxLength={6}
                                         autoFocus
                                         value={otp}
-                                        onChange={(e) => setOtp(e.target.value.replace(/[^0-9]/g, ''))}
-                                        className="w-full text-center tracking-[12px] text-3xl font-black font-mono py-3 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:ring-2 focus:ring-red-900/20 focus:border-red-800 outline-none transition-all text-slate-900" 
+                                        onChange={handleOtpChange}
+                                        onPaste={handleOtpPaste}
+                                        disabled={status.loading}
+                                        className="w-full text-center tracking-[12px] text-3xl font-black font-mono py-3.5 bg-slate-50 border-2 border-slate-200 rounded-2xl focus:ring-2 focus:ring-red-900/20 focus:border-red-800 outline-none transition-all text-slate-900 disabled:opacity-60" 
                                         placeholder="••••••" 
                                     />
                                 </div>
                             </div>
 
-                            <button 
-                                type="submit" 
-                                disabled={status.loading || otp.replace(/\D/g, '').length !== 6} 
-                                className="w-full bg-red-800 hover:bg-red-900 text-white font-black py-3 rounded-2xl transition-all shadow-lg shadow-red-900/20 text-xs uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                                {status.loading ? 'Memverifikasi...' : 'Verifikasi Kode & Lanjut'}
-                                <ArrowRight size={14} />
-                            </button>
+                            {/* Auto-Verification Indicator */}
+                            {status.loading ? (
+                                <div className="flex items-center justify-center gap-2.5 py-3.5 px-4 bg-red-50 border border-red-200 text-red-900 rounded-2xl font-bold text-xs shadow-sm animate-pulse">
+                                    <RefreshCw size={15} className="animate-spin text-red-700" />
+                                    <span>Memverifikasi 6 digit kode otomatis...</span>
+                                </div>
+                            ) : (
+                                <div className="flex items-center justify-center gap-1.5 py-1 text-slate-400 text-xs font-medium">
+                                    <span className="w-2 h-2 rounded-full bg-red-600 animate-ping inline-block" />
+                                    <span>Kode langsung diverifikasi otomatis saat 6 digit terisi.</span>
+                                </div>
+                            )}
 
                             {/* Resend OTP Cooldown Timer */}
                             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
