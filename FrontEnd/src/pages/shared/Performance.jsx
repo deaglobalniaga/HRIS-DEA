@@ -42,21 +42,22 @@ const Performance = () => {
     const currentStats = filteredStats.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const getStatusColor = (status) => {
-        if (status === 'Cuti Roster') return 'bg-amber-100 text-amber-700 border-amber-200';
-        return 'bg-green-100 text-green-700 border-green-200';
+        if ((status || '').includes('Cuti')) return 'bg-amber-100 text-amber-700 border-amber-200';
+        if ((status || '').includes('Off')) return 'bg-rose-100 text-rose-700 border-rose-200';
+        return 'bg-emerald-100 text-emerald-700 border-emerald-200';
     };
 
     const get13_1Color = (cycleStr) => {
         const str = String(cycleStr || '');
-        if (str.includes('Sedang Cuti')) return 'text-slate-400';
-        if (str.includes('Off')) return 'text-amber-600 font-black';
+        if (str.includes('Cuti')) return 'text-amber-600 font-bold';
+        if (str.includes('Off')) return 'text-rose-600 font-black';
         return 'text-blue-600 font-bold';
     };
 
     const totalStaff = stats.length;
-    const workingCount = stats.filter(s => (s?.roster_status || '') === 'On Site' || (s?.roster_status || '') === 'Masa Kerja').length;
-    const cutiCount = stats.filter(s => (s?.roster_status || '') === 'Cuti Roster').length;
-    const offCount = stats.filter(s => (s?.cycle_13_1 || '').includes('Off')).length;
+    const cutiCount = stats.filter(s => (s?.roster_status || '').includes('Cuti')).length;
+    const offCount = stats.filter(s => (s?.roster_status || '').includes('Off') || (s?.cycle_13_1 || '').includes('Off')).length;
+    const workingCount = stats.filter(s => (s?.roster_status || '') === 'On Site' && !(s?.cycle_13_1 || '').includes('Off')).length;
 
     return (
         <div className="w-full flex flex-col gap-6 relative font-sans">
