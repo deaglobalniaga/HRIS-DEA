@@ -32,6 +32,7 @@ const createTransporter = () => {
 const transporter = createTransporter();
 const SENDER_EMAIL = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
 const SENDER_NAME = '"HRIS PT DEA GLOBAL NIAGA"';
+const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://hris-dea.vercel.app').replace(/\/+$/, '');
 
 // Branding & Official Logo Configuration
 const LOGO_CID = 'dea_logo';
@@ -69,6 +70,10 @@ const getEmailHeaderHtml = (subtitle = 'HRIS Enterprise Portal') => `
  * Sends an email notification for HRIS requests
  */
 const sendRequestNotification = async (to, subject, data, link) => {
+    const actionLink = link 
+        ? (link.startsWith('http') ? link : `${FRONTEND_URL}${link.startsWith('/') ? '' : '/'}${link}`) 
+        : `${FRONTEND_URL}/organization`;
+
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 30px; max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
             ${getEmailHeaderHtml('Sistem Pengajuan & Approval Karyawan')}
@@ -100,7 +105,7 @@ const sendRequestNotification = async (to, subject, data, link) => {
             </div>
 
             <div style="margin: 28px 0; text-align: center;">
-                <a href="${link}" style="background-color: #991b1b; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block; box-shadow: 0 2px 6px rgba(153, 27, 27, 0.3);">
+                <a href="${actionLink}" style="background-color: #991b1b; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block; box-shadow: 0 2px 6px rgba(153, 27, 27, 0.3);">
                     Proses Approval di Web
                 </a>
             </div>
@@ -249,13 +254,13 @@ const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
 const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, certNumber, issueDate, expiryDate, link }) => {
     if (!toEmails || toEmails.length === 0) return { success: false, message: 'No HSE admin emails provided' };
 
-    const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/organization?tab=certifications&subtab=pending`;
+    const actionLink = link || `${FRONTEND_URL}/organization?tab=certifications&subtab=pending`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
             ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
 
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin: 0 0 8px 0;">📑 Pengajuan Verifikasi Sertifikat K3 Baru</h2>
+                <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin: 0 0 8px 0;">Pengajuan Verifikasi Sertifikat K3 Baru</h2>
                 <p style="color: #475569; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
                     Karyawan telah mengunggah dokumen sertifikat K3 baru dan memerlukan pemeriksaan serta verifikasi dari Admin HSE:
                 </p>
@@ -320,14 +325,13 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
 const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, expiryDate, link }) => {
     if (!toEmail) return { success: false, message: 'No employee email provided' };
 
-    const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/personal-certifications`;
+    const actionLink = link || `${FRONTEND_URL}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
             ${getEmailHeaderHtml('Portal Sertifikasi & Kompetensi Kerja')}
 
             <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <span style="font-size: 20px;">✅</span>
+                <div style="margin-bottom: 8px;">
                     <h2 style="color: #166534; font-size: 16px; font-weight: 800; margin: 0;">Sertifikat K3 Anda Telah Disetujui!</h2>
                 </div>
                 <p style="color: #15803d; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
@@ -356,7 +360,7 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
 
             <div style="text-align: center; margin: 28px 0;">
                 <a href="${actionLink}" style="background-color: #15803d; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block;">
-                    Lihat Portofolio Sertifikasi Saya
+                    Buka Sertifikasi Saya
                 </a>
             </div>
 
@@ -389,14 +393,13 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
 const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, reason, link }) => {
     if (!toEmail) return { success: false, message: 'No employee email provided' };
 
-    const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/personal-certifications`;
+    const actionLink = link || `${FRONTEND_URL}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
             ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
 
             <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
-                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                    <span style="font-size: 20px;">❌</span>
+                <div style="margin-bottom: 8px;">
                     <h2 style="color: #991b1b; font-size: 16px; font-weight: 800; margin: 0;">Pemberitahuan: Pengajuan Sertifikat Ditolak</h2>
                 </div>
                 <p style="color: #7f1d1d; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
@@ -409,7 +412,7 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
                         <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca; font-weight: bold;">${certName || '-'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 12px; font-weight: bold; background: #fee2e2;">Nomor Sertifikat</td>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #fee2e2;">Nomor Registrasi</td>
                         <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca; font-family: monospace;">${certNumber || '-'}</td>
                     </tr>
                     <tr>
@@ -447,7 +450,7 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
             from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
             replyTo: SENDER_EMAIL,
             to: toEmail,
-            subject: `[HRIS DGN] Pemberitahuan: Sertifikat Ditolak - ${certName}`,
+            subject: `[HRIS DGN] Pemberitahuan Penolakan Sertifikat K3: ${certName}`,
             html: htmlContent,
             attachments: getLogoAttachments()
         });
@@ -467,8 +470,8 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
 
     const isHseRecipient = roleType === 'hse_admin';
     const actionLink = isHseRecipient 
-        ? `${process.env.FRONTEND_URL || 'http://localhost:5173'}/organization?tab=certifications&expiry=expiring`
-        : `${process.env.FRONTEND_URL || 'http://localhost:5173'}/personal-certifications`;
+        ? `${FRONTEND_URL}/organization?tab=certifications&expiry=expiring`
+        : `${FRONTEND_URL}/personal-certifications`;
 
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
