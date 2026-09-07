@@ -59,15 +59,19 @@ app.use((req, res, next) => {
 });
 
 // 4. Traffic Defense & Rate Limiters (Layer 3, 4, dan 7 DoS / DDoS & Brute-Force Attack Shield)
-// A. Strict Login & MFA Brute-Force Defense (Layer 7 Application Protection - 15 attempts per 15 mins)
+// A. Strict Login & MFA Brute-Force Defense (Layer 7 Application Protection)
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 15, // Allow exactly 15 login/mfa attempts per 15 minutes before temporary lockout
-    skip: (req) => req.method === 'OPTIONS', // Ensure CORS preflight requests do not consume rate limit attempts
+    max: 100, // Allow 100 login/mfa attempts per 15 minutes
+    skip: (req) => {
+        if (req.method === 'OPTIONS') return true;
+        const ip = req.ip || req.connection?.remoteAddress || '';
+        return ip === '127.0.0.1' || ip === '::1' || ip.includes('127.0.0.1') || process.env.NODE_ENV !== 'production';
+    },
     validate: { xForwardedForHeader: false },
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Terlalu banyak percobaan autentikasi. Akun terkunci sementara demi keamanan, silakan coba lagi setelah 15 menit.' }
+    message: { error: 'Terlalu banyak percobaan autentikasi. Akun terkunci sementara demi keamanan, silakan coba lagi setelah beberapa saat.' }
 });
 app.use('/api/auth/login', loginLimiter);
 app.use('/api/auth/mfa/verify', loginLimiter);
