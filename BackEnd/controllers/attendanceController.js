@@ -231,7 +231,7 @@ exports.clock_in_out = async (req, res) => {
         // STRICT ACCOUNT OWNERSHIP: Ensure attendance is ALWAYS processed for the logged-in user's own employee record
         let { data: selfEmp } = await supabase
             .from('employees')
-            .select('id, user_id, camera_access, gps_access, wifi_access, face_descriptor, nama_lengkap, penempatan')
+            .select('id, user_id, camera_access, gps_access, face_descriptor, nama_lengkap, penempatan')
             .eq('user_id', loggedInUserId)
             .maybeSingle();
 
@@ -239,7 +239,7 @@ exports.clock_in_out = async (req, res) => {
             const { data: userRec } = await supabase.from('users').select('username, email').eq('id', loggedInUserId).maybeSingle();
             if (userRec) {
                 const cleanName = (userRec.username || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
-                const { data: fallbackEmp } = await supabase.from('employees').select('id, user_id, camera_access, gps_access, wifi_access, face_descriptor, nama_lengkap, penempatan')
+                const { data: fallbackEmp } = await supabase.from('employees').select('id, user_id, camera_access, gps_access, face_descriptor, nama_lengkap, penempatan')
                     .or(`nama_lengkap.ilike.%${cleanName}%,nomor_pegawai.ilike.%${userRec.username}%`).maybeSingle();
                 if (fallbackEmp) {
                     selfEmp = fallbackEmp;

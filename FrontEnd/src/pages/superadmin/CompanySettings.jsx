@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Building2, MapPin, Clock, ShieldCheck, Smartphone, Plus, Trash2,
   CheckCircle2, XCircle, RefreshCw, Save, Globe, Phone, Mail, FileText,
-  Layers, Users, ShieldAlert, Wifi, Server, Search, Crosshair, Eye, EyeOff, Layers2, Edit, Check,
+  Layers, Users, ShieldAlert, Server, Search, Crosshair, Eye, EyeOff, Layers2, Edit, Check,
   Key, Lock, Timer, Sliders, Sparkles, ChevronLeft, ChevronRight, Laptop, Monitor, Tablet
 } from 'lucide-react';
 import api from '../../api/api';

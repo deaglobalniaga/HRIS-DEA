@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Shield, Camera, MapPin, Wifi, UserCheck, AlertTriangle, Search, RefreshCw, 
+  Shield, Camera, MapPin, UserCheck, AlertTriangle, Search, RefreshCw, 
   CheckCircle2, Clock, Send, Check, X, FileText, UserPlus, Eye, BadgeCheck, AlertCircle,
   ChevronLeft, ChevronRight
 } from 'lucide-react';
@@ -114,20 +114,6 @@ const AccessRights = ({ readOnly = false }) => {
     } catch (err) {
       console.error('Failed to update GPS access:', err);
       addToast('Akses GPS berhasil diperbarui pada state lokal', 'info');
-    }
-  };
-
-  // Super Admin: Toggle WiFi Network Lock Permission
-  const handleToggleWifi = async (empId, currentVal) => {
-    if (!isSuperAdmin) return;
-    const newVal = !currentVal;
-    setEmployees(prev => prev.map(emp => (emp.id === empId ? { ...emp, wifi_access: newVal } : emp)));
-    try {
-      await api.put(`/hris/employees/${empId}`, { wifi_access: newVal });
-      addToast(`Validasi WiFi kantor karyawan telah di-${newVal ? 'wajibkan (Wajib WiFi)' : 'bebaskan (Bypass Tugas Lapangan)'}`, newVal ? 'success' : 'info');
-    } catch (err) {
-      console.error('Failed to update WiFi access:', err);
-      addToast('Validasi WiFi berhasil diperbarui pada state lokal', 'info');
     }
   };
 

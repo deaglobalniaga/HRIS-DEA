@@ -498,7 +498,7 @@ exports.update_employee = async (req, res) => {
             'jabatan', 'level', 'status_karyawan', 'nik', 'tempat_lahir', 'tanggal_lahir',
             'alamat', 'pendidikan', 'jurusan', 'status_perkawinan', 'agama', 'no_handphone',
             'join_date', 'efektif_resign', 'face_descriptor',
-            'camera_access', 'gps_access', 'wifi_access'
+            'camera_access', 'gps_access'
         ];
 
         if (updates.nama || updates.nama_lengkap || updates.full_name) empPayload.nama_lengkap = updates.nama || updates.nama_lengkap || updates.full_name;
