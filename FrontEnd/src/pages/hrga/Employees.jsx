@@ -731,6 +731,9 @@ const Employees = ({ readOnly = false }) => {
             (emp.nama && emp.nama.toLowerCase().includes(term)) ||
             (emp.nama_lengkap && emp.nama_lengkap.toLowerCase().includes(term)) ||
             (emp.full_name && emp.full_name.toLowerCase().includes(term)) ||
+            (emp.username && emp.username.toLowerCase().includes(term)) ||
+            (emp.email && emp.email.toLowerCase().includes(term)) ||
+            (emp.email_office && emp.email_office.toLowerCase().includes(term)) ||
             (emp.role && emp.role.toLowerCase().includes(term)) ||
             (deptName && deptName.toLowerCase().includes(term)) ||
             (emp.nomor_pegawai && emp.nomor_pegawai.toLowerCase().includes(term)) ||
@@ -931,6 +934,7 @@ const Employees = ({ readOnly = false }) => {
                                     <th className="p-4 font-black whitespace-nowrap">Jabatan</th>
                                     <th className="p-4 font-black whitespace-nowrap">Level</th>
                                     <th className="p-4 font-black whitespace-nowrap">Status Karyawan</th>
+                                    <th className="p-4 font-black whitespace-nowrap">Tipe Roster</th>
                                     <th className="p-4 font-black whitespace-nowrap">Nomor Pegawai</th>
                                     <th className="p-4 font-black whitespace-nowrap">NIK</th>
                                     <th className="p-4 font-black whitespace-nowrap">Tempat Lahir</th>
@@ -954,6 +958,7 @@ const Employees = ({ readOnly = false }) => {
                                     <th className="p-4 font-black whitespace-nowrap">Kartu Keluarga (PDF)</th>
                                     <th className="p-4 font-black whitespace-nowrap">Kartu NPWP (PDF)</th>
                                     <th className="p-4 font-black whitespace-nowrap">Ijazah & Transkrip (PDF)</th>
+                                    <th className="p-4 font-black whitespace-nowrap">Nama Bank</th>
                                     <th className="p-4 font-black whitespace-nowrap">Nama Rekening</th>
                                     <th className="p-4 font-black whitespace-nowrap">Nomor Rekening</th>
                                     <th className="p-4 font-black whitespace-nowrap">Efektif Resign</th>
@@ -989,7 +994,9 @@ const Employees = ({ readOnly = false }) => {
                                                     </div>
                                                     <div>
                                                         <h4 className="text-sm font-bold text-gray-900">{emp.nama || emp.full_name}</h4>
-                                                        <p className="text-[11px] font-bold text-slate-400">{emp.email_office || emp.email || 'Belum ada email'}</p>
+                                                        <p className="text-[11px] font-bold text-slate-400 font-mono flex items-center gap-0.5 tracking-tight" title={`Username: @${emp.username || emp.nomor_pegawai || 'user'}`}>
+                                                            <span className="text-slate-400 font-semibold">@</span>{emp.username || emp.nomor_pegawai || 'user'}
+                                                        </p>
                                                     </div>
                                                 </div>
                                             </td>
@@ -1005,6 +1012,11 @@ const Employees = ({ readOnly = false }) => {
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.jabatan || emp.job_title || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.level || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.status_karyawan || '-'}</td>
+                                            <td className="p-4 whitespace-nowrap">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+                                                    {emp.roster_type || '8/2'}
+                                                </span>
+                                            </td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.nomor_pegawai || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-700 whitespace-nowrap">{emp.nik || emp.nik_internal || emp.no_ktp || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.tempat_lahir || emp.birth_place || '-'}</td>
@@ -1065,6 +1077,11 @@ const Employees = ({ readOnly = false }) => {
                                                 )}
                                             </td>
 
+                                            <td className="p-4 whitespace-nowrap">
+                                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-black bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+                                                    {emp.nama_bank || emp.bank || 'BCA'}
+                                                </span>
+                                            </td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.nama_rekening || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.nomor_rekening || '-'}</td>
                                             <td className="p-4 text-sm font-bold text-slate-600 whitespace-nowrap">{emp.efektif_resign ? new Date(emp.efektif_resign).toLocaleDateString('id-ID') : '-'}</td>
