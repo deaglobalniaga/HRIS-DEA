@@ -260,28 +260,94 @@ exports.get_employee_dashboard = async (req, res) => {
                 used: usedDays,
                 pending: pendingCount
             };
-        }
+            // Today's site agenda / events from calendar_events
+            let todayAgendas = [];
+            try {
+                const { data: events } = await supabase
+                    .from('calendar_events')
+                    .select('id, title, category, date, end_date, time, location')
+                    .or(`date.eq.${today},and(date.lte.${today},end_date.gte.${today})`)
+                    .limit(3);
+                todayAgendas = events || [];
+            } catch (evErr) {
+                console.warn('Silent calendar events fetch error:', evErr.message);
+            }
 
-        res.json({
-            profile: {
-                full_name: emp?.nama_lengkap || req.user?.nama || 'Karyawan',
-                job_title: emp?.jabatan || 'Project Staff (PJO)',
-                role: req.userRole || 'user',
-                division: emp?.departments?.name || 'PT DEA GLOBAL NIAGA',
-                profile_photo_url: emp?.foto_url || null,
-                nomor_pegawai: emp?.nomor_pegawai || 'EMP-001',
-                penempatan: emp?.penempatan || 'Site BIB',
-                status_karyawan: emp?.status_karyawan || 'Aktif'
-            },
-            todayStatus: {
-                hasCheckedIn: !!todayLog?.check_in,
-                hasCheckedOut: !!todayLog?.check_out,
-                checkInTime: todayLog?.check_in ? getWitaTimeStr(todayLog.check_in) : null,
-                checkOutTime: todayLog?.check_out ? getWitaTimeStr(todayLog.check_out) : null
-            },
-            weeklyHistory: weeklyLogs,
-            leaveSummary
-        });
+            // Closest expiring approved certificate for this employee (<= 90 days)
+            let expiringCertAlert = null;
+            try {
+                const { data: empCerts } = await supabase
+                    .from('employee_certificates')
+                    .select('id, certificate_number, expired_date, is_lifetime, certificate_types(name)')
+                    .eq('employee_id', emp.id)
+                    .eq('is_lifetime', false)
+                    .not('expired_date', 'is', null);
+
+                const nowMs = Date.now();
+                let closestDays = 999;
+                (empCerts || []).forEach(c => {
+                    if (!c.expired_date) return;
+                    const diffDays = Math.ceil((new Date(c.expired_date).getTime() - nowMs) / (1000 * 60 * 60 * 24));
+                    if (diffDays >= 0 && diffDays <= 90 && diffDays < closestDays) {
+                        closestDays = diffDays;
+                        expiringCertAlert = {
+                            certName: c.certificate_types?.name || 'Sertifikat K3',
+                            certNumber: c.certificate_number,
+                            expiredDate: c.expired_date,
+                            daysLeft: diffDays
+                        };
+                    }
+                });
+            } catch (cErr) {
+                console.warn('Silent cert alert error:', cErr.message);
+            }
+
+            res.json({
+                profile: {
+                    full_name: emp?.nama_lengkap || req.user?.nama || 'Karyawan',
+                    job_title: emp?.jabatan || 'Project Staff (PJO)',
+                    role: req.userRole || 'user',
+                    division: emp?.departments?.name || 'PT DEA GLOBAL NIAGA',
+                    profile_photo_url: emp?.foto_url || null,
+                    nomor_pegawai: emp?.nomor_pegawai || 'EMP-001',
+                    penempatan: emp?.penempatan || 'Site BIB',
+                    status_karyawan: emp?.status_karyawan || 'Aktif'
+                },
+                todayStatus: {
+                    hasCheckedIn: !!todayLog?.check_in,
+                    hasCheckedOut: !!todayLog?.check_out,
+                    checkInTime: todayLog?.check_in ? getWitaTimeStr(todayLog.check_in) : null,
+                    checkOutTime: todayLog?.check_out ? getWitaTimeStr(todayLog.check_out) : null
+                },
+                weeklyHistory: weeklyLogs,
+                leaveSummary,
+                todayAgendas,
+                expiringCertAlert
+            });
+        } else {
+            res.json({
+                profile: {
+                    full_name: req.user?.nama || 'Karyawan',
+                    job_title: 'Staff',
+                    role: req.userRole || 'user',
+                    division: 'PT DEA GLOBAL NIAGA',
+                    profile_photo_url: null,
+                    nomor_pegawai: 'EMP-001',
+                    penempatan: 'Site BIB',
+                    status_karyawan: 'Aktif'
+                },
+                todayStatus: {
+                    hasCheckedIn: false,
+                    hasCheckedOut: false,
+                    checkInTime: null,
+                    checkOutTime: null
+                },
+                weeklyHistory: [],
+                leaveSummary: { available: 12, used: 0, pending: 0 },
+                todayAgendas: [],
+                expiringCertAlert: null
+            });
+        }
     } catch (err) {
         console.error('Employee Dashboard Error:', err);
         res.status(500).json({ error: err.message });

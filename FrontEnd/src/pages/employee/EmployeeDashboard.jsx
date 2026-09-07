@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Bell, LogOut, Megaphone, Camera, RefreshCw, User, Shield, Briefcase,
   Building2, Award, ChevronRight, X, Calendar as CalendarIcon, MapPin, Hash, CheckCircle2,
-  ChevronLeft, Clock, CalendarDays
+  ChevronLeft, Clock, CalendarDays, AlertTriangle, ShieldCheck, ArrowRight
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -85,6 +85,158 @@ const EmployeeDashboard = () => {
     setCalDate(new Date(calYear, calMonth + 1, 1));
   };
 
+  // Reactive Announcement & Agenda Carousel State
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Dynamically assemble slides reflecting live operational state
+  const reactiveSlides = [];
+
+  // 1. Presensi Status Slide (Truly reactive to employee clock-in & clock-out)
+  if (!todayStatus.checkInTime) {
+    reactiveSlides.push({
+      id: 'att-missing',
+      type: 'warning',
+      badge: 'Wajib Presensi',
+      badgeClass: 'bg-amber-100 text-amber-800 border border-amber-300/70',
+      iconBg: 'bg-amber-50 text-amber-600',
+      accentColor: 'from-amber-500 to-amber-600',
+      Icon: AlertTriangle,
+      title: 'Presensi Masuk Belum Tercatat',
+      subtitle: formattedDate,
+      message: 'Presensi masuk hari ini belum terdeteksi. Segera lakukan verifikasi biometrik wajah & GPS sebelum batas jam dinas.',
+      actionText: 'Presensi Sekarang',
+      actionUrl: '/attendance-hub',
+    });
+  } else if (todayStatus.checkInTime && !todayStatus.checkOutTime) {
+    reactiveSlides.push({
+      id: 'att-working',
+      type: 'info',
+      badge: 'Dinas Aktif',
+      badgeClass: 'bg-blue-100 text-blue-800 border border-blue-300/70',
+      iconBg: 'bg-blue-50 text-blue-600',
+      accentColor: 'from-blue-500 to-blue-600',
+      Icon: Clock,
+      title: `Masuk Tercatat: ${todayStatus.checkInTime} WITA`,
+      subtitle: 'Presensi Masuk Terverifikasi',
+      message: 'Jam kerja Anda aktif berjalan. Jaga fokus dan utamakan keselamatan kerja. Lakukan presensi pulang setelah menyelesaikan tugas.',
+      actionText: 'Presensi Pulang',
+      actionUrl: '/attendance-hub',
+    });
+  } else {
+    reactiveSlides.push({
+      id: 'att-complete',
+      type: 'success',
+      badge: 'Presensi Selesai',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-300/70',
+      iconBg: 'bg-emerald-50 text-emerald-600',
+      accentColor: 'from-emerald-500 to-emerald-600',
+      Icon: CheckCircle2,
+      title: 'Tugas Hari Ini Selesai',
+      subtitle: `Dinas: ${todayStatus.checkInTime} s/d ${todayStatus.checkOutTime} WITA`,
+      message: 'Seluruh jam presensi Anda hari ini terekam lengkap. Terima kasih atas dedikasi dan profesionalitas Anda hari ini!',
+      actionText: 'Riwayat Presensi',
+      actionUrl: '/attendance-hub',
+    });
+  }
+
+  // 2. Agenda Operasional Site / Kalender Kerja
+  const todayAgendas = data?.todayAgendas || [];
+  if (todayAgendas.length > 0) {
+    const primaryAgenda = todayAgendas[0];
+    reactiveSlides.push({
+      id: 'agenda-active',
+      type: 'agenda',
+      badge: primaryAgenda.category || 'Agenda Hari Ini',
+      badgeClass: 'bg-indigo-100 text-indigo-800 border border-indigo-300/70',
+      iconBg: 'bg-indigo-50 text-indigo-600',
+      accentColor: 'from-indigo-500 to-indigo-600',
+      Icon: CalendarIcon,
+      title: primaryAgenda.title || 'Agenda Site Tambang',
+      subtitle: `${primaryAgenda.time ? 'Pukul ' + primaryAgenda.time + ' WITA' : 'Hari Ini'}${primaryAgenda.location ? ' • ' + primaryAgenda.location : ''}`,
+      message: 'Kegiatan dinas operasional terjadwal. Harap hadir tepat waktu sesuai SOP & koordinasikan dengan tim supervisor.',
+      actionText: 'Lihat Jadwal',
+      actionUrl: '/calendar',
+    });
+  } else {
+    reactiveSlides.push({
+      id: 'agenda-standby',
+      type: 'agenda-empty',
+      badge: 'Operasional Site',
+      badgeClass: 'bg-slate-100 text-slate-700 border border-slate-300/70',
+      iconBg: 'bg-slate-50 text-slate-600',
+      accentColor: 'from-slate-400 to-slate-600',
+      Icon: CalendarDays,
+      title: 'Kesiapan & Jadwal Kerja',
+      subtitle: formattedDate,
+      message: 'Tidak ada agenda khusus site hari ini. Selalu ikuti briefing keselamatan harian dan pantau kalender operasional berkala.',
+      actionText: 'Buka Kalender',
+      actionUrl: '/calendar',
+    });
+  }
+
+  // 3. Status Sertifikat K3 (Reactive alert if <= 90 days or compliance confirmed)
+  const expiringAlert = data?.expiringCertAlert;
+  if (expiringAlert) {
+    reactiveSlides.push({
+      id: 'cert-warning',
+      type: 'cert-alert',
+      badge: `Kadaluarsa ${expiringAlert.daysLeft} Hari Lagi`,
+      badgeClass: 'bg-rose-100 text-rose-800 border border-rose-300/70 font-black animate-pulse',
+      iconBg: 'bg-rose-50 text-rose-600',
+      accentColor: 'from-rose-500 to-red-600',
+      Icon: AlertTriangle,
+      title: 'Peringatan Sertifikat K3',
+      subtitle: `${expiringAlert.certName} (${expiringAlert.certNumber || 'Sertifikat'})`,
+      message: `Masa berlaku berakhir pada ${expiringAlert.expiredDate}. Segera ajukan perpanjangan/refreshment sertifikat ke Admin HSE.`,
+      actionText: 'Perbarui Sertifikat',
+      actionUrl: '/personal-certifications',
+    });
+  } else {
+    reactiveSlides.push({
+      id: 'cert-safe',
+      type: 'cert-safe',
+      badge: 'Kualifikasi Valid',
+      badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-300/70',
+      iconBg: 'bg-emerald-50 text-emerald-600',
+      accentColor: 'from-emerald-500 to-emerald-600',
+      Icon: ShieldCheck,
+      title: 'Kualifikasi K3 Terverifikasi',
+      subtitle: 'Standar Kepatuhan K3 Terpenuhi',
+      message: 'Seluruh sertifikasi kompetensi & lisensi K3 Anda berstatus valid dan aktif tercatat pada sistem perusahaan.',
+      actionText: 'Cek Kualifikasi',
+      actionUrl: '/personal-certifications',
+    });
+  }
+
+  // 4. Standar Keselamatan Operasional / K3 SOP
+  reactiveSlides.push({
+    id: 'safety-sop',
+    type: 'safety',
+    badge: 'K3 & Safety First',
+    badgeClass: 'bg-red-100 text-red-800 border border-red-300/70',
+    iconBg: 'bg-red-50 text-red-600',
+    accentColor: 'from-red-600 to-red-700',
+    Icon: Megaphone,
+    title: 'Pengumuman Operasional Site',
+    subtitle: formattedDate,
+    message: 'Wajib gunakan APD lengkap di area tambang, taati batas kecepatan haul road, dan prioritaskan keselamatan kerja.',
+    actionText: 'Standar K3',
+    actionUrl: '/personal-certifications',
+  });
+
+  // Auto-slide interval with pause capability
+  useEffect(() => {
+    if (isPaused || reactiveSlides.length <= 1) return;
+    const interval = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % reactiveSlides.length);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isPaused, reactiveSlides.length]);
+
+  const activeSlideIndex = activeSlide % reactiveSlides.length;
+  const currentSlide = reactiveSlides[activeSlideIndex] || reactiveSlides[0];
+
   return (
     <div className="flex flex-col w-full font-sans select-none overflow-x-hidden pb-8">
       {/* Header Banner with Parallelogram Geometry */}
@@ -159,17 +311,92 @@ const EmployeeDashboard = () => {
 
       {/* Main Container Content */}
       <div className="w-full max-w-md mx-auto px-4 -mt-5 flex flex-col gap-3.5 relative z-20">
-        {/* Operational Banner */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 flex items-start gap-3">
-          <div className="p-2.5 bg-red-50 text-red-600 rounded-xl shrink-0 mt-0.5">
-            <Megaphone size={20} />
+        {/* Reactive Announcement & Agenda Carousel */}
+        <div
+          onMouseEnter={() => setIsPaused(true)}
+          onMouseLeave={() => setIsPaused(false)}
+          onTouchStart={() => setIsPaused(true)}
+          onTouchEnd={() => setIsPaused(false)}
+          className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 transition-all duration-300 relative overflow-hidden"
+        >
+          {/* Subtle top indicator bar */}
+          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${currentSlide.accentColor} transition-all duration-500`} />
+
+          {/* Slide Header: Icon, Title, Badge */}
+          <div className="flex items-start gap-3">
+            <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 transition-colors duration-300 ${currentSlide.iconBg}`}>
+              <currentSlide.Icon size={20} />
+            </div>
+
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                <h4 className="text-xs font-black text-slate-800 truncate">
+                  {currentSlide.title}
+                </h4>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${currentSlide.badgeClass}`}>
+                  {currentSlide.badge}
+                </span>
+              </div>
+
+              <span className="text-[10px] text-slate-400 block mb-1">
+                {currentSlide.subtitle}
+              </span>
+
+              <p className="text-[11px] text-slate-600 leading-relaxed min-h-[32px] line-clamp-2">
+                {currentSlide.message}
+              </p>
+            </div>
           </div>
-          <div className="flex-1 min-w-0">
-            <h4 className="text-xs font-extrabold text-slate-800">Pengumuman Operasional</h4>
-            <span className="text-[10px] text-slate-400 block mb-1">{formattedDate}</span>
-            <p className="text-[11px] text-slate-600 leading-relaxed">
-              Pastikan selalu melakukan presensi biometrik wajah & GPS sebelum batas jam kerja operasional.
-            </p>
+
+          {/* Footer Controls: Dots indicator + Navigation buttons + Action link */}
+          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+            {/* Dot Indicators */}
+            <div className="flex items-center gap-1.5">
+              {reactiveSlides.map((s, idx) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActiveSlide(idx)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    idx === activeSlideIndex
+                      ? 'w-5 bg-red-600'
+                      : 'w-1.5 bg-slate-200 hover:bg-slate-300'
+                  }`}
+                  title={`Slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Prev / Next mini buttons & CTA Action Button */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveSlide(prev => (prev - 1 + reactiveSlides.length) % reactiveSlides.length)}
+                  className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70"
+                  title="Slide Sebelumnya"
+                >
+                  <ChevronLeft size={12} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveSlide(prev => (prev + 1) % reactiveSlides.length)}
+                  className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70"
+                  title="Slide Berikutnya"
+                >
+                  <ChevronRight size={12} />
+                </button>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => navigate(currentSlide.actionUrl)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 active:scale-95 transition group"
+              >
+                <span>{currentSlide.actionText}</span>
+                <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            </div>
           </div>
         </div>
 

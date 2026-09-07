@@ -1,6 +1,7 @@
 const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
 const { notifyRole, createNotification } = require('./notificationController');
+const mailer = require('../utils/mailer');
 
 // Helper to resolve certificate type ID accurately without mistaking POP/POM for WAH
 const resolveCertificateTypeId = async (namaSertifikat, institusiPenerbit = 'K3/HSE') => {
@@ -374,6 +375,20 @@ exports.add_my_certification = async (req, res) => {
 
         try {
             await notifyRole('hse_admin', 'Pengajuan Sertifikasi', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat baru (${namaSertifikat}). Menunggu verifikasi.`, 'info', '/organization?tab=certifications');
+            
+            // Send email notification to all registered HSE Admins
+            mailer.getHseAdminEmails(supabase).then(hseEmails => {
+                if (hseEmails && hseEmails.length > 0) {
+                    mailer.sendHseNewCertUploadEmail({
+                        toEmails: hseEmails,
+                        employeeName: emp.nama_lengkap || req.user?.nama || 'Karyawan',
+                        certName: namaSertifikat,
+                        certNumber: certNumber,
+                        issueDate: issueDate,
+                        expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                    }).catch(err => console.error('HSE cert email send err:', err.message));
+                }
+            }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
         } catch (nErr) {
             console.warn('Silent notification error in add_my_certification:', nErr.message);
         }
@@ -618,6 +633,29 @@ exports.approve_certification = async (req, res) => {
                 type: 'success',
                 link: '/personal-certifications'
             });
+
+            // Send confirmation email to employee
+            (async () => {
+                try {
+                    let empEmail = data.employees?.email_office || null;
+                    if (!empEmail) {
+                        const { data: uData } = await supabase.from('users').select('email, recovery_email').eq('id', userId).maybeSingle();
+                        empEmail = uData?.email || uData?.recovery_email;
+                    }
+                    if (empEmail) {
+                        await mailer.sendCertApprovalEmail({
+                            toEmail: empEmail,
+                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certNumber: data.certificate_number || '-',
+                            adminName: adminName,
+                            expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
+                        });
+                    }
+                } catch (eErr) {
+                    console.error('Silent cert approval email error:', eErr.message);
+                }
+            })();
         }
 
         await invalidateCache('master:certifications_all');
@@ -682,6 +720,29 @@ exports.reject_certification = async (req, res) => {
                 type: 'leave_rejected',
                 link: '/personal-certifications'
             });
+
+            // Send rejection email to employee with reason
+            (async () => {
+                try {
+                    let empEmail = data.employees?.email_office || null;
+                    if (!empEmail) {
+                        const { data: uData } = await supabase.from('users').select('email, recovery_email').eq('id', userId).maybeSingle();
+                        empEmail = uData?.email || uData?.recovery_email;
+                    }
+                    if (empEmail) {
+                        await mailer.sendCertRejectionEmail({
+                            toEmail: empEmail,
+                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certNumber: data.certificate_number || '-',
+                            adminName: adminName,
+                            reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
+                        });
+                    }
+                } catch (eErr) {
+                    console.error('Silent cert rejection email error:', eErr.message);
+                }
+            })();
         }
 
         await invalidateCache('master:certifications_all');

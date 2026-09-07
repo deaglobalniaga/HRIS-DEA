@@ -729,6 +729,26 @@ exports.changePassword = async (req, res) => {
 
         if (updateErr) throw updateErr;
 
+        // Dispatch security notification email asynchronously
+        (async () => {
+            try {
+                const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
+                const toEmail = u?.recovery_email || u?.email;
+                if (toEmail) {
+                    const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                    await mailer.sendSecurityActivityEmail({
+                        toEmail,
+                        recipientName: u?.username || 'Pengguna',
+                        activityType: 'Perubahan Kata Sandi (Password)',
+                        details: 'Kata sandi akun HRIS Anda telah berhasil diperbarui.',
+                        ipAddress: clientIp
+                    });
+                }
+            } catch (mErr) {
+                console.error('Silent password change email error:', mErr.message);
+            }
+        })();
+
         res.json({ message: 'Password berhasil diubah!' });
     } catch (err) {
         console.error('changePassword error:', err);
@@ -771,6 +791,26 @@ exports.changeUsername = async (req, res) => {
         }).eq('id', targetUserId);
 
         if (updateErr) throw updateErr;
+
+        // Dispatch security notification email asynchronously
+        (async () => {
+            try {
+                const { data: u } = await supabase.from('users').select('email, recovery_email').eq('id', targetUserId).maybeSingle();
+                const toEmail = u?.recovery_email || u?.email;
+                if (toEmail) {
+                    const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                    await mailer.sendSecurityActivityEmail({
+                        toEmail,
+                        recipientName: cleanUsername,
+                        activityType: 'Perubahan Username Akun',
+                        details: `Username akun HRIS Anda telah diperbarui menjadi "${cleanUsername}".`,
+                        ipAddress: clientIp
+                    });
+                }
+            } catch (mErr) {
+                console.error('Silent username change email error:', mErr.message);
+            }
+        })();
 
         await invalidateCache('user:*');
         await invalidateCache('emp:*');
@@ -996,6 +1036,27 @@ exports.verifyMfa = async (req, res) => {
 
         if (verified) {
             await supabase.from('users').update({ mfa_enabled: true }).eq('id', req.userId);
+
+            // Dispatch security notification email asynchronously
+            (async () => {
+                try {
+                    const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
+                    const toEmail = u?.recovery_email || u?.email;
+                    if (toEmail) {
+                        const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                        await mailer.sendSecurityActivityEmail({
+                            toEmail,
+                            recipientName: u?.username || 'Pengguna',
+                            activityType: 'Aktivasi Autentikasi 2-Langkah (MFA)',
+                            details: 'Autentikasi 2-Langkah (MFA) telah berhasil diaktifkan pada akun HRIS Anda untuk meningkatkan perlindungan data.',
+                            ipAddress: clientIp
+                        });
+                    }
+                } catch (mErr) {
+                    console.error('Silent MFA enable email error:', mErr.message);
+                }
+            })();
+
             res.json({ message: 'Autentikasi 2-Langkah (MFA) berhasil diverifikasi dan diaktifkan!' });
         } else {
             res.status(400).json({ message: 'Kode verifikasi salah atau telah kedaluwarsa. Pastikan jam di HP/perangkat sinkron.' });
@@ -1009,6 +1070,27 @@ exports.verifyMfa = async (req, res) => {
 exports.disableMfa = async (req, res) => {
     try {
         await supabase.from('users').update({ mfa_enabled: false, mfa_secret: null }).eq('id', req.userId);
+
+        // Dispatch security notification email asynchronously
+        (async () => {
+            try {
+                const { data: u } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
+                const toEmail = u?.recovery_email || u?.email;
+                if (toEmail) {
+                    const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                    await mailer.sendSecurityActivityEmail({
+                        toEmail,
+                        recipientName: u?.username || 'Pengguna',
+                        activityType: 'Peringatan: Penonaktifan Autentikasi 2-Langkah (MFA)',
+                        details: 'Autentikasi 2-Langkah (MFA) telah dinonaktifkan dari akun HRIS Anda.',
+                        ipAddress: clientIp
+                    });
+                }
+            } catch (mErr) {
+                console.error('Silent MFA disable email error:', mErr.message);
+            }
+        })();
+
         res.json({ message: 'MFA berhasil dinonaktifkan' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1081,7 +1163,28 @@ exports.sendMfaEmailOtp = async (req, res) => {
 exports.saveRecoveryEmail = async (req, res) => {
     const { email } = req.body;
     try {
+        const { data: userBefore } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
         await supabase.from('users').update({ recovery_email: email }).eq('id', req.userId);
+
+        // Dispatch security notification email asynchronously
+        (async () => {
+            try {
+                const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                const targets = [email, userBefore?.email].filter(Boolean);
+                for (const targetEmail of targets) {
+                    await mailer.sendSecurityActivityEmail({
+                        toEmail: targetEmail,
+                        recipientName: userBefore?.username || 'Pengguna',
+                        activityType: 'Pembaruan Email Pemulihan (Recovery Email)',
+                        details: `Email pemulihan akun HRIS Anda telah diset ke ${email}.`,
+                        ipAddress: clientIp
+                    });
+                }
+            } catch (mErr) {
+                console.error('Silent recovery email change email error:', mErr.message);
+            }
+        })();
+
         res.json({ message: 'Email pemulihan berhasil disimpan' });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -1365,6 +1468,25 @@ exports.resetPassword = async (req, res) => {
             .eq('id', user.id);
 
         if (updateErr) throw updateErr;
+
+        // Dispatch security notification email asynchronously
+        (async () => {
+            try {
+                const toEmail = user.recovery_email || user.email;
+                if (toEmail) {
+                    const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+                    await mailer.sendSecurityActivityEmail({
+                        toEmail,
+                        recipientName: user.username || 'Pengguna',
+                        activityType: 'Reset Kata Sandi Akun',
+                        details: 'Kata sandi akun HRIS Anda telah berhasil diatur ulang melalui verifikasi OTP.',
+                        ipAddress: clientIp
+                    });
+                }
+            } catch (mErr) {
+                console.error('Silent reset password email error:', mErr.message);
+            }
+        })();
 
         res.json({ message: 'Kata sandi berhasil direset! Silakan login dengan kata sandi baru Anda.' });
 
