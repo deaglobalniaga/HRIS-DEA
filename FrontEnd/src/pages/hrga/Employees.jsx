@@ -911,7 +911,7 @@ const Employees = ({ readOnly = false }) => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto flex-1 min-h-[420px] pb-32">
+                <div className="overflow-x-auto flex-1">
                     {activeTab === 'sertifikasi' ? (
                         <div className="p-4">
                             <Certifications preSelectedUser={selectedHSEEmployee} uploadTrigger={uploadSertifikatTrigger} />
@@ -1099,7 +1099,7 @@ const Employees = ({ readOnly = false }) => {
                                                                 className="fixed inset-0 z-20 cursor-default" 
                                                                 onClick={(e) => { e.stopPropagation(); setActiveDropdown(null); }} 
                                                             />
-                                                            <div className="absolute right-12 top-10 w-48 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-2 z-30 text-left animate-in fade-in zoom-in-95">
+                                                            <div className={`absolute right-12 ${index >= (currentEmployees.length - 3) ? 'bottom-2' : 'top-10'} w-48 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-2 z-30 text-left animate-in fade-in zoom-in-95`}>
                                                                 <button onClick={() => { setActiveDropdown(null); openEditModal(emp); }} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
                                                                     <Edit size={14} className="text-blue-500" /> Edit Karyawan
                                                                 </button>
