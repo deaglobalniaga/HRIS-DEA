@@ -20,6 +20,47 @@ const EmployeeDashboard = () => {
   // Calendar State
   const [calDate, setCalDate] = useState(new Date());
 
+  // Reactive Announcement Carousel State (Shopee/GoPay banner style)
+  const [activeSlide, setActiveSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [touchStartX, setTouchStartX] = useState(null);
+  const [touchEndX, setTouchEndX] = useState(null);
+
+  // Auto-slide effect for banner carousel (every 4.5s)
+  useEffect(() => {
+    if (isPaused || loading) return;
+    const interval = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % 4);
+    }, 4500);
+    return () => clearInterval(interval);
+  }, [isPaused, loading]);
+
+  const handleTouchStart = (e) => {
+    setIsPaused(true);
+    setTouchStartX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e) => {
+    setTouchEndX(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    setIsPaused(false);
+    if (touchStartX !== null && touchEndX !== null) {
+      const diff = touchStartX - touchEndX;
+      const minSwipeDistance = 35;
+      if (diff > minSwipeDistance) {
+        // Swiped Left -> Next slide
+        setActiveSlide(prev => (prev + 1) % 4);
+      } else if (diff < -minSwipeDistance) {
+        // Swiped Right -> Prev slide
+        setActiveSlide(prev => (prev - 1 + 4) % 4);
+      }
+    }
+    setTouchStartX(null);
+    setTouchEndX(null);
+  };
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -84,10 +125,6 @@ const EmployeeDashboard = () => {
   const handleNextMonth = () => {
     setCalDate(new Date(calYear, calMonth + 1, 1));
   };
-
-  // Reactive Announcement & Agenda Carousel State
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [isPaused, setIsPaused] = useState(false);
 
   // Dynamically assemble slides reflecting live operational state
   const reactiveSlides = [];
@@ -225,17 +262,7 @@ const EmployeeDashboard = () => {
     actionUrl: '/personal-certifications',
   });
 
-  // Auto-slide interval with pause capability
-  useEffect(() => {
-    if (isPaused || reactiveSlides.length <= 1) return;
-    const interval = setInterval(() => {
-      setActiveSlide(prev => (prev + 1) % reactiveSlides.length);
-    }, 4500);
-    return () => clearInterval(interval);
-  }, [isPaused, reactiveSlides.length]);
-
-  const activeSlideIndex = activeSlide % reactiveSlides.length;
-  const currentSlide = reactiveSlides[activeSlideIndex] || reactiveSlides[0];
+  const activeSlideIndex = activeSlide % (reactiveSlides.length || 1);
 
   return (
     <div className="flex flex-col w-full font-sans select-none overflow-x-hidden pb-8">
@@ -311,92 +338,123 @@ const EmployeeDashboard = () => {
 
       {/* Main Container Content */}
       <div className="w-full max-w-md mx-auto px-4 -mt-5 flex flex-col gap-3.5 relative z-20">
-        {/* Reactive Announcement & Agenda Carousel */}
+        {/* Shopee / GoPay Style Banner Carousel Container */}
         <div
+          className="relative w-full overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-200/90 select-none group"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
-          onTouchStart={() => setIsPaused(true)}
-          onTouchEnd={() => setIsPaused(false)}
-          className="bg-white rounded-2xl p-4 shadow-sm border border-slate-200/80 transition-all duration-300 relative overflow-hidden"
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
         >
-          {/* Subtle top indicator bar */}
-          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${currentSlide.accentColor} transition-all duration-500`} />
-
-          {/* Slide Header: Icon, Title, Badge */}
-          <div className="flex items-start gap-3">
-            <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 transition-colors duration-300 ${currentSlide.iconBg}`}>
-              <currentSlide.Icon size={20} />
-            </div>
-
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between gap-1.5 mb-0.5">
-                <h4 className="text-xs font-black text-slate-800 truncate">
-                  {currentSlide.title}
-                </h4>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${currentSlide.badgeClass}`}>
-                  {currentSlide.badge}
-                </span>
-              </div>
-
-              <span className="text-[10px] text-slate-400 block mb-1">
-                {currentSlide.subtitle}
-              </span>
-
-              <p className="text-[11px] text-slate-600 leading-relaxed min-h-[32px] line-clamp-2">
-                {currentSlide.message}
-              </p>
-            </div>
-          </div>
-
-          {/* Footer Controls: Dots indicator + Navigation buttons + Action link */}
-          <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-            {/* Dot Indicators */}
-            <div className="flex items-center gap-1.5">
-              {reactiveSlides.map((s, idx) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setActiveSlide(idx)}
-                  className={`h-1.5 rounded-full transition-all duration-300 ${
-                    idx === activeSlideIndex
-                      ? 'w-5 bg-red-600'
-                      : 'w-1.5 bg-slate-200 hover:bg-slate-300'
-                  }`}
-                  title={`Slide ${idx + 1}`}
-                />
-              ))}
-            </div>
-
-            {/* Prev / Next mini buttons & CTA Action Button */}
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setActiveSlide(prev => (prev - 1 + reactiveSlides.length) % reactiveSlides.length)}
-                  className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70"
-                  title="Slide Sebelumnya"
-                >
-                  <ChevronLeft size={12} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveSlide(prev => (prev + 1) % reactiveSlides.length)}
-                  className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70"
-                  title="Slide Berikutnya"
-                >
-                  <ChevronRight size={12} />
-                </button>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => navigate(currentSlide.actionUrl)}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 active:scale-95 transition group"
+          {/* Horizontal Sliding Track with Smooth Transform (Shopee/GoPay Style) */}
+          <div
+            className="flex transition-transform duration-500 ease-out will-change-transform"
+            style={{ transform: `translateX(-${(activeSlide % (reactiveSlides.length || 1)) * 100}%)` }}
+          >
+            {reactiveSlides.map((slide, idx) => (
+              <div
+                key={slide.id || idx}
+                className="w-full shrink-0 flex-shrink-0 p-4 flex flex-col justify-between relative"
+                style={{ minWidth: '100%' }}
               >
-                <span>{currentSlide.actionText}</span>
-                <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
-              </button>
-            </div>
+                {/* Decorative Top Accent Bar */}
+                <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${slide.accentColor}`} />
+
+                {/* Slide Header: Icon, Title, Badge */}
+                <div className="flex items-start gap-3">
+                  <div className={`p-2.5 rounded-xl shrink-0 mt-0.5 ${slide.iconBg}`}>
+                    <slide.Icon size={20} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-1.5 mb-0.5">
+                      <h4 className="text-xs font-black text-slate-800 truncate">
+                        {slide.title}
+                      </h4>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${slide.badgeClass}`}>
+                        {slide.badge}
+                      </span>
+                    </div>
+
+                    <span className="text-[10px] text-slate-400 block mb-1">
+                      {slide.subtitle}
+                    </span>
+
+                    <p className="text-[11px] text-slate-600 leading-relaxed min-h-[32px] line-clamp-2">
+                      {slide.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Footer Controls: Dots Indicator with Expanding Pill + Shopee-style 1/4 counter + CTA */}
+                <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between">
+                  {/* Dot Indicators */}
+                  <div className="flex items-center gap-1.5">
+                    {reactiveSlides.map((_, dotIdx) => (
+                      <button
+                        key={dotIdx}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSlide(dotIdx);
+                        }}
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          dotIdx === (activeSlide % (reactiveSlides.length || 1))
+                            ? 'w-6 bg-red-600'
+                            : 'w-1.5 bg-slate-200 hover:bg-slate-300'
+                        }`}
+                        title={`Slide ${dotIdx + 1}`}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Right side: Prev/Next mini buttons + Shopee-style Counter + CTA */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSlide(prev => (prev - 1 + reactiveSlides.length) % reactiveSlides.length);
+                        }}
+                        className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70 active:scale-90"
+                        title="Slide Sebelumnya"
+                      >
+                        <ChevronLeft size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveSlide(prev => (prev + 1) % reactiveSlides.length);
+                        }}
+                        className="w-5 h-5 rounded-full bg-slate-50 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition border border-slate-200/70 active:scale-90"
+                        title="Slide Berikutnya"
+                      >
+                        <ChevronRight size={12} />
+                      </button>
+                    </div>
+
+                    <span className="text-[10px] font-bold text-slate-400 font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-200/60">
+                      {(activeSlide % (reactiveSlides.length || 1)) + 1}/{reactiveSlides.length}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(slide.actionUrl);
+                      }}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-red-600 hover:text-red-700 active:scale-95 transition group"
+                    >
+                      <span>{slide.actionText}</span>
+                      <ArrowRight size={12} className="group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 

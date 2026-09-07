@@ -260,15 +260,26 @@ exports.get_employee_dashboard = async (req, res) => {
                 used: usedDays,
                 pending: pendingCount
             };
-            // Today's site agenda / events from calendar_events
+            // Today's site agenda / events from leaves table
             let todayAgendas = [];
             try {
-                const { data: events } = await supabase
-                    .from('calendar_events')
-                    .select('id, title, category, date, end_date, time, location')
-                    .or(`date.eq.${today},and(date.lte.${today},end_date.gte.${today})`)
+                const { data: activeLeaves } = await supabase
+                    .from('leaves')
+                    .select('id, leave_type, start_date, end_date, notes, employees(nama_lengkap)')
+                    .lte('start_date', today)
+                    .gte('end_date', today)
+                    .eq('status', 'Approved')
                     .limit(3);
-                todayAgendas = events || [];
+                if (activeLeaves && activeLeaves.length > 0) {
+                    todayAgendas = activeLeaves.map(l => ({
+                        id: l.id,
+                        title: `${l.employees?.nama_lengkap || 'Karyawan'} - ${l.leave_type}`,
+                        category: l.leave_type,
+                        date: l.start_date,
+                        time: 'Sepanjang Hari',
+                        location: 'Site Operasional'
+                    }));
+                }
             } catch (evErr) {
                 console.warn('Silent calendar events fetch error:', evErr.message);
             }
