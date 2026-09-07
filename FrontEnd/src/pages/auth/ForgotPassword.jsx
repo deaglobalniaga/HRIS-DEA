@@ -150,6 +150,14 @@ const ForgotPassword = () => {
         }
     };
 
+    const handleVerifyOtp = (e) => {
+        if (e) e.preventDefault();
+        const clean = String(otp || '').replace(/\D/g, '').trim();
+        if (clean.length === 6 && !status.loading) {
+            verifyOtpCode(clean);
+        }
+    };
+
     // 3. Step 3: Submit New Password
     const handleSetNewPassword = async (e) => {
         e.preventDefault();
