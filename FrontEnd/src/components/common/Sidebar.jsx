@@ -123,13 +123,13 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
   return (
     <aside className={`${isCollapsed ? 'lg:w-[76px]' : 'lg:w-64'} w-64 bg-white/95 backdrop-blur-xl border-r border-slate-200/90 h-screen flex flex-col fixed left-0 top-0 ${isOpen ? 'z-40 translate-x-0' : 'z-30 -translate-x-full'} lg:translate-x-0 lg:z-30 transition-[width,transform] duration-300 ease-in-out shadow-lg shadow-slate-200/40`}>
       {/* Logo & Toggle */}
-      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} border-b border-slate-100/80 transition-all duration-300 relative`}>
+      <div className={`h-[88px] flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} border-b border-slate-100/80 transition-all duration-300 relative`}>
         {isCollapsed ? (
-          <div className="flex flex-col items-center gap-1 group py-2">
+          <div className="flex flex-col items-center gap-1.5 group py-2">
             <img 
               src="/dea.png" 
               alt="DEA" 
-              className="h-10 w-10 object-contain transition-transform duration-200 hover:scale-110 cursor-pointer"
+              className="h-12 w-12 object-contain transition-transform duration-200 hover:scale-110 cursor-pointer drop-shadow-sm"
               onClick={toggleCollapse}
               title="Klik untuk memperbesar menu sidebar"
               onError={(e) => { e.target.style.display = 'none'; }} 
@@ -144,11 +144,11 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-3 overflow-hidden py-1">
               <img 
                 src="/dea.png" 
                 alt="PT DEA GLOBAL NIAGA" 
-                className="h-16 w-auto object-contain transition-transform duration-300 hover:scale-105" 
+                className="h-[76px] w-auto max-w-[170px] object-contain transition-transform duration-300 hover:scale-105 drop-shadow-sm select-none" 
                 onError={(e) => { e.target.style.display = 'none'; }} 
               />
             </div>
@@ -156,7 +156,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
               <button
                 onClick={toggleCollapse}
                 title="Kecilkan Menu Sidebar"
-                className="hidden lg:flex p-1.5 rounded-xl text-slate-400 hover:text-red-900 hover:bg-slate-100 transition-colors"
+                className="hidden lg:flex p-1.5 rounded-xl text-slate-400 hover:text-red-900 hover:bg-slate-100 transition-colors shrink-0"
               >
                 <PanelLeftClose size={18} />
               </button>
