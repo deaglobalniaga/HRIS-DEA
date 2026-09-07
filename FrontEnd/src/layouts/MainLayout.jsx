@@ -98,9 +98,7 @@ const MainLayout = () => {
         {/* Desktop Navbar (Hidden on mobile for clean native app experience) */}
         <div className="hidden lg:block">
           <Navbar 
-            toggleSidebar={() => setIsSidebarOpen(true)}
-            isSidebarCollapsed={isSidebarCollapsed}
-            toggleSidebarCollapse={toggleSidebarCollapse}
+            toggleSidebar={() => setIsSidebarOpen(true)} 
           />
         </div>
 
