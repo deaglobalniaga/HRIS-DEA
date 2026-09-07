@@ -106,7 +106,7 @@ const HSEDashboard = () => {
 
           if (diffDays < 0) {
             expiredCount++;
-          } else if (diffDays <= 60) {
+          } else if (diffDays <= 90) {
             expiringCount++;
           }
         });
@@ -136,7 +136,7 @@ const HSEDashboard = () => {
                 if (diffDays < 0) {
                   statusText = 'Kedaluwarsa';
                   statusColor = 'text-rose-700 bg-rose-50 border-rose-200';
-                } else if (diffDays <= 60) {
+                } else if (diffDays <= 90) {
                   statusText = diffDays === 0 ? 'Habis Hari Ini' : `Segera Habis (${diffDays} hr)`;
                   statusColor = 'text-amber-700 bg-amber-50 border-amber-200';
                 }

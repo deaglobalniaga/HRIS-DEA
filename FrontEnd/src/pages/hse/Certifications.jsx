@@ -65,14 +65,14 @@ const getEmployeeOverallStatus = (certs = []) => {
         if (!exp) continue;
         const diff = Math.round((exp - today) / (1000 * 60 * 60 * 24));
         if (diff < 0) hasExpired = true;
-        else if (diff <= 60) hasExpiring = true;
+        else if (diff <= 90) hasExpiring = true;
     }
 
     if (hasExpired) {
         return { text: 'Ada Kedaluwarsa', color: 'bg-red-100 text-red-800 border-red-300' };
     }
     if (hasExpiring) {
-        return { text: 'Segera Habis (≤ 60 hr)', color: 'bg-amber-100 text-amber-900 border-amber-300' };
+        return { text: 'Segera Habis (≤ 90 hr)', color: 'bg-amber-100 text-amber-900 border-amber-300' };
     }
     return { text: 'Semua Aktif / Valid', color: 'bg-emerald-100 text-emerald-800 border-emerald-300' };
 };
@@ -408,9 +408,9 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                     if (expiryFilter === 'expired') {
                         return diffDays < 0;
                     } else if (expiryFilter === 'expiring') {
-                        return diffDays >= 0 && diffDays <= 60;
+                        return diffDays >= 0 && diffDays <= 90;
                     } else if (expiryFilter === 'active') {
-                        return diffDays > 60;
+                        return diffDays > 90;
                     }
                     return true;
                 });
@@ -470,7 +470,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         const expDate = parseDateSafe(c.tanggal_kadaluarsa);
         if (!expDate) return false;
         const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
-        return diff >= 0 && diff <= 60;
+        return diff >= 0 && diff <= 90;
     }).length;
 
     const expiredCount = approvedCertsList.filter(c => {
@@ -828,7 +828,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                         }`}
                                     >
                                         <AlertTriangle size={13} className={expiryFilter === 'expiring' ? 'text-slate-950' : 'text-amber-600'} />
-                                        <span>Segera Habis (&le; 60 Hr)</span>
+                                        <span>Segera Habis (&le; 90 Hr)</span>
                                         <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-black ${expiryFilter === 'expiring' ? 'bg-amber-600 text-white' : 'bg-amber-200 text-amber-900'}`}>
                                             {expiringCount}
                                         </span>

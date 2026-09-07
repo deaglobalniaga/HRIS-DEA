@@ -175,7 +175,7 @@ const formatCert = (cert) => {
         if (daysRemaining < 0) {
             expiryStatus = 'Expired';
             statusBadge = 'Kedaluwarsa';
-        } else if (daysRemaining <= 60) {
+        } else if (daysRemaining <= 90) {
             expiryStatus = 'Expiring Soon';
             statusBadge = 'Segera Habis';
         } else {

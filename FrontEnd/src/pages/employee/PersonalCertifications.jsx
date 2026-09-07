@@ -222,7 +222,7 @@ const PersonalCertifications = () => {
   const expiringCerts = certs.filter(c => {
     if (c.is_lifetime || !c.expired_date || c.status === 'Rejected' || c.status === 'Pending') return false;
     const diffDays = (new Date(c.expired_date) - new Date()) / (1000 * 60 * 60 * 24);
-    return diffDays <= 60 && diffDays >= 0;
+    return diffDays <= 90 && diffDays >= 0;
   }).length;
 
   const handleReUpload = (cert) => {
@@ -260,13 +260,13 @@ const PersonalCertifications = () => {
     if (filterTab === 'expiring') {
       if (c.is_lifetime || !c.expired_date || c.status === 'Rejected' || c.status === 'Pending') return false;
       const diffDays = (new Date(c.expired_date) - new Date()) / (1000 * 60 * 60 * 24);
-      return diffDays <= 60 && diffDays >= 0;
+      return diffDays <= 90 && diffDays >= 0;
     }
     return true;
   });
 
   return (
-    <div className="w-full flex flex-col gap-6 font-sans pb-32 lg:pb-16">
+    <div className="w-full max-w-5xl mx-auto flex flex-col gap-4 sm:gap-6 font-sans pb-8">
       
       {/* 1. Header & Quick Actions Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
@@ -520,7 +520,7 @@ const PersonalCertifications = () => {
               if (!isLifetime && cert.expired_date && !isRejected && !isPending) {
                 daysLeft = Math.ceil((new Date(cert.expired_date) - new Date()) / (1000 * 60 * 60 * 24));
                 if (daysLeft < 0) isExpired = true;
-                else if (daysLeft <= 60) isExpiringSoon = true;
+                else if (daysLeft <= 90) isExpiringSoon = true;
               }
 
               return (
