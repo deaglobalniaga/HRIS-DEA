@@ -301,22 +301,26 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
         </div>
     `;
 
-    const recipients = Array.isArray(toEmails) ? toEmails.join(',') : toEmails;
-    try {
-        const info = await transporter.sendMail({
-            from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
-            replyTo: SENDER_EMAIL,
-            to: recipients,
-            subject: `[HRIS DGN] Pengajuan Sertifikat K3 Baru: ${employeeName} (${certName})`,
-            html: htmlContent,
-            attachments: getLogoAttachments()
-        });
-        console.log('HSE cert upload email sent successfully:', info.messageId);
-        return { success: true, messageId: info.messageId };
-    } catch (err) {
-        console.error('Failed to send HSE cert upload email:', err);
-        return { success: false, error: err.message };
+    const recipients = Array.isArray(toEmails) ? toEmails : [toEmails];
+    let sentCount = 0;
+    for (const recipient of recipients) {
+        if (!recipient || !recipient.includes('@')) continue;
+        try {
+            const info = await transporter.sendMail({
+                from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+                replyTo: SENDER_EMAIL,
+                to: recipient.trim(),
+                subject: `[HRIS HSE] Pengajuan Verifikasi Sertifikat K3 Baru: ${employeeName} (${certName})`,
+                html: htmlContent,
+                attachments: getLogoAttachments()
+            });
+            sentCount++;
+            console.log(`HSE cert upload email sent successfully to ${recipient.trim()}:`, info.messageId);
+        } catch (err) {
+            console.error(`Failed to send HSE cert upload email to ${recipient}:`, err.message);
+        }
     }
+    return { success: sentCount > 0 };
 };
 
 /**
@@ -612,6 +616,98 @@ const sendSecurityActivityEmail = async ({ toEmail, recipientName, activityType,
 };
 
 /**
+ * Sends notification email to HSE Admins when a certificate is approved or rejected
+ */
+const sendHseCertStatusNotificationEmail = async ({ toEmails, employeeName, certName, certNumber, adminName, status, reason, expiryDate, link }) => {
+    if (!toEmails || toEmails.length === 0) return { success: false, message: 'No HSE admin emails provided' };
+
+    const isApproved = status === 'APPROVED';
+    const actionLink = link || `${FRONTEND_URL}/organization?tab=certifications`;
+    const statusColor = isApproved ? '#166534' : '#991b1b';
+    const statusBg = isApproved ? '#f0fdf4' : '#fef2f2';
+    const statusBorder = isApproved ? '#bbf7d0' : '#fecaca';
+    const statusLabel = isApproved ? 'Disetujui' : 'Ditolak';
+
+    const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
+
+            <div style="background-color: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="margin-bottom: 8px;">
+                    <h2 style="color: ${statusColor}; font-size: 16px; font-weight: 800; margin: 0;">Laporan Verifikasi: Sertifikat K3 ${statusLabel}</h2>
+                </div>
+                <p style="color: #334155; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+                    Pemberitahuan untuk Admin HSE: Pengajuan berkas sertifikat K3 berikut telah selesai diproses oleh <strong>${adminName || 'Admin'}</strong>:
+                </p>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b; margin-bottom: 12px;">
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; width: 35%; border-radius: 6px 0 0 0;">Nama Karyawan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${employeeName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Jenis Sertifikat</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: ${statusColor};">${certName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Nomor Registrasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-family: monospace;">${certNumber || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Status Verifikasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: 900; color: ${statusColor};">${statusLabel}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Diverifikasi Oleh</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${adminName || 'Admin HSE'}</td>
+                    </tr>
+                    ${isApproved ? `
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Masa Berlaku</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${expiryDate || 'Seumur Hidup'}</td>
+                    </tr>
+                    ` : `
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Alasan Penolakan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; color: #991b1b;">${reason || '-'}</td>
+                    </tr>
+                    `}
+                </table>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="${actionLink}" style="background-color: ${isApproved ? '#15803d' : '#991b1b'}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block;">
+                    Buka Matriks Sertifikasi di Portal
+                </a>
+            </div>
+
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                Email ini dikirim otomatis oleh Sistem HRIS PT DEA GLOBAL NIAGA kepada Admin HSE.
+            </p>
+        </div>
+    `;
+
+    const recipients = Array.isArray(toEmails) ? toEmails : [toEmails];
+    for (const recipient of recipients) {
+        if (!recipient || !recipient.includes('@')) continue;
+        try {
+            await transporter.sendMail({
+                from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+                replyTo: SENDER_EMAIL,
+                to: recipient.trim(),
+                subject: `[HRIS HSE] Sertifikat ${statusLabel}: ${employeeName} (${certName})`,
+                html: htmlContent,
+                attachments: getLogoAttachments()
+            });
+            console.log(`HSE cert status email sent successfully to ${recipient.trim()}`);
+        } catch (err) {
+            console.error(`Failed to send HSE cert status email to ${recipient}:`, err.message);
+        }
+    }
+    return { success: true };
+};
+
+/**
  * Helper to fetch all active HSE Admin emails dynamically
  */
 const getHseAdminEmails = async (supabaseClient) => {
@@ -645,13 +741,21 @@ const getHseAdminEmails = async (supabaseClient) => {
             const jabatan = (emp?.jabatan || '').toLowerCase();
             const username = (u.username || '').toLowerCase();
 
+            // ONLY consider accounts that have an administrative role
+            const isAdmin = ['admin', 'superadmin', 'hse_admin', 'hrga_admin'].includes(roleName);
+            if (!isAdmin) return;
+
             const isHSE = roleName === 'hse_admin' || 
                           username.includes('hse') || 
-                          (roleName === 'admin' && (deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || jabatan.includes('hse') || jabatan.includes('k3'))) ||
-                          deptName.includes('hse') || deptName.includes('k3');
+                          deptName.includes('hse') || 
+                          deptName.includes('k3') || 
+                          deptName.includes('safety') || 
+                          jabatan.includes('hse') || 
+                          jabatan.includes('k3') ||
+                          username === 'admin' ||
+                          username === 'dellams';
 
             if (isHSE) {
-                // Priority: profile registered recovery_email, then user account email
                 if (u.recovery_email && u.recovery_email.includes('@')) {
                     emails.add(u.recovery_email.trim());
                 }
@@ -661,19 +765,14 @@ const getHseAdminEmails = async (supabaseClient) => {
             }
         });
 
-        // If no HSE specific email found with a valid external mailbox, also check general admins who have a profile email
-        if (emails.size === 0) {
-            users.forEach(u => {
-                const roleName = (u.roles?.name || '').toLowerCase();
-                if (['admin', 'superadmin'].includes(roleName)) {
-                    if (u.recovery_email && u.recovery_email.includes('@')) emails.add(u.recovery_email.trim());
-                    else if (u.email && u.email.includes('@') && !u.email.endsWith('@deaglobalniaga.com')) emails.add(u.email.trim());
-                }
-            });
+        // Filter out fictional internal domains if real mailboxes exist
+        let result = Array.from(emails);
+        const realEmails = result.filter(e => !e.endsWith('@deaglobalniaga.com'));
+        if (realEmails.length > 0) {
+            result = realEmails;
         }
 
-        const result = Array.from(emails);
-        console.log(`[MAILER] Resolved ${result.length} HSE Admin recipient email(s):`, result);
+        console.log(`[MAILER] Resolved ${result.length} authoritative HSE Admin recipient email(s):`, result);
         return result;
     } catch (e) {
         console.error('getHseAdminEmails error:', e);
@@ -686,6 +785,7 @@ module.exports = {
     sendPasswordResetOtpEmail,
     sendMfaOtpEmail,
     sendHseNewCertUploadEmail,
+    sendHseCertStatusNotificationEmail,
     sendCertApprovalEmail,
     sendCertRejectionEmail,
     sendCertExpiringEmail,

@@ -671,6 +671,20 @@ exports.approve_certification = async (req, res) => {
                             expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
                         });
                     }
+
+                    // Also notify HSE Admins
+                    const hseEmails = await mailer.getHseAdminEmails(supabase);
+                    if (hseEmails && hseEmails.length > 0) {
+                        await mailer.sendHseCertStatusNotificationEmail({
+                            toEmails: hseEmails,
+                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certNumber: data.certificate_number || '-',
+                            adminName: adminName,
+                            status: 'APPROVED',
+                            expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
+                        });
+                    }
                 } catch (eErr) {
                     console.error('Silent cert approval email error:', eErr.message);
                 }
@@ -755,6 +769,20 @@ exports.reject_certification = async (req, res) => {
                             certName: data.certificate_types?.name || 'Sertifikat K3',
                             certNumber: data.certificate_number || '-',
                             adminName: adminName,
+                            reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
+                        });
+                    }
+
+                    // Also notify HSE Admins
+                    const hseEmails = await mailer.getHseAdminEmails(supabase);
+                    if (hseEmails && hseEmails.length > 0) {
+                        await mailer.sendHseCertStatusNotificationEmail({
+                            toEmails: hseEmails,
+                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certNumber: data.certificate_number || '-',
+                            adminName: adminName,
+                            status: 'REJECTED',
                             reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
                         });
                     }

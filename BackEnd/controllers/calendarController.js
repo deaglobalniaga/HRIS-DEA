@@ -12,7 +12,7 @@ exports.get_calendar_events = async (req, res) => {
         const lastDay = new Date(targetYear, targetMonth, 0).getDate();
         const endDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-        // Fetch approved leaves and roster events
+        // 1. Fetch approved leaves and roster events
         const { data: leaves, error: leaveErr } = await supabase
             .from('leaves')
             .select(`
@@ -28,8 +28,20 @@ exports.get_calendar_events = async (req, res) => {
 
         if (leaveErr) throw leaveErr;
 
+        // 2. Fetch operational agendas from calendar_events
+        const { data: eventsList, error: evtErr } = await supabase
+            .from('calendar_events')
+            .select('*')
+            .lte('event_date', endDateStr)
+            .gte('event_end_date', startDateStr);
+
+        if (evtErr) {
+            console.warn('Warning reading calendar_events:', evtErr.message);
+        }
+
         const calendarData = [];
 
+        // Format leaves
         (leaves || []).forEach(reqObj => {
             const isLeave = (reqObj.leave_type || '').toLowerCase().includes('cuti');
             const userName = reqObj.employees?.nama_lengkap || 'Karyawan';
@@ -43,6 +55,24 @@ exports.get_calendar_events = async (req, res) => {
                 end: reqObj.end_date,
                 allDay: true,
                 description: reqObj.notes || ''
+            });
+        });
+
+        // Format operational agendas
+        (eventsList || []).forEach(evt => {
+            calendarData.push({
+                id: `event_${evt.id}`,
+                type: 'event',
+                subType: evt.category,
+                title: evt.title,
+                start: evt.event_date,
+                end: evt.event_end_date || evt.event_date,
+                allDay: false,
+                time: evt.time || '',
+                location: evt.location || '',
+                description: evt.description || '',
+                category: evt.category,
+                created_by: evt.created_by
             });
         });
 
@@ -60,9 +90,16 @@ exports.get_calendar_summary = async (req, res) => {
             .from('leaves')
             .select('id, leave_type');
 
+        const { data: eventsList } = await supabase
+            .from('calendar_events')
+            .select('id, title, event_date, time, category')
+            .gte('event_date', new Date().toISOString().split('T')[0])
+            .order('event_date', { ascending: true })
+            .limit(5);
+
         res.json({
             totalApprovedLeaves: (leaves || []).length,
-            upcomingEvents: []
+            upcomingEvents: eventsList || []
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -75,14 +112,37 @@ exports.post_event = async (req, res) => {
         const role = (req.userRole || req.user?.role || '').toLowerCase();
         if (['superadmin', 'super_admin'].includes(role)) {
             return res.status(403).json({
-                message: 'Akses ditolak: Super Admin hanya memiliki hak tata kelola sistem, penambahan agenda operasional hanya wewenang Admin HRGA.'
+                message: 'Akses ditolak: Super Admin hanya memiliki hak tata kelola sistem. Penambahan agenda hanya wewenang Admin HRGA & Admin HSE.'
             });
         }
-        
-        await notifyRole('all', 'Agenda Baru', 'Sebuah agenda operasional baru telah ditambahkan ke kalender.', 'info', '/calendar');
 
-        res.status(201).json({ message: 'Event berhasil ditambahkan', data: req.body });
+        const { title, category, description, time, location, event_date, event_end_date } = req.body;
+        if (!title || !event_date) {
+            return res.status(400).json({ message: 'Judul dan tanggal agenda wajib diisi.' });
+        }
+
+        const { data: newEvt, error: insErr } = await supabase
+            .from('calendar_events')
+            .insert({
+                title,
+                category: category || 'Rapat Internal',
+                description: description || '',
+                time: time || '',
+                location: location || '',
+                event_date,
+                event_end_date: event_end_date || event_date,
+                created_by: req.userId || null
+            })
+            .select()
+            .single();
+
+        if (insErr) throw insErr;
+
+        await notifyRole('all', 'Agenda Baru', `Agenda baru: ${title}`, 'info', '/calendar');
+
+        res.status(201).json({ message: 'Agenda berhasil ditambahkan', data: newEvt });
     } catch (err) {
+        console.error('Create calendar event error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -96,8 +156,19 @@ exports.delete_event = async (req, res) => {
                 message: 'Akses ditolak: Super Admin tidak berwenang menghapus agenda operasional.'
             });
         }
-        res.json({ message: 'Event berhasil dihapus' });
+
+        const { id } = req.params;
+        const cleanId = id.replace(/^event_/, '').replace(/^leave_/, '');
+        
+        const { error } = await supabase
+            .from('calendar_events')
+            .delete()
+            .eq('id', cleanId);
+
+        if (error) throw error;
+        res.json({ message: 'Agenda operasional berhasil dihapus' });
     } catch (err) {
+        console.error('Delete event error:', err);
         res.status(500).json({ error: err.message });
     }
 };

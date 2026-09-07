@@ -12,8 +12,10 @@ const LeaveTimeline = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const userRole = (user?.role || '').toLowerCase();
+  const userDept = (user?.department || user?.employee?.department || user?.department_name || '').toLowerCase();
   const isSuperAdmin = ['superadmin', 'super_admin'].includes(userRole);
-  const isHRGA = ['admin', 'hr', 'hrga_admin', 'hse_admin'].includes(userRole) && !isSuperAdmin;
+  const canAddAgenda = (['admin', 'hr', 'hrga_admin', 'hse_admin'].includes(userRole) || userDept.includes('hr') || userDept.includes('hse') || userDept.includes('k3')) && !isSuperAdmin;
+  const isHRGA = canAddAgenda;
 
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedAgendaDetail, setSelectedAgendaDetail] = useState(null);
@@ -62,7 +64,7 @@ const LeaveTimeline = () => {
     setFormError('');
 
     if (isSuperAdmin) {
-      setFormError('Super Admin hanya memiliki hak tata kelola sistem. Penambahan agenda hanya wewenang Admin HRGA.');
+      setFormError('Super Admin hanya memiliki hak tata kelola sistem. Penambahan agenda hanya wewenang Admin HRGA & Admin HSE.');
       return;
     }
 
