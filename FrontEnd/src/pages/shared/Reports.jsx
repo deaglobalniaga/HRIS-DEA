@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   FileText, Calendar, Users, ChevronDown, Printer, FileSpreadsheet, 
   TrendingUp, Clock, AlertCircle, Trash2, X, Search, CheckCircle2, 
-  Eye, RefreshCw, Smartphone, ShieldCheck, MapPin
+  Eye, RefreshCw, Smartphone, ShieldCheck, MapPin, ExternalLink
 } from 'lucide-react';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 
 const Reports = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { addToast } = useToast();
   const isAdmin = user?.role?.toLowerCase().includes('admin') || user?.role?.toLowerCase().includes('hr');
@@ -268,36 +270,76 @@ const Reports = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 bg-blue-50 text-blue-700 rounded-xl"><Users size={16} /></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Karyawan</span>
+        <div 
+          onClick={() => navigate('/organization?tab=employees')}
+          title="Klik untuk membuka Halaman Data Karyawan (Organisasi)"
+          className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-blue-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-blue-50 text-blue-700 rounded-xl"><Users size={16} /></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Karyawan</span>
+            </div>
+            <ExternalLink size={13} className="text-slate-300 group-hover:text-blue-600 transition-colors" />
           </div>
-          <span className="text-2xl font-black text-slate-800">{totalEmployees}</span>
+          <div>
+            <span className="text-2xl font-black text-slate-800 block">{totalEmployees}</span>
+            <span className="text-[10px] text-slate-400 font-medium group-hover:text-blue-600 transition-colors">Lihat Data Karyawan ↗</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl"><Calendar size={16} /></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Hari Kerja Efektif</span>
+        <div 
+          onClick={() => navigate('/calendar')}
+          title="Hari kerja efektif dihitung dari jumlah hari kalender dikurangi hari Minggu. Klik untuk membuka Kalender Kerja."
+          className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-emerald-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl"><Calendar size={16} /></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Hari Kerja Efektif</span>
+            </div>
+            <ExternalLink size={13} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
           </div>
-          <span className="text-2xl font-black text-slate-800">{totalWorkDays} Hari</span>
+          <div>
+            <span className="text-2xl font-black text-slate-800 block">{totalWorkDays} Hari</span>
+            <span className="text-[10px] text-slate-400 font-medium group-hover:text-emerald-600 transition-colors">Senin - Sabtu (Non-Minggu) ↗</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 bg-purple-50 text-purple-700 rounded-xl"><TrendingUp size={16} /></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Rata-rata Kehadiran</span>
+        <div 
+          onClick={() => navigate('/attendance-hub')}
+          title="Persentase kehadiran rata-rata seluruh staf. Klik untuk membuka Pusat Kehadiran."
+          className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-purple-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-purple-50 text-purple-700 rounded-xl"><TrendingUp size={16} /></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Rata-rata Kehadiran</span>
+            </div>
+            <ExternalLink size={13} className="text-slate-300 group-hover:text-purple-600 transition-colors" />
           </div>
-          <span className="text-2xl font-black text-slate-800">{avgAttendance}%</span>
+          <div>
+            <span className="text-2xl font-black text-slate-800 block">{avgAttendance}%</span>
+            <span className="text-[10px] text-slate-400 font-medium group-hover:text-purple-600 transition-colors">Buka Pusat Kehadiran ↗</span>
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between">
-          <div className="flex items-center gap-2 mb-1">
-            <div className="p-2 bg-amber-50 text-amber-700 rounded-xl"><Clock size={16} /></div>
-            <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Terlambat</span>
+        <div 
+          onClick={() => navigate('/attendance-hub')}
+          title="Akumulasi frekuensi kejadian terlambat masuk bulan ini. Klik untuk memeriksa log presensi detail."
+          className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-amber-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="flex items-center gap-2">
+              <div className="p-2 bg-amber-50 text-amber-700 rounded-xl"><Clock size={16} /></div>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Total Terlambat</span>
+            </div>
+            <ExternalLink size={13} className="text-slate-300 group-hover:text-amber-600 transition-colors" />
           </div>
-          <span className="text-2xl font-black text-slate-800">{totalLate} Kali</span>
+          <div>
+            <span className="text-2xl font-black text-slate-800 block">{totalLate} Kali</span>
+            <span className="text-[10px] text-slate-400 font-medium group-hover:text-amber-600 transition-colors">Frekuensi kejadian terlambat ↗</span>
+          </div>
         </div>
       </div>
 

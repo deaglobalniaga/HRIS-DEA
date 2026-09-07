@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search, CalendarDays, CheckCircle, RefreshCw, Activity, User, ShieldAlert } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Search, CalendarDays, CheckCircle, RefreshCw, Activity, User, ShieldAlert, ExternalLink } from 'lucide-react';
 import api from '../../api/api';
 
 const Performance = () => {
+    const navigate = useNavigate();
     const [stats, setStats] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -82,22 +84,57 @@ const Performance = () => {
 
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><User size={12} /> Total Karyawan</span>
+                <div 
+                    onClick={() => navigate('/organization?tab=employees')}
+                    title="Klik untuk membuka Halaman Data Karyawan (Organisasi)"
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] hover:border-blue-400 transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><User size={12} /> Total Karyawan</span>
+                        <ExternalLink size={12} className="text-slate-300 group-hover:text-blue-600 transition-colors" />
+                    </div>
                     <span className="text-2xl font-black text-slate-800">{totalStaff}</span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 group-hover:text-blue-600 transition-colors">Buka Direktori Karyawan ↗</span>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><CheckCircle size={12} className="text-green-500" /> On Site</span>
+
+                <div 
+                    onClick={() => navigate('/attendance-hub')}
+                    title="Klik untuk membuka Pusat Kehadiran & Monitoring Presensi On Site"
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] hover:border-emerald-400 transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CheckCircle size={12} className="text-green-500" /> On Site</span>
+                        <ExternalLink size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
+                    </div>
                     <span className="text-2xl font-black text-slate-800">{workingCount}</span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 group-hover:text-emerald-600 transition-colors">Buka Pusat Kehadiran ↗</span>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] transition-all">
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-1.5"><CalendarDays size={12} className="text-amber-500" /> Cuti Roster</span>
+
+                <div 
+                    onClick={() => navigate('/calendar')}
+                    title="Klik untuk membuka Kalender Jadwal Cuti & Operasional"
+                    className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col hover:shadow-md hover:scale-[1.01] hover:border-amber-400 transition-all cursor-pointer group"
+                >
+                    <div className="flex items-center justify-between mb-1">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5"><CalendarDays size={12} className="text-amber-500" /> Cuti Roster</span>
+                        <ExternalLink size={12} className="text-slate-300 group-hover:text-amber-600 transition-colors" />
+                    </div>
                     <span className="text-2xl font-black text-slate-800">{cutiCount}</span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 group-hover:text-amber-600 transition-colors">Lihat Kalender Cuti ↗</span>
                 </div>
-                <div className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-md flex flex-col relative overflow-hidden hover:shadow-lg hover:scale-[1.01] transition-all">
+
+                <div 
+                    onClick={() => navigate('/calendar')}
+                    title="Klik untuk melihat Kalender Agenda & Siklus 13/1"
+                    className="bg-slate-900 text-white p-4 rounded-2xl border border-slate-800 shadow-md flex flex-col relative overflow-hidden hover:shadow-lg hover:scale-[1.01] hover:border-rose-500 transition-all cursor-pointer group"
+                >
                     <div className="absolute right-0 top-0 opacity-10"><ShieldAlert size={80} /></div>
-                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 z-10">Off (13/1)</span>
+                    <div className="flex items-center justify-between mb-1 z-10">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Off (13/1)</span>
+                        <ExternalLink size={12} className="text-slate-500 group-hover:text-rose-400 transition-colors" />
+                    </div>
                     <span className="text-2xl font-black text-white z-10">{offCount} <span className="text-xs font-medium text-slate-400">orang hari ini</span></span>
+                    <span className="text-[10px] text-slate-400 font-medium mt-0.5 z-10 group-hover:text-rose-300 transition-colors">Buka Jadwal Kalender ↗</span>
                 </div>
             </div>
 
