@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, Bell, X, User, Users, Layout, Briefcase, ChevronRight, Menu, LogOut, Shield, Settings as SettingsIcon } from 'lucide-react';
+import { 
+  Search, Bell, X, User, Users, Layout, Briefcase, ChevronRight, 
+  Menu, LogOut, Shield, Settings as SettingsIcon, PanelLeftClose, PanelLeftOpen 
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import api from '../../api/api';
@@ -65,7 +68,7 @@ const getAllMenus = (role, user = {}) => {
     return menus;
 };
 
-const Navbar = ({ toggleSidebar }) => {
+const Navbar = ({ toggleSidebar, isSidebarCollapsed = false, toggleSidebarCollapse }) => {
   const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
@@ -204,12 +207,25 @@ const Navbar = ({ toggleSidebar }) => {
     return (
     <header className="h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 bg-slate-50 relative z-40">
       
-      {/* Left section: Breadcrumbs / Title */}
+      {/* Left section: Breadcrumbs / Title & Sidebar Toggle */}
       <div className="flex flex-col shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5">
+          {/* Mobile toggle */}
           <button onClick={toggleSidebar} className="lg:hidden p-1 -ml-2 text-slate-500 hover:text-red-900 transition-colors">
             <Menu size={24} />
           </button>
+
+          {/* Desktop sidebar toggle button */}
+          {toggleSidebarCollapse && (
+            <button
+              onClick={toggleSidebarCollapse}
+              title={isSidebarCollapsed ? "Perlebar menu samping" : "Kecilkan menu samping"}
+              className="hidden lg:flex items-center justify-center p-1.5 rounded-xl border border-slate-200 text-slate-500 hover:text-red-900 hover:border-red-200 hover:bg-white hover:shadow-xs transition-all duration-200 cursor-pointer"
+            >
+              {isSidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+            </button>
+          )}
+
           <h2 className="text-xl font-black text-gray-900 tracking-tight">{pageTitle}</h2>
         </div>
         <div className="text-xs font-bold text-slate-400 mt-0.5 lg:ml-0 ml-10">

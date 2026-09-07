@@ -40,6 +40,26 @@ const MainLayout = () => {
     window.scrollTo({ top: 0, behavior: 'instant' });
   }, [location.pathname]);
 
+  // Desktop sidebar collapsed state with device cache (localStorage)
+  const STORAGE_KEY = 'hris_desktop_sidebar_collapsed';
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(STORAGE_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed(prev => {
+      const next = !prev;
+      try {
+        localStorage.setItem(STORAGE_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-gray-900 selection:bg-red-900 selection:text-white relative">
       {/* Interactive DotField Background for Super Admin & HSE Admin Roles */}
@@ -67,12 +87,21 @@ const MainLayout = () => {
         />
       )}
       
-      <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
+      <Sidebar 
+        isOpen={isSidebarOpen} 
+        setIsOpen={setIsSidebarOpen}
+        isCollapsed={isSidebarCollapsed}
+        toggleCollapse={toggleSidebarCollapse}
+      />
       
-      <div className="flex-1 flex flex-col lg:ml-64 min-h-screen relative w-full overflow-x-hidden">
+      <div className={`flex-1 flex flex-col ${isSidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64'} min-h-screen relative w-full overflow-x-hidden transition-[margin] duration-300 ease-in-out`}>
         {/* Desktop Navbar (Hidden on mobile for clean native app experience) */}
         <div className="hidden lg:block">
-          <Navbar toggleSidebar={() => setIsSidebarOpen(true)} />
+          <Navbar 
+            toggleSidebar={() => setIsSidebarOpen(true)}
+            isSidebarCollapsed={isSidebarCollapsed}
+            toggleSidebarCollapse={toggleSidebarCollapse}
+          />
         </div>
 
         {/* Main Content Area with Blur-In Page Transition */}

@@ -600,33 +600,55 @@ const getHseAdminEmails = async (supabaseClient) => {
                 roles (name),
                 employees (
                     department_id,
-                    email_office,
+                    jabatan,
                     departments (name)
                 )
             `)
             .neq('is_active', false);
 
-        if (error || !users) return [];
+        if (error || !users) {
+            console.error('getHseAdminEmails query error:', error?.message || error);
+            return [];
+        }
 
         const emails = new Set();
         users.forEach(u => {
             const roleName = (u.roles?.name || '').toLowerCase();
             const emp = Array.isArray(u.employees) ? u.employees[0] : u.employees;
             const deptName = (emp?.departments?.name || '').toLowerCase();
+            const jabatan = (emp?.jabatan || '').toLowerCase();
             const username = (u.username || '').toLowerCase();
 
             const isHSE = roleName === 'hse_admin' || 
-                          username === 'hse_admin' || 
-                          (roleName === 'admin' && (deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety')));
+                          username.includes('hse') || 
+                          (roleName === 'admin' && (deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || jabatan.includes('hse') || jabatan.includes('k3'))) ||
+                          deptName.includes('hse') || deptName.includes('k3');
 
             if (isHSE) {
-                if (u.email && u.email.includes('@')) emails.add(u.email.trim());
-                if (u.recovery_email && u.recovery_email.includes('@')) emails.add(u.recovery_email.trim());
-                if (emp?.email_office && emp.email_office.includes('@')) emails.add(emp.email_office.trim());
+                // Priority: profile registered recovery_email, then user account email
+                if (u.recovery_email && u.recovery_email.includes('@')) {
+                    emails.add(u.recovery_email.trim());
+                }
+                if (u.email && u.email.includes('@')) {
+                    emails.add(u.email.trim());
+                }
             }
         });
 
-        return Array.from(emails);
+        // If no HSE specific email found with a valid external mailbox, also check general admins who have a profile email
+        if (emails.size === 0) {
+            users.forEach(u => {
+                const roleName = (u.roles?.name || '').toLowerCase();
+                if (['admin', 'superadmin'].includes(roleName)) {
+                    if (u.recovery_email && u.recovery_email.includes('@')) emails.add(u.recovery_email.trim());
+                    else if (u.email && u.email.includes('@') && !u.email.endsWith('@deaglobalniaga.com')) emails.add(u.email.trim());
+                }
+            });
+        }
+
+        const result = Array.from(emails);
+        console.log(`[MAILER] Resolved ${result.length} HSE Admin recipient email(s):`, result);
+        return result;
     } catch (e) {
         console.error('getHseAdminEmails error:', e);
         return [];

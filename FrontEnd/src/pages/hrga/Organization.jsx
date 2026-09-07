@@ -33,7 +33,7 @@ const Organization = () => {
   };
 
   return (
-    <div className="flex flex-col w-full h-full space-y-4">
+    <div className="flex flex-col w-full flex-1 min-h-full space-y-4">
       {/* Sleek Floating Acrylic Glass Tab Navigation */}
       <div className="flex flex-col md:flex-row justify-start items-start md:items-center gap-4">
         <div className="flex flex-wrap bg-white/80 backdrop-blur-xl rounded-2xl shadow-sm border border-white/80 ring-1 ring-slate-900/5 p-1.5 gap-1.5">
@@ -123,7 +123,7 @@ const Organization = () => {
         </div>
       </div>
 
-      <div className="flex-1 w-full animate-in fade-in duration-300">
+      <div className="flex-1 w-full flex flex-col min-h-0 animate-in fade-in duration-300">
         {activeTab === 'employees' && !isSuperAdmin && isAdmin && <Employees readOnly={isHSEAdmin} />}
         {activeTab === 'certifications' && !isSuperAdmin && isAdmin && <Certifications />}
         {activeTab === 'departments' && <Departments readOnly={isSuperAdmin} />}

@@ -1,8 +1,12 @@
 import { NavLink, useLocation } from 'react-router-dom';
-import { LayoutDashboard, Calendar, Users, Clock, Activity, Briefcase, LogOut, Calculator, FileText, ShieldCheck, Award, Building2, User, Settings, Shield } from 'lucide-react';
+import { 
+  LayoutDashboard, Calendar, Users, Clock, Activity, Briefcase, 
+  LogOut, Calculator, FileText, ShieldCheck, Award, Building2, 
+  User, Settings, Shield, PanelLeftClose, PanelLeftOpen 
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
-const Sidebar = ({ isOpen, setIsOpen }) => {
+const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => {
   const { logout, user } = useAuth();
   const location = useLocation();
   const role = (user?.role || '').toLowerCase();
@@ -117,14 +121,52 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
   const menuSections = getMenuSections();
 
   return (
-    <aside className={`w-64 bg-white/95 backdrop-blur-xl border-r border-slate-200/90 h-screen flex flex-col fixed left-0 top-0 ${isOpen ? 'z-40 translate-x-0' : 'z-30 -translate-x-full'} lg:translate-x-0 lg:z-30 transform transition-transform duration-300 ease-in-out shadow-lg shadow-slate-200/40`}>
-      {/* Logo */}
-      <div className="h-24 flex items-center justify-center px-4 border-b border-slate-100/80">
-        <img src="/dea.png" alt="PT DEA GLOBAL NIAGA" className="h-20 w-auto object-contain transition-transform duration-300 hover:scale-105" onError={(e) => { e.target.style.display = 'none' }} />
+    <aside className={`${isCollapsed ? 'lg:w-[76px]' : 'lg:w-64'} w-64 bg-white/95 backdrop-blur-xl border-r border-slate-200/90 h-screen flex flex-col fixed left-0 top-0 ${isOpen ? 'z-40 translate-x-0' : 'z-30 -translate-x-full'} lg:translate-x-0 lg:z-30 transition-[width,transform] duration-300 ease-in-out shadow-lg shadow-slate-200/40`}>
+      {/* Logo & Toggle */}
+      <div className={`h-20 flex items-center ${isCollapsed ? 'justify-center px-2' : 'justify-between px-4'} border-b border-slate-100/80 transition-all duration-300 relative`}>
+        {isCollapsed ? (
+          <div className="flex flex-col items-center gap-1 group py-2">
+            <img 
+              src="/dea.png" 
+              alt="DEA" 
+              className="h-10 w-10 object-contain transition-transform duration-200 hover:scale-110 cursor-pointer"
+              onClick={toggleCollapse}
+              title="Klik untuk memperbesar menu sidebar"
+              onError={(e) => { e.target.style.display = 'none'; }} 
+            />
+            <button
+              onClick={toggleCollapse}
+              title="Perlebar Menu Sidebar"
+              className="hidden lg:flex p-1 rounded-lg text-slate-400 hover:text-red-900 hover:bg-red-50 transition-colors"
+            >
+              <PanelLeftOpen size={16} />
+            </button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 overflow-hidden">
+              <img 
+                src="/dea.png" 
+                alt="PT DEA GLOBAL NIAGA" 
+                className="h-16 w-auto object-contain transition-transform duration-300 hover:scale-105" 
+                onError={(e) => { e.target.style.display = 'none'; }} 
+              />
+            </div>
+            {toggleCollapse && (
+              <button
+                onClick={toggleCollapse}
+                title="Kecilkan Menu Sidebar"
+                className="hidden lg:flex p-1.5 rounded-xl text-slate-400 hover:text-red-900 hover:bg-slate-100 transition-colors"
+              >
+                <PanelLeftClose size={18} />
+              </button>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Navigation with Interactive Hover Effects */}
-      <nav className="flex-1 overflow-y-auto py-5 px-3 space-y-4 scrollbar-thin scrollbar-thumb-slate-200">
+      {/* Navigation with Interactive Hover Effects & Tooltips */}
+      <nav className={`flex-1 overflow-y-auto ${isCollapsed ? 'px-2 py-4 space-y-3' : 'px-3 py-5 space-y-4'} scrollbar-thin scrollbar-thumb-slate-200`}>
         {menuSections.map((section, idx) => {
           const visibleItems = section.items.filter(item => item.visible !== false);
           if (visibleItems.length === 0) return null;
@@ -132,9 +174,13 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           return (
             <div key={idx} className="space-y-1">
               {section.title && (
-                <h3 className="px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">
-                  {section.title}
-                </h3>
+                isCollapsed ? (
+                  <div className="hidden lg:block my-2 mx-auto w-6 h-px bg-slate-200/80" title={section.title} />
+                ) : (
+                  <h3 className="px-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 truncate">
+                    {section.title}
+                  </h3>
+                )
               )}
               {visibleItems.map((item) => (
                 <NavLink
@@ -146,14 +192,24 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                       ? (location.pathname + location.search) === item.path
                       : (location.pathname === item.path && !location.search);
                     const active = item.path.includes('?') ? isCustomActive : isActive;
-                    return `group relative flex items-center gap-3 px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 ${active
-                      ? 'bg-gradient-to-r from-red-800 to-rose-800 text-white shadow-md shadow-red-900/25 translate-x-1'
-                      : 'text-slate-600 hover:bg-red-50/70 hover:text-red-900 hover:translate-x-1.5 hover:shadow-sm'
+                    return `group relative flex items-center ${isCollapsed ? 'justify-center lg:px-2 px-3.5' : 'px-3.5'} py-2.5 rounded-2xl text-xs sm:text-sm font-bold transition-all duration-200 ${active
+                      ? 'bg-gradient-to-r from-red-800 to-rose-800 text-white shadow-md shadow-red-900/25 ' + (isCollapsed ? '' : 'translate-x-1')
+                      : 'text-slate-600 hover:bg-red-50/70 hover:text-red-900 hover:shadow-sm ' + (isCollapsed ? '' : 'hover:translate-x-1.5')
                     }`;
                   }}
                 >
-                  <item.icon size={17} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:scale-115" />
-                  <span className="truncate tracking-tight">{item.name}</span>
+                  <item.icon size={18} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:scale-110" />
+                  <span className={`truncate tracking-tight ${isCollapsed ? 'lg:hidden ml-3' : 'ml-3'}`}>
+                    {item.name}
+                  </span>
+
+                  {/* Floating Tooltip for Desktop when Collapsed */}
+                  {isCollapsed && (
+                    <div className="hidden lg:group-hover:flex absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xl whitespace-nowrap z-50 pointer-events-none items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+                      <span>{item.name}</span>
+                      <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
+                    </div>
+                  )}
                 </NavLink>
               ))}
             </div>
@@ -162,13 +218,21 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
       </nav>
 
       {/* Logout */}
-      <div className="p-3.5 border-t border-slate-100">
+      <div className={`border-t border-slate-100 ${isCollapsed ? 'p-2' : 'p-3.5'}`}>
         <button
           onClick={logout}
-          className="w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-xs sm:text-sm font-black text-slate-500 hover:bg-red-50 hover:text-red-900 hover:shadow-sm hover:translate-x-1 transition-all duration-200"
+          className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center lg:px-2 px-4' : 'px-4'} py-3 rounded-2xl text-xs sm:text-sm font-black text-slate-500 hover:bg-red-50 hover:text-red-900 hover:shadow-sm transition-all duration-200`}
         >
-          <LogOut size={17} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:rotate-12" />
-          Keluar
+          <LogOut size={18} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:rotate-12" />
+          <span className={`${isCollapsed ? 'lg:hidden ml-3' : 'ml-3'}`}>Keluar</span>
+
+          {/* Floating Tooltip for Desktop when Collapsed */}
+          {isCollapsed && (
+            <div className="hidden lg:group-hover:flex absolute left-[calc(100%+12px)] top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-900 text-white text-xs font-bold rounded-xl shadow-xl whitespace-nowrap z-50 pointer-events-none items-center gap-1.5 animate-in fade-in zoom-in-95 duration-150">
+              <span>Keluar</span>
+              <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-slate-900" />
+            </div>
+          )}
         </button>
       </div>
     </aside>

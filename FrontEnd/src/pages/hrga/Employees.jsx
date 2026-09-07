@@ -750,8 +750,8 @@ const Employees = ({ readOnly = false }) => {
     const currentEmployees = filteredEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     return (
-        <div className="w-full flex flex-col gap-2 relative font-sans -mt-2">
-            <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col">
+        <div className="w-full flex-1 flex flex-col gap-2 relative font-sans -mt-2">
+            <div className="bg-white rounded-[1.5rem] border border-slate-200 shadow-sm flex flex-col flex-1 min-h-[calc(100vh-210px)] justify-between">
                 <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 items-center justify-between bg-slate-50/70 rounded-t-[1.5rem]">
                     {/* Search & Filter Group */}
                     <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
@@ -903,7 +903,7 @@ const Employees = ({ readOnly = false }) => {
                     </div>
                 </div>
 
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto flex-1 min-h-[420px] pb-32">
                     {activeTab === 'sertifikasi' ? (
                         <div className="p-4">
                             <Certifications preSelectedUser={selectedHSEEmployee} uploadTrigger={uploadSertifikatTrigger} />
@@ -1072,14 +1072,20 @@ const Employees = ({ readOnly = false }) => {
                                                         <MoreVertical size={18} />
                                                     </button>
                                                     {activeDropdown === emp.id && (
-                                                        <div className="absolute right-12 top-10 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-2 z-20 text-left">
-                                                            <button onClick={() => openEditModal(emp)} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2">
-                                                                <Edit size={14} className="text-blue-500" /> Edit Karyawan
-                                                            </button>
-                                                            <button onClick={() => { setActiveDropdown(null); handleDeleteEmployee(emp.id); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2">
-                                                                <Trash2 size={14} /> Hapus Karyawan
-                                                            </button>
-                                                        </div>
+                                                        <>
+                                                            <div 
+                                                                className="fixed inset-0 z-20 cursor-default" 
+                                                                onClick={(e) => { e.stopPropagation(); setActiveDropdown(null); }} 
+                                                            />
+                                                            <div className="absolute right-12 top-10 w-48 bg-white rounded-xl shadow-2xl border border-slate-200/90 py-2 z-30 text-left animate-in fade-in zoom-in-95">
+                                                                <button onClick={() => { setActiveDropdown(null); openEditModal(emp); }} className="w-full px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
+                                                                    <Edit size={14} className="text-blue-500" /> Edit Karyawan
+                                                                </button>
+                                                                <button onClick={() => { setActiveDropdown(null); handleDeleteEmployee(emp.id); }} className="w-full px-4 py-2 text-xs font-bold text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                                                                    <Trash2 size={14} /> Hapus Karyawan
+                                                                </button>
+                                                            </div>
+                                                        </>
                                                     )}
                                                 </td>
                                             )}

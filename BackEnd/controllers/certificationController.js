@@ -523,6 +523,25 @@ exports.add_certification = async (req, res) => {
 
         if (error) throw error;
 
+        // Automated Email Notification to all HSE Admins
+        try {
+            const empName = data?.employees?.nama_lengkap || 'Karyawan';
+            mailer.getHseAdminEmails(supabase).then(hseEmails => {
+                if (hseEmails && hseEmails.length > 0) {
+                    mailer.sendHseNewCertUploadEmail({
+                        toEmails: hseEmails,
+                        employeeName: empName,
+                        certName: namaSertifikat,
+                        certNumber: certNumber,
+                        issueDate: issueDate,
+                        expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                    }).catch(err => console.error('HSE cert email send err:', err.message));
+                }
+            }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
+        } catch (nErr) {
+            console.warn('Silent notification error in add_certification:', nErr.message);
+        }
+
         await invalidateCache('master:certifications_all');
         res.status(201).json({ message: 'Sertifikat berhasil ditambahkan', certificate: formatCert(data) });
     } catch (err) {
