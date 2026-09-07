@@ -361,7 +361,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         const diffDays = Math.round((expiredDate - today) / (1000 * 60 * 60 * 24));
 
         if (diffDays < 0) return { color: 'bg-red-100 text-red-800 border-red-300', text: 'Kedaluwarsa' };
-        if (diffDays <= 60) return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: diffDays === 0 ? 'Habis Hari Ini' : `Segera Habis (${diffDays} hr)` };
+        if (diffDays <= 90) return { color: 'bg-amber-100 text-amber-800 border-amber-300', text: diffDays === 0 ? 'Habis Hari Ini' : `Segera Habis (${diffDays} hr)` };
         return { color: 'bg-emerald-100 text-emerald-800 border-emerald-300', text: 'Aktif' };
     };
 
@@ -486,7 +486,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         const expDate = parseDateSafe(c.tanggal_kadaluarsa);
         if (!expDate) return true;
         const diff = Math.round((expDate - todayDateObj) / (1000 * 60 * 60 * 24));
-        return diff > 60;
+        return diff > 90;
     }).length;
 
     const displayRows = getDisplayRows();

@@ -397,7 +397,7 @@ const PersonalCertifications = () => {
             </div>
           </div>
           <div className="text-2xl font-black text-amber-700">{expiringCerts}</div>
-          <span className="text-[10px] font-bold text-amber-600 mt-1 block">&lt; 60 hari tersisa</span>
+          <span className="text-[10px] font-bold text-amber-600 mt-1 block">&le; 90 hari tersisa</span>
         </div>
 
         {/* Pending Verification */}

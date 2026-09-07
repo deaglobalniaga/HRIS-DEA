@@ -314,7 +314,7 @@ const HSEDashboard = () => {
             icon={AlertTriangle}
             value={hseData.expiringCertsCount}
             title="Segera Kedaluwarsa"
-            subtitle="Masa berlaku < 60 hari"
+            subtitle="Masa berlaku ≤ 90 hari"
             colorClass={hseData.expiringCertsCount > 0 ? "text-amber-500" : "text-slate-400"}
             onClick={() => navigate('/organization?tab=certifications&expiry=expiring')}
           />
