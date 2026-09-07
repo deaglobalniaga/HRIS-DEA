@@ -190,22 +190,42 @@ const Settings = () => {
         }
     };
 
-    // SAVE UNIFIED CREDENTIALS (USERNAME & PASSWORD)
+    // SAVE UNIFIED CREDENTIALS (USERNAME, PASSWORD & RECOVERY EMAIL)
     const handleSaveCredentials = async (e) => {
         e.preventDefault();
         const currentPass = (credForm.currentPassword || '').trim();
-        if (!currentPass) {
-            addToast('Kata sandi saat ini wajib diisi untuk verifikasi keamanan!', 'error');
-            return;
-        }
-
         const newCleanUsername = (credForm.username || '').trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
         const currentUsername = (profileData.username || user?.username || '').trim().toLowerCase();
         const isUsernameChanged = newCleanUsername && newCleanUsername !== currentUsername;
         const isPasswordChanged = !!credForm.newPassword;
+        const currentRecovery = (user?.recovery_email || '').trim();
+        const newRecovery = (profileData.recovery_email || '').trim();
+        const isRecoveryChanged = newRecovery !== currentRecovery;
 
-        if (!isUsernameChanged && !isPasswordChanged) {
-            addToast('Tidak ada perubahan nama pengguna atau kata sandi yang dibuat.', 'info');
+        // If only recovery email changed, save it directly without requiring current password
+        if (!isUsernameChanged && !isPasswordChanged && isRecoveryChanged) {
+            setSavingCreds(true);
+            try {
+                await api.patch('/auth/recovery-email', { email: newRecovery });
+                login(token, { ...user, recovery_email: newRecovery });
+                setProfileData(prev => ({ ...prev, recovery_email: newRecovery }));
+                addToast('Email pemulihan akun berhasil diperbarui!', 'success');
+                fetchProfile();
+            } catch (rErr) {
+                addToast('Gagal menyimpan email pemulihan: ' + (rErr.response?.data?.error || rErr.message), 'error');
+            } finally {
+                setSavingCreds(false);
+            }
+            return;
+        }
+
+        if (!isUsernameChanged && !isPasswordChanged && !isRecoveryChanged) {
+            addToast('Tidak ada perubahan nama pengguna, kata sandi, atau email pemulihan.', 'info');
+            return;
+        }
+
+        if ((isUsernameChanged || isPasswordChanged) && !currentPass) {
+            addToast('Kata sandi saat ini wajib diisi untuk verifikasi keamanan saat mengubah username atau password!', 'error');
             return;
         }
 
@@ -227,6 +247,14 @@ const Settings = () => {
 
         setSavingCreds(true);
         try {
+            let updatedUser = { ...user };
+
+            // 0. Update Recovery Email if changed
+            if (isRecoveryChanged) {
+                await api.patch('/auth/recovery-email', { email: newRecovery });
+                updatedUser.recovery_email = newRecovery;
+            }
+
             // 1. Update Username if changed
             if (isUsernameChanged) {
                 const userRes = await api.patch('/auth/change-username', {
@@ -234,7 +262,7 @@ const Settings = () => {
                     password: currentPass
                 });
                 if (userRes.data.username) {
-                    login(token, { ...user, username: userRes.data.username });
+                    updatedUser.username = userRes.data.username;
                     setProfileData(prev => ({ ...prev, username: userRes.data.username }));
                 }
             }
@@ -247,7 +275,8 @@ const Settings = () => {
                 });
             }
 
-            addToast('Kredensial akun (nama pengguna / kata sandi) berhasil diperbarui!', 'success');
+            login(token, updatedUser);
+            addToast('Perubahan keamanan akun berhasil disimpan!', 'success');
             setCredForm(prev => ({
                 ...prev,
                 currentPassword: '',
@@ -338,6 +367,7 @@ const Settings = () => {
             await api.post('/auth/mfa/verify', { token: mfaData.token });
             addToast('Autentikasi 2-Langkah (MFA) berhasil diaktifkan!', 'success');
             setMfaData(prev => ({ ...prev, enabled: true, secret: '', qr: '', token: '' }));
+            login(token, { ...user, mfa_enabled: true });
             fetchProfile();
         } catch(e) {
             addToast(e.response?.data?.message || 'Kode verifikasi salah atau telah kedaluwarsa', 'error');
@@ -350,6 +380,7 @@ const Settings = () => {
             await api.post('/auth/mfa/disable', {});
             addToast('MFA berhasil dinonaktifkan.', 'info');
             setMfaData(prev => ({ ...prev, enabled: false, token: '', qr: '', secret: '' }));
+            login(token, { ...user, mfa_enabled: false });
             fetchProfile();
         } catch(e) {
             addToast('Gagal menonaktifkan MFA', 'error');
@@ -357,14 +388,18 @@ const Settings = () => {
     };
 
     const saveRecoveryEmail = async (e) => {
-        e.preventDefault();
-        if (!profileData.recovery_email) {
+        if (e) e.preventDefault();
+        const cleanEmail = (profileData.recovery_email || '').trim();
+        if (!cleanEmail) {
             addToast('Harap masukkan alamat email pemulihan.', 'error');
             return;
         }
         try {
-            await api.patch('/auth/recovery-email', { email: profileData.recovery_email });
+            await api.patch('/auth/recovery-email', { email: cleanEmail });
             addToast('Email pemulihan berhasil disimpan!', 'success');
+            login(token, { ...user, recovery_email: cleanEmail });
+            setProfileData(prev => ({ ...prev, recovery_email: cleanEmail }));
+            fetchProfile();
         } catch(e) {
             addToast('Gagal menyimpan email pemulihan: ' + (e.response?.data?.error || e.message), 'error');
         }
@@ -1078,7 +1113,6 @@ const Settings = () => {
                                             value={credForm.currentPassword}
                                             onChange={(e) => setCredForm({ ...credForm, currentPassword: e.target.value })}
                                             className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs outline-none focus:ring-1 focus:ring-red-900"
-                                            required
                                         />
                                         <span className="text-[9px] text-slate-400 mt-0.5 block">Wajib diisi untuk memverifikasi keamanan kepemilikan akun.</span>
                                     </div>

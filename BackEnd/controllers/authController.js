@@ -526,12 +526,17 @@ exports.getProfile = async (req, res) => {
         let flattenedUser = { ...user, role: userRole };
         delete flattenedUser.password_hash;
         if (employeeData) {
+            const { employee_details, employee_documents, departments, ...restEmp } = employeeData;
             flattenedUser = { 
                 ...flattenedUser, 
                 ...employeeData,
                 id: user.id,
                 user_id: user.id,
-                employee_id: employeeData.id
+                employee_id: employeeData.id,
+                username: user.username,
+                email: user.email,
+                recovery_email: user.recovery_email,
+                mfa_enabled: Boolean(user.mfa_enabled)
             };
             if (employeeData.departments) flattenedUser.department = employeeData.departments.name;
             if (employeeData.employee_details && employeeData.employee_details.length > 0) {
@@ -593,11 +598,16 @@ exports.updateProfile = async (req, res) => {
 
     const targetUserId = req.userId || req.user?.id;
     try {
-        // 1. Update user record if email or full_name changed
+        // 1. Update user record (email and recovery_email)
         const userUpdates = { updated_at: new Date() };
-        if (updates.email) userUpdates.email = updates.email;
-        if (targetName) userUpdates.full_name = targetName;
-        await supabase.from('users').update(userUpdates).eq('id', targetUserId);
+        if (updates.email) userUpdates.email = String(updates.email).trim();
+        if (updates.recovery_email !== undefined) {
+            userUpdates.recovery_email = updates.recovery_email ? String(updates.recovery_email).trim() : null;
+        }
+        if (Object.keys(userUpdates).length > 1) {
+            const { error: userErr } = await supabase.from('users').update(userUpdates).eq('id', targetUserId);
+            if (userErr) console.error('Error updating users in updateProfile:', userErr);
+        }
 
         // 2. Find or Create Employee Record
         let { data: emp } = await supabase.from('employees').select('id').eq('user_id', targetUserId).maybeSingle();
@@ -1163,20 +1173,29 @@ exports.sendMfaEmailOtp = async (req, res) => {
 exports.saveRecoveryEmail = async (req, res) => {
     const { email } = req.body;
     try {
+        const cleanEmail = email ? String(email).trim() : null;
         const { data: userBefore } = await supabase.from('users').select('username, email, recovery_email').eq('id', req.userId).maybeSingle();
-        await supabase.from('users').update({ recovery_email: email }).eq('id', req.userId);
+        const { error: updErr } = await supabase.from('users').update({ 
+            recovery_email: cleanEmail,
+            updated_at: new Date()
+        }).eq('id', req.userId);
+
+        if (updErr) throw updErr;
+
+        await invalidateCache('user:*');
+        await invalidateCache('emp:*');
 
         // Dispatch security notification email asynchronously
         (async () => {
             try {
                 const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
-                const targets = [email, userBefore?.email].filter(Boolean);
+                const targets = [cleanEmail, userBefore?.email].filter(Boolean);
                 for (const targetEmail of targets) {
                     await mailer.sendSecurityActivityEmail({
                         toEmail: targetEmail,
                         recipientName: userBefore?.username || 'Pengguna',
                         activityType: 'Pembaruan Email Pemulihan (Recovery Email)',
-                        details: `Email pemulihan akun HRIS Anda telah diset ke ${email}.`,
+                        details: `Email pemulihan akun HRIS Anda telah diset ke ${cleanEmail}.`,
                         ipAddress: clientIp
                     });
                 }
@@ -1185,8 +1204,9 @@ exports.saveRecoveryEmail = async (req, res) => {
             }
         })();
 
-        res.json({ message: 'Email pemulihan berhasil disimpan' });
+        res.json({ message: 'Email pemulihan berhasil disimpan', recovery_email: cleanEmail });
     } catch (err) {
+        console.error('saveRecoveryEmail error:', err);
         res.status(500).json({ error: err.message });
     }
 };
