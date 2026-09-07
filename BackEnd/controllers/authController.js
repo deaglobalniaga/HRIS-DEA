@@ -1439,7 +1439,8 @@ exports.verifyResetOtp = async (req, res) => {
         res.json({ valid: true, message: 'Kode OTP berhasil diverifikasi!' });
 
     } catch (err) {
-        res.status(500).json({ error: err.message });
+        console.error('verifyResetOtp error:', err);
+        res.status(500).json({ error: err.message, message: 'Terjadi kendala server saat verifikasi: ' + err.message });
     }
 };
 
@@ -1512,6 +1513,6 @@ exports.resetPassword = async (req, res) => {
 
     } catch (err) {
         console.error('resetPassword error:', err);
-        res.status(500).json({ error: err.message });
+        res.status(500).json({ error: err.message, message: 'Terjadi kendala server saat reset password: ' + err.message });
     }
 };

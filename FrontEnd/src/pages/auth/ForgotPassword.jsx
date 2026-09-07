@@ -11,8 +11,8 @@ const ForgotPassword = () => {
     // Step 3: Atur Kata Sandi Baru
     const [step, setStep] = useState(1);
     
-    const [email, setEmail] = useState('');
-    const [maskedEmail, setMaskedEmail] = useState('');
+    const [email, setEmail] = useState(() => sessionStorage.getItem('hris_reset_email') || '');
+    const [maskedEmail, setMaskedEmail] = useState(() => sessionStorage.getItem('hris_reset_masked_email') || '');
     const [otp, setOtp] = useState('');
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -40,14 +40,36 @@ const ForgotPassword = () => {
         return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
     };
 
+    // Helper to resolve user-friendly error message
+    const getFriendlyErrorMessage = (err, defaultMsg) => {
+        if (err.response?.data?.message) return err.response.data.message;
+        if (err.response?.data?.error) return err.response.data.error;
+        if (!err.response && err.request) {
+            return 'Gagal terhubung ke server backend. Pastikan server aktif dan koneksi internet stabil.';
+        }
+        return defaultMsg;
+    };
+
     // 1. Step 1: Request 6-Digit OTP Email
     const handleRequestOtp = async (e) => {
         if (e) e.preventDefault();
+        const activeEmail = email.trim() || sessionStorage.getItem('hris_reset_email') || '';
+        if (!activeEmail) {
+            setStatus({ loading: false, success: false, error: 'Email atau username akun wajib diisi.' });
+            return;
+        }
+
         setStatus({ loading: true, success: false, error: null, message: '' });
 
         try {
-            const res = await api.post('/auth/forgot-password', { email: email.trim() });
-            setMaskedEmail(res.data.recipientEmail || email);
+            const res = await api.post('/auth/forgot-password', { email: activeEmail });
+            const resolvedMasked = res.data.recipientEmail || activeEmail;
+            
+            setEmail(activeEmail);
+            setMaskedEmail(resolvedMasked);
+            sessionStorage.setItem('hris_reset_email', activeEmail);
+            sessionStorage.setItem('hris_reset_masked_email', resolvedMasked);
+
             setCooldown(res.data.cooldownSeconds || 600);
             setStep(2);
             setStatus({
@@ -65,7 +87,7 @@ const ForgotPassword = () => {
             setStatus({
                 loading: false,
                 success: false,
-                error: err.response?.data?.message || 'Terjadi kesalahan saat memproses permintaan.'
+                error: getFriendlyErrorMessage(err, 'Terjadi kesalahan saat memproses permintaan.')
             });
         }
     };
@@ -74,6 +96,13 @@ const ForgotPassword = () => {
     const handleVerifyOtp = async (e) => {
         e.preventDefault();
         const cleanOtp = String(otp || '').replace(/\D/g, '').trim();
+        const activeEmail = email.trim() || sessionStorage.getItem('hris_reset_email') || '';
+
+        if (!activeEmail) {
+            setStatus({ loading: false, success: false, error: 'Email atau username akun tidak ditemukan. Silakan masukkan ulang email Anda.' });
+            setStep(1);
+            return;
+        }
 
         if (cleanOtp.length !== 6) {
             setStatus({ loading: false, success: false, error: 'Kode verifikasi harus 6 digit angka.' });
@@ -84,7 +113,7 @@ const ForgotPassword = () => {
 
         try {
             const res = await api.post('/auth/verify-reset-otp', {
-                email: email.trim(),
+                email: activeEmail,
                 otp: cleanOtp
             });
 
@@ -99,7 +128,7 @@ const ForgotPassword = () => {
             setStatus({
                 loading: false,
                 success: false,
-                error: err.response?.data?.message || 'Kode OTP tidak valid atau telah kedaluwarsa.'
+                error: getFriendlyErrorMessage(err, 'Kode OTP tidak valid atau telah kedaluwarsa.')
             });
         }
     };
@@ -108,6 +137,13 @@ const ForgotPassword = () => {
     const handleSetNewPassword = async (e) => {
         e.preventDefault();
         const cleanOtp = String(otp || '').replace(/\D/g, '').trim();
+        const activeEmail = email.trim() || sessionStorage.getItem('hris_reset_email') || '';
+
+        if (!activeEmail) {
+            setStatus({ loading: false, success: false, error: 'Sesi reset password kedaluwarsa. Silakan mulai kembali dari input email.' });
+            setStep(1);
+            return;
+        }
 
         if (newPassword.length < 6) {
             setStatus({ loading: false, success: false, error: 'Kata sandi baru minimal 6 karakter.' });
@@ -123,10 +159,13 @@ const ForgotPassword = () => {
 
         try {
             const res = await api.post('/auth/reset-password', {
-                email: email.trim(),
+                email: activeEmail,
                 otp: cleanOtp,
                 newPassword
             });
+
+            sessionStorage.removeItem('hris_reset_email');
+            sessionStorage.removeItem('hris_reset_masked_email');
 
             setStatus({
                 loading: false,
@@ -143,7 +182,7 @@ const ForgotPassword = () => {
             setStatus({
                 loading: false,
                 success: false,
-                error: err.response?.data?.message || 'Gagal mereset kata sandi. Silakan coba lagi.'
+                error: getFriendlyErrorMessage(err, 'Gagal mereset kata sandi. Silakan coba lagi.')
             });
         }
     };
@@ -304,7 +343,12 @@ const ForgotPassword = () => {
                             <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
                                 <button
                                     type="button"
-                                    onClick={() => { setStep(1); setStatus({ loading: false, success: false, error: null, message: '' }); }}
+                                    onClick={() => { 
+                                        sessionStorage.removeItem('hris_reset_email');
+                                        sessionStorage.removeItem('hris_reset_masked_email');
+                                        setStep(1); 
+                                        setStatus({ loading: false, success: false, error: null, message: '' }); 
+                                    }}
                                     className="text-slate-400 hover:text-slate-700 font-bold"
                                 >
                                     Ganti Email
