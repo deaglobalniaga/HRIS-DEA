@@ -1,4 +1,6 @@
 const nodemailer = require('nodemailer');
+const path = require('path');
+const fs = require('fs');
 require('dotenv').config();
 
 // Create resilient transporter for Gmail / Cloud environments
@@ -31,40 +33,79 @@ const transporter = createTransporter();
 const SENDER_EMAIL = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
 const SENDER_NAME = '"HRIS PT DEA GLOBAL NIAGA"';
 
+// Branding & Official Logo Configuration
+const LOGO_CID = 'dea_logo';
+const LOGO_PATH = path.join(__dirname, '../assets/dea.png');
+const LOGO_FALLBACK_URL = 'https://lhlqhqloxmysnslncgmu.supabase.co/storage/v1/object/public/documents/brand/dea-logo.png';
+
+/**
+ * Provides standard inline CID attachment for official DEA logo
+ */
+const getLogoAttachments = () => {
+    if (fs.existsSync(LOGO_PATH)) {
+        return [{
+            filename: 'dea-logo.png',
+            path: LOGO_PATH,
+            cid: LOGO_CID
+        }];
+    }
+    return [];
+};
+
+/**
+ * Standardized Email Brand Header matching the Web Application
+ */
+const getEmailHeaderHtml = (subtitle = 'HRIS Enterprise Portal') => `
+    <div style="text-align: center; margin-bottom: 24px;">
+        <div style="display: inline-block; margin-bottom: 10px;">
+            <img src="cid:${LOGO_CID}" alt="PT DEA GLOBAL NIAGA" width="60" height="60" style="display: block; width: 60px; height: 60px; margin: 0 auto; object-fit: contain;" />
+        </div>
+        <h1 style="color: #991b1b; font-size: 20px; font-weight: 900; margin: 0; letter-spacing: -0.3px;">PT DEA GLOBAL NIAGA</h1>
+        <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;">${subtitle}</p>
+    </div>
+`;
+
 /**
  * Sends an email notification for HRIS requests
  */
 const sendRequestNotification = async (to, subject, data, link) => {
     const htmlContent = `
-        <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: auto; border: 1px solid #eaeaea; border-radius: 8px;">
-            <h2 style="color: #c71e2c; border-bottom: 2px solid #eaeaea; padding-bottom: 10px;">Pengajuan Baru: ${data.type}</h2>
-            <p>Halo HR/Admin,</p>
-            <p>Terdapat pengajuan baru dari karyawan yang memerlukan persetujuan Anda.</p>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 30px; max-width: 600px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            ${getEmailHeaderHtml('Sistem Pengajuan & Approval Karyawan')}
             
-            <table style="width: 100%; margin-top: 20px; border-collapse: collapse;">
-                <tr>
-                    <td style="padding: 8px; border: 1px solid #eaeaea; font-weight: bold; background: #f9f9f9; width: 30%;">Nama Karyawan</td>
-                    <td style="padding: 8px; border: 1px solid #eaeaea;">${data.name}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px; border: 1px solid #eaeaea; font-weight: bold; background: #f9f9f9;">Tipe Pengajuan</td>
-                    <td style="padding: 8px; border: 1px solid #eaeaea;">${data.type}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px; border: 1px solid #eaeaea; font-weight: bold; background: #f9f9f9;">Tanggal</td>
-                    <td style="padding: 8px; border: 1px solid #eaeaea;">${data.dateRange || data.date}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px; border: 1px solid #eaeaea; font-weight: bold; background: #f9f9f9;">Alasan</td>
-                    <td style="padding: 8px; border: 1px solid #eaeaea;">${data.reason}</td>
-                </tr>
-            </table>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin: 0 0 8px 0;">Pengajuan Baru: ${data.type}</h2>
+                <p style="color: #475569; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+                    Halo HR/Admin, terdapat pengajuan baru dari karyawan yang memerlukan tindakan persetujuan Anda:
+                </p>
+                
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b;">
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; width: 35%; border-radius: 6px 0 0 0;">Nama Karyawan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${data.name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Tipe Pengajuan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: #991b1b;">${data.type}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Tanggal</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${data.dateRange || data.date}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Alasan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${data.reason}</td>
+                    </tr>
+                </table>
+            </div>
 
-            <div style="margin-top: 30px; text-align: center;">
-                <a href="${link}" style="background-color: #c71e2c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Proses Approval di Web</a>
+            <div style="margin: 28px 0; text-align: center;">
+                <a href="${link}" style="background-color: #991b1b; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block; box-shadow: 0 2px 6px rgba(153, 27, 27, 0.3);">
+                    Proses Approval di Web
+                </a>
             </div>
             
-            <p style="margin-top: 30px; font-size: 12px; color: #888;">Email ini dikirim otomatis oleh HRIS PT DEA GLOBAL NIAGA.</p>
+            <p style="margin: 0; font-size: 11px; color: #94a3b8; text-align: center; line-height: 1.4;">Email ini dikirim otomatis oleh HRIS PT DEA GLOBAL NIAGA.</p>
         </div>
     `;
 
@@ -74,7 +115,8 @@ const sendRequestNotification = async (to, subject, data, link) => {
             replyTo: SENDER_EMAIL,
             to: to,
             subject: subject,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Request notification email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -92,11 +134,8 @@ const sendRequestNotification = async (to, subject, data, link) => {
  */
 const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
     const htmlContent = `
-        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; max-width: 550px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #991b1b; font-size: 22px; font-weight: 900; margin: 0; letter-spacing: -0.5px;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: bold;">HRIS Enterprise Security Portal</p>
-            </div>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; padding: 30px; max-width: 550px; margin: auto; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            ${getEmailHeaderHtml('Portal Keamanan Akun HRIS')}
             
             <div style="background-color: #f8fafc; border-radius: 12px; padding: 20px; text-align: center; border: 1px solid #e2e8f0; margin-bottom: 24px;">
                 <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin-top: 0; margin-bottom: 8px;">Kode Verifikasi Reset Password</h2>
@@ -139,7 +178,8 @@ const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
             replyTo: SENDER_EMAIL,
             to: to,
             subject: `[HRIS DGN] Kode Reset Password: ${otpCode}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Reset OTP email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -155,20 +195,15 @@ const sendPasswordResetOtpEmail = async (to, otpCode, minutesValid = 10) => {
 const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 520px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <div style="display: inline-block; background: #fee2e2; border: 1px solid #fca5a5; width: 48px; height: 48px; border-radius: 12px; line-height: 48px; font-size: 22px;">
-                    🛡️
-                </div>
-                <h2 style="color: #0f172a; font-size: 20px; font-weight: 800; margin: 12px 0 4px 0;">Verifikasi Masuk 2-Langkah (MFA)</h2>
-                <p style="color: #64748b; font-size: 13px; margin: 0;">Sistem Keamanan HRIS PT DEA GLOBAL NIAGA</p>
-            </div>
+            ${getEmailHeaderHtml('Sistem Keamanan HRIS')}
 
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px; text-align: center;">
-                <p style="color: #334155; font-size: 13px; margin: 0 0 12px 0;">Gunakan kode verifikasi berikut untuk menyelesaikan proses autentikasi akun Anda:</p>
+                <h2 style="color: #0f172a; font-size: 17px; font-weight: 800; margin: 0 0 8px 0;">Verifikasi Masuk 2-Langkah (MFA)</h2>
+                <p style="color: #334155; font-size: 13px; margin: 0 0 14px 0; line-height: 1.5;">Gunakan kode verifikasi berikut untuk menyelesaikan proses autentikasi akun Anda:</p>
                 <div style="background: #ffffff; border: 2px dashed #dc2626; border-radius: 10px; padding: 14px 20px; display: inline-block; letter-spacing: 8px; font-size: 30px; font-weight: 900; color: #991b1b; font-family: monospace;">
                     ${otpCode}
                 </div>
-                <p style="color: #64748b; font-size: 12px; margin: 12px 0 0 0;">
+                <p style="color: #64748b; font-size: 12px; margin: 14px 0 0 0;">
                     Kode ini berlaku selama <strong>${minutesValid} menit</strong>.
                 </p>
             </div>
@@ -186,7 +221,7 @@ const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
     `;
 
     console.log(`\n========================================`);
-    console.log(`🛡️ [MFA EMAIL OTP] To: ${to}`);
+    console.log(`🔐 [MFA EMAIL OTP] To: ${to}`);
     console.log(`🔢 OTP Code: ${otpCode}`);
     console.log(`⏱️ Valid for: ${minutesValid} Minutes`);
     console.log(`========================================\n`);
@@ -197,7 +232,8 @@ const sendMfaOtpEmail = async (to, otpCode, minutesValid = 5) => {
             replyTo: SENDER_EMAIL,
             to: to,
             subject: `[HRIS DGN] Kode Verifikasi 2-Langkah (MFA): ${otpCode}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('MFA OTP email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -216,10 +252,7 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
     const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/organization?tab=certifications&subtab=pending`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #991b1b; font-size: 20px; font-weight: 900; margin: 0;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: 700;">DIVISI K3 & KESELAMATAN KERJA (HSE)</p>
-            </div>
+            ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
 
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin: 0 0 8px 0;">📑 Pengajuan Verifikasi Sertifikat K3 Baru</h2>
@@ -270,7 +303,8 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
             replyTo: SENDER_EMAIL,
             to: recipients,
             subject: `[HRIS DGN] Pengajuan Sertifikat K3 Baru: ${employeeName} (${certName})`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('HSE cert upload email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -289,10 +323,7 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
     const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #991b1b; font-size: 20px; font-weight: 900; margin: 0;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: 700;">PORTAL SERTIFIKASI & KOMPETENSI KERJA</p>
-            </div>
+            ${getEmailHeaderHtml('Portal Sertifikasi & Kompetensi Kerja')}
 
             <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -341,7 +372,8 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
             replyTo: SENDER_EMAIL,
             to: toEmail,
             subject: `[HRIS DGN] Sertifikat Disetujui: ${certName}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Cert approval email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -360,10 +392,7 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
     const actionLink = link || `${process.env.FRONTEND_URL || 'http://localhost:5173'}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #991b1b; font-size: 20px; font-weight: 900; margin: 0;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: 700;">DIVISI K3 & KESELAMATAN KERJA (HSE)</p>
-            </div>
+            ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
 
             <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -419,7 +448,8 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
             replyTo: SENDER_EMAIL,
             to: toEmail,
             subject: `[HRIS DGN] Pemberitahuan: Sertifikat Ditolak - ${certName}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Cert rejection email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -442,10 +472,7 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
 
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #991b1b; font-size: 20px; font-weight: 900; margin: 0;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin-top: 4px; font-weight: 700;">PERINGATAN MASA BERLAKU KUALIFIKASI K3</p>
-            </div>
+            ${getEmailHeaderHtml('Peringatan Masa Berlaku Kualifikasi K3')}
 
             <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -498,7 +525,8 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
             replyTo: SENDER_EMAIL,
             to: toEmail,
             subject: `[HRIS DGN] Peringatan Masa Berlaku Sertifikat K3 (Sisa ${daysLeft} Hari): ${certName}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Cert expiring email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
@@ -521,13 +549,7 @@ const sendSecurityActivityEmail = async ({ toEmail, recipientName, activityType,
     const formattedTime = timestamp || new Date().toLocaleString('id-ID', { timeZone: 'Asia/Makassar' }) + ' WITA';
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 550px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            <div style="text-align: center; margin-bottom: 24px;">
-                <div style="display: inline-block; background: #fee2e2; border: 1px solid #fca5a5; width: 44px; height: 44px; border-radius: 12px; line-height: 44px; font-size: 20px;">
-                    🛡️
-                </div>
-                <h1 style="color: #991b1b; font-size: 18px; font-weight: 900; margin: 12px 0 2px 0;">PT DEA GLOBAL NIAGA</h1>
-                <p style="color: #64748b; font-size: 12px; margin: 0; font-weight: 700;">NOTIFIKASI AKTIVITAS KEAMANAN AKUN</p>
-            </div>
+            ${getEmailHeaderHtml('Notifikasi Aktivitas Keamanan Akun')}
 
             <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <h2 style="color: #0f172a; font-size: 15px; font-weight: 800; margin: 0 0 8px 0;">${activityType}</h2>
@@ -575,7 +597,8 @@ const sendSecurityActivityEmail = async ({ toEmail, recipientName, activityType,
             replyTo: SENDER_EMAIL,
             to: toEmail,
             subject: `[HRIS DGN] Peringatan Keamanan Akun: ${activityType}`,
-            html: htmlContent
+            html: htmlContent,
+            attachments: getLogoAttachments()
         });
         console.log('Security activity email sent successfully:', info.messageId);
         return { success: true, messageId: info.messageId };
