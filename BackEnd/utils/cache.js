@@ -7,8 +7,14 @@ const memoryCache = new Map();
 (async () => {
     if (process.env.REDIS_URL) {
         try {
-            redisClient = createClient({ url: process.env.REDIS_URL });
-            redisClient.on('error', (err) => console.log('Redis Client Error', err));
+            redisClient = createClient({
+                url: process.env.REDIS_URL,
+                socket: {
+                    connectTimeout: 3000,
+                    reconnectStrategy: (retries) => (retries > 2 ? false : Math.min(retries * 500, 1500))
+                }
+            });
+            redisClient.on('error', (err) => console.log('Redis Client Error (fallback active):', err.message));
             await redisClient.connect();
             console.log('⚡ Redis Cache Connected Successfully.');
         } catch (e) {
