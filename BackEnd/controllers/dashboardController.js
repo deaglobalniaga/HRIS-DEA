@@ -1,12 +1,15 @@
 const supabase = require('../config/supabase');
 const { getWitaDateStr, getWitaTimeStr } = require('../utils/dateTime');
+const { getOrSetCache, invalidateCache } = require('../utils/cache');
 
-// GET /api/hris/dashboard-stats — 100% Real Database Aggregation
+// GET /api/hris/dashboard-stats — 100% Real Database Aggregation (High-Speed Redis Cache)
 exports.get_dashboard_stats = async (req, res) => {
     try {
         const today = getWitaDateStr();
+        const cacheKey = `dashboard:stats:${today}`;
 
-        // 1. Fetch Real Employees Data
+        const payload = await getOrSetCache(cacheKey, 30, async () => {
+            // 1. Fetch Real Employees Data
         const { data: employees, error: empErr } = await supabase
             .from('employees')
             .select('id, nama_lengkap, jabatan, penempatan, status_karyawan, level, nomor_pkwt, departments(id, name)');
@@ -185,22 +188,25 @@ exports.get_dashboard_stats = async (req, res) => {
             console.error('Error counting certificates:', docErr);
         }
 
-        res.json({
-            totalEmployees: employeesCount,
-            attendanceRate,
-            leaveRequests: activeLeavesCount,
-            divisionStats,
-            todayStatus,
-            weeklyAttendance,
-            todayArrivals,
-            activeLeavesList,
-            pendingTasks: [],
-            notesList: Array.isArray(notesList) ? notesList : [],
-            timeline,
-            contractStats,
-            avgWorkHours,
-            totalCertificates
+            return {
+                totalEmployees: employeesCount,
+                attendanceRate,
+                leaveRequests: activeLeavesCount,
+                divisionStats,
+                todayStatus,
+                weeklyAttendance,
+                todayArrivals,
+                activeLeavesList,
+                pendingTasks: [],
+                notesList: Array.isArray(notesList) ? notesList : [],
+                timeline,
+                contractStats,
+                avgWorkHours,
+                totalCertificates
+            };
         });
+
+        res.json(payload);
     } catch (err) {
         console.error('Dashboard Stats Error:', err);
         res.status(500).json({ error: err.message });

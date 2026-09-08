@@ -12,7 +12,9 @@ exports.get_attendance_monthly = async (req, res) => {
         const lastDay = new Date(targetYear, targetMonth, 0).getDate();
         const endDateStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
-        // 1. Fetch all active employees
+        const cacheKey = `reports:monthly:${targetYear}:${targetMonth}`;
+        const payload = await getOrSetCache(cacheKey, 30, async () => {
+            // 1. Fetch all active employees
         const { data: employees, error: empErr } = await supabase
             .from('employees')
             .select(`
@@ -170,14 +172,17 @@ exports.get_attendance_monthly = async (req, res) => {
             };
         });
 
-        res.json({
-            month: targetMonth,
-            year: targetYear,
-            totalWorkDays,
-            totalEmployees: (employees || []).length,
-            report,
-            data: report
+            return {
+                month: targetMonth,
+                year: targetYear,
+                totalWorkDays,
+                totalEmployees: (employees || []).length,
+                report,
+                data: report
+            };
         });
+
+        res.json(payload);
     } catch (err) {
         console.error('Error in get_attendance_monthly:', err);
         res.status(500).json({ error: err.message });
