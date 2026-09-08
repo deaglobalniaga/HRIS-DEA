@@ -46,13 +46,24 @@ exports.get_attendance_monthly = async (req, res) => {
             .gte('end_date', startDateStr)
             .eq('status', 'Approved');
 
-        // Calculate work days in month (excluding Sundays)
-        let totalWorkDays = 0;
-        for (let d = 1; d <= lastDay; d++) {
-            const dateObj = new Date(targetYear, targetMonth - 1, d);
-            if (dateObj.getDay() !== 0) { // Exclude Sunday
-                totalWorkDays++;
-            }
+        // Operasional Site PT DEA GLOBAL NIAGA:
+        // Hari kerja aktif Senin s/d Minggu penuh (tidak ada libur mingguan statis karena tambang beroperasi 24/7).
+        // Hari libur resmi pekerja mengikuti siklus Roster:
+        // 1. Off 13/1 (13 hari kerja, 1 hari off berputar).
+        // 2. Cuti Roster 8/2 (8 minggu on-site, 2 minggu cuti) atau 6/2 (PJO/khusus).
+        const totalWorkDays = lastDay; // Full calendar operational days (30 hari di Sept, 31 hari di Ags/Okt)
+
+        // Evaluasi hari berjalan untuk bulan ini (agar alpa tidak menghitung tanggal di masa depan)
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth() + 1;
+        const currentDay = now.getDate();
+
+        let evaluatedDays = totalWorkDays;
+        if (targetYear > currentYear || (targetYear === currentYear && targetMonth > currentMonth)) {
+            evaluatedDays = 0; // Bulan di masa depan
+        } else if (targetYear === currentYear && targetMonth === currentMonth) {
+            evaluatedDays = Math.min(lastDay, currentDay); // Bulan sedang berjalan sampai hari ini
         }
 
         // Map logs and leaves per employee
@@ -83,13 +94,29 @@ exports.get_attendance_monthly = async (req, res) => {
             let izinDays = 0;
 
             empLeaves.forEach(l => {
+                // Hitung overlap tanggal cuti/libur roster dengan bulan yang dievaluasi
+                const lStart = l.start_date < startDateStr ? startDateStr : l.start_date;
+                const lEnd = l.end_date > endDateStr ? endDateStr : l.end_date;
+                let overlapDays = 0;
+                if (lStart <= lEnd) {
+                    const d1 = new Date(lStart);
+                    const d2 = new Date(lEnd);
+                    overlapDays = Math.max(1, Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1);
+                }
+
                 const type = (l.leave_type || '').toLowerCase();
-                if (type.includes('sakit')) sakitDays++;
-                else if (type.includes('izin')) izinDays++;
-                else cutiDays++;
+                if (type.includes('sakit')) {
+                    sakitDays += overlapDays;
+                } else if (type.includes('izin')) {
+                    izinDays += overlapDays;
+                } else {
+                    // Cuti Roster (8/2 atau 6/2), Libur 13/1, Cuti Tahunan
+                    cutiDays += overlapDays;
+                }
             });
 
-            const absentDays = Math.max(0, totalWorkDays - hadirDays - cutiDays - sakitDays - izinDays);
+            // Alpa dihitung dari hari kerja yang sudah berjalan dikurangi kehadiran dan izin/cuti/sakit yang sah
+            const absentDays = Math.max(0, evaluatedDays - hadirDays - cutiDays - sakitDays - izinDays);
             let totalHours = 0;
             const mappedLogs = empLogs.map(l => {
                 let dur = 0.0;
@@ -115,7 +142,10 @@ exports.get_attendance_monthly = async (req, res) => {
             }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
             totalHours = +totalHours.toFixed(1);
-            const attendancePercentage = totalWorkDays > 0 ? Math.min(100, Math.round((hadirDays / totalWorkDays) * 100)) : 0;
+            
+            // Persentase kehadiran dihitung terhadap hari yang dievaluasi (atau total hari kerja bulan penuh jika bulan telah selesai)
+            const denominator = evaluatedDays > 0 ? evaluatedDays : totalWorkDays;
+            const attendancePercentage = denominator > 0 ? Math.min(100, Math.round((hadirDays / denominator) * 100)) : 0;
             const lastLog = mappedLogs.length > 0 ? mappedLogs[0] : null;
 
             return {

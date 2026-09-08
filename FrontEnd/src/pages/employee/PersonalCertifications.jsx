@@ -266,7 +266,7 @@ const PersonalCertifications = () => {
   });
 
   return (
-    <div className="w-full max-w-5xl mx-auto flex flex-col gap-4 sm:gap-6 font-sans pb-8">
+    <div className="w-full flex-1 flex flex-col gap-4 sm:gap-6 font-sans">
       
       {/* 1. Header & Quick Actions Bar */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">

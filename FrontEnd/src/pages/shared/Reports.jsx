@@ -95,7 +95,7 @@ const Reports = () => {
 
   // Calculate high-level summary metrics
   const totalEmployees = reportData?.totalEmployees ?? reportList.length;
-  const totalWorkDays = reportData?.totalWorkDays ?? 26;
+  const totalWorkDays = reportData?.totalWorkDays ?? new Date(year, month, 0).getDate();
   const avgAttendance = reportList.length > 0 
     ? Math.round(reportList.reduce((s, r) => s + (Number(r.persentase) || 0), 0) / reportList.length)
     : 0;
@@ -290,19 +290,19 @@ const Reports = () => {
 
         <div 
           onClick={() => navigate('/calendar')}
-          title="Hari kerja efektif dihitung dari jumlah hari kalender dikurangi hari Minggu. Klik untuk membuka Kalender Kerja."
+          title="Operasional Site PT DEA GLOBAL NIAGA aktif Senin s/d Minggu penuh. Libur mengikuti rotasi Roster 13/1 dan Cuti Roster (8/2 atau 6/2). Klik untuk membuka Kalender Site."
           className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-emerald-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-1">
             <div className="flex items-center gap-2">
               <div className="p-2 bg-emerald-50 text-emerald-700 rounded-xl"><Calendar size={16} /></div>
-              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Hari Kerja Efektif</span>
+              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Hari Operasional Site</span>
             </div>
             <ExternalLink size={13} className="text-slate-300 group-hover:text-emerald-600 transition-colors" />
           </div>
           <div>
             <span className="text-2xl font-black text-slate-800 block">{totalWorkDays} Hari</span>
-            <span className="text-[10px] text-slate-400 font-medium group-hover:text-emerald-600 transition-colors">Senin - Sabtu (Non-Minggu) ↗</span>
+            <span className="text-[10px] text-slate-400 font-medium group-hover:text-emerald-600 transition-colors">Senin - Minggu (Roster 13/1 & Cuti) ↗</span>
           </div>
         </div>
 
