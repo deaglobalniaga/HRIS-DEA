@@ -312,8 +312,8 @@ const OrganizationChart = ({ readOnly = false }) => {
   // Mobile initial scale adaptation
   useEffect(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setScale(0.5);
-      setPan({ x: 10, y: 20 });
+      setScale(0.28);
+      setPan({ x: 10, y: 25 });
     }
   }, []);
 
@@ -348,7 +348,7 @@ const OrganizationChart = ({ readOnly = false }) => {
       );
       if (touchStartRef.current.dist > 0) {
         const factor = dist / touchStartRef.current.dist;
-        setScale(prev => Math.min(Math.max(prev * factor, 0.35), 1.8));
+        setScale(prev => Math.min(Math.max(prev * factor, 0.18), 1.8));
         touchStartRef.current.dist = dist;
       }
     }
@@ -469,7 +469,7 @@ const OrganizationChart = ({ readOnly = false }) => {
   const handleWheel = (e) => {
     e.preventDefault();
     const zoomFactor = e.deltaY < 0 ? 1.08 : 0.92;
-    const newScale = Math.min(Math.max(0.4, scale * zoomFactor), 1.8);
+    const newScale = Math.min(Math.max(0.18, scale * zoomFactor), 1.8);
     setScale(newScale);
   };
 
@@ -716,7 +716,7 @@ const OrganizationChart = ({ readOnly = false }) => {
       {/* 1. INTERACTIVE CANVAS VIEW (MATCHING OFFICIAL PDF EXACTLY) */}
       {/* ======================================================== */}
       {viewMode === 'tree' && (
-        <div className="relative w-full h-[520px] sm:h-[650px] lg:h-[780px] bg-white/70 backdrop-blur-2xl border border-white/80 ring-1 ring-slate-900/5 rounded-2xl sm:rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/40 flex">
+        <div className="relative w-full h-[72vh] min-h-[660px] sm:min-h-[740px] lg:h-[820px] bg-white/70 backdrop-blur-2xl border border-white/80 ring-1 ring-slate-900/5 rounded-2xl sm:rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/40 flex">
           {/* Left Fixed Certification Legend Sidebar (Desktop Only - hidden on mobile to give canvas full width) */}
           <div className="hidden lg:flex w-56 bg-white/80 backdrop-blur-xl border-r border-slate-200/70 p-3.5 flex-col z-30 shadow-sm overflow-y-auto shrink-0 custom-scrollbar">
             <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
@@ -977,7 +977,7 @@ const OrganizationChart = ({ readOnly = false }) => {
               </button>
               <button
                 type="button"
-                onClick={() => setScale(prev => Math.max(prev - 0.15, 0.35))}
+                onClick={() => setScale(prev => Math.max(prev - 0.12, 0.18))}
                 className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold transition-all cursor-pointer"
                 title="Perkecil (Zoom Out)"
               >
@@ -987,8 +987,8 @@ const OrganizationChart = ({ readOnly = false }) => {
                 type="button"
                 onClick={() => {
                   const isMobile = window.innerWidth < 768;
-                  setScale(isMobile ? 0.5 : 0.85);
-                  setPan({ x: isMobile ? 10 : 40, y: isMobile ? 20 : 20 });
+                  setScale(isMobile ? 0.28 : 0.85);
+                  setPan({ x: isMobile ? 10 : 40, y: isMobile ? 25 : 20 });
                 }}
                 className="px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] sm:text-xs font-black flex items-center gap-1 transition-all cursor-pointer"
                 title="Pusatkan Tampilan"

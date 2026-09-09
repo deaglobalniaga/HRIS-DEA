@@ -6,9 +6,11 @@ import {
 import {
   Clock, ShieldCheck, AlertTriangle, Award,
   Shield, FileCheck, Search, Eye, Filter,
-  CheckCircle2, XCircle, UserCheck, History, Trash2
+  CheckCircle2, XCircle, UserCheck, History, Trash2,
+  User, LogOut
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
 import AdminActivityLogCard from '../../components/common/AdminActivityLogCard';
@@ -35,6 +37,7 @@ const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick }) =
 
 const HSEDashboard = () => {
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const [loading, setLoading] = useState(true);
   const [serverTime, setServerTime] = useState(new Date());
   const [recentLimit, setRecentLimit] = useState(10); // 10, 20, 30, or all
@@ -268,7 +271,7 @@ const HSEDashboard = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {hseData.pendingCertsCount > 0 && (
               <button
                 onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
@@ -278,10 +281,35 @@ const HSEDashboard = () => {
                 <span>{hseData.pendingCertsCount} Permohonan User</span>
               </button>
             )}
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/90 backdrop-blur-md border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider shadow-sm">
+            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider shadow-sm">
               <ShieldCheck size={13} className="text-emerald-700" /> 
               <span>HSE Command Center</span>
             </div>
+
+            <button
+              type="button"
+              onClick={() => navigate('/settings')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Pengaturan Profil Akun"
+            >
+              <User size={15} className="text-slate-600" />
+              <span>Profil</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm('Apakah Anda yakin ingin keluar dari akun HSE?')) {
+                  logout();
+                  navigate('/login');
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
+              title="Keluar dari Akun (Logout)"
+            >
+              <LogOut size={15} />
+              <span>Keluar</span>
+            </button>
           </div>
         </div>
 

@@ -205,19 +205,30 @@ const Navbar = ({ toggleSidebar }) => {
   else if (location.pathname.includes('/payroll')) pageTitle = 'Penggajian';
 
     return (
-    <header className="h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-3 sm:gap-6 bg-slate-50 relative z-40">
+    <header className="h-14 sm:h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-6 bg-white/95 sm:bg-slate-50/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
       
       {/* Left section: Breadcrumbs / Title */}
-      <div className="flex flex-col shrink-0">
-        <div className="flex items-center gap-3">
-          {/* Mobile toggle */}
-          <button onClick={toggleSidebar} className="lg:hidden p-1 -ml-2 text-slate-500 hover:text-red-900 transition-colors">
-            <Menu size={24} />
-          </button>
-          <h2 className="text-xl font-black text-gray-900 tracking-tight">{pageTitle}</h2>
-        </div>
-        <div className="text-xs font-bold text-slate-400 mt-0.5 lg:ml-0 ml-10">
-          HRIS / {pageTitle}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
+        {/* Mobile toggle */}
+        <button 
+          onClick={toggleSidebar} 
+          className="lg:hidden w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 hover:text-red-700 flex items-center justify-center transition-colors cursor-pointer shrink-0"
+          title="Buka Menu"
+        >
+          <Menu size={18} />
+        </button>
+        <div className="flex flex-col min-w-0">
+          <div className="flex items-center gap-1.5 truncate">
+            <h2 className="text-sm sm:text-lg lg:text-xl font-black text-gray-900 tracking-tight truncate leading-tight">
+              {pageTitle}
+            </h2>
+            <span className="hidden sm:inline-block px-2 py-0.5 rounded-full bg-red-50 text-red-700 border border-red-200 text-[10px] font-black uppercase tracking-wider">
+              {user?.role || 'HRIS'}
+            </span>
+          </div>
+          <div className="text-[10px] sm:text-xs font-bold text-slate-400 mt-0.5 leading-tight truncate">
+            HRIS / {pageTitle}
+          </div>
         </div>
       </div>
 
@@ -302,19 +313,18 @@ const Navbar = ({ toggleSidebar }) => {
                   </div>
             </div>
         )}
-      </div>
+      </div>      {/* Right section: Profile, Notifications & Direct Logout */}
+      <div className="flex items-center gap-2 sm:gap-3 shrink-0">
 
-      {/* Right section: Profile & Notifications */}
-      <div className="flex items-center gap-6 shrink-0">
-
-        <div className="flex items-center gap-3 relative" ref={notificationRef}>
+        <div className="flex items-center relative" ref={notificationRef}>
             <button 
                 onClick={() => setShowNotifications(!showNotifications)} 
-                className="w-10 h-10 rounded-full border-2 border-slate-200 flex items-center justify-center text-slate-500 hover:border-red-700 hover:text-red-700 hover:bg-red-50 hover:scale-105 active:scale-95 transition-all relative shadow-sm"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full border border-slate-200 flex items-center justify-center text-slate-500 hover:border-red-700 hover:text-red-700 hover:bg-red-50 hover:scale-105 active:scale-95 transition-all relative shadow-xs"
+                title="Notifikasi"
             >
-                <Bell size={18} />
+                <Bell size={16} />
                 {notifications.some(n => !n.is_read) && (
-                    <div className="absolute top-0 right-0 w-3 h-3 bg-red-600 rounded-full border-2 border-white animate-pulse"></div>
+                    <div className="absolute top-0 right-0 w-2.5 h-2.5 bg-red-600 rounded-full border-2 border-white animate-pulse"></div>
                 )}
             </button>
             
@@ -392,13 +402,14 @@ const Navbar = ({ toggleSidebar }) => {
           <button
             type="button"
             onClick={() => setShowProfileMenu(!showProfileMenu)}
-            className="flex items-center gap-3 pl-4 border-l border-slate-200 cursor-pointer hover:opacity-90 transition-all focus:outline-none select-none"
+            className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-slate-200 cursor-pointer hover:opacity-90 transition-all focus:outline-none select-none"
+            title="Menu Profil"
           >
-            <div className="w-9 h-9 min-w-[36px] rounded-full overflow-hidden border-2 border-red-800 bg-slate-900 flex justify-center items-center font-black text-white shadow-sm text-xs tracking-wider shrink-0 aspect-square">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 min-w-[32px] sm:min-w-[36px] rounded-full overflow-hidden border-2 border-red-800 bg-slate-900 flex justify-center items-center font-black text-white shadow-xs text-xs tracking-wider shrink-0 aspect-square">
               {((user?.nama_lengkap || user?.nama || user?.full_name || user?.username || 'US').slice(0, 2).toUpperCase())}
             </div>
             <div className="flex flex-col items-start hidden sm:flex mr-1 min-w-0 text-left">
-              <span className="text-sm font-black text-gray-900 leading-tight truncate max-w-[150px] block" title={user?.nama_lengkap || user?.nama || user?.full_name || user?.username || 'User'}>
+              <span className="text-sm font-black text-gray-900 leading-tight truncate max-w-[140px] block" title={user?.nama_lengkap || user?.nama || user?.full_name || user?.username || 'User'}>
                 {user?.nama_lengkap || user?.nama || user?.full_name || user?.username || 'User'}
               </span>
               <span className="text-[10px] font-black text-red-700 uppercase tracking-wider mt-0.5 block">{user?.role || 'USER'}</span>
@@ -492,7 +503,21 @@ const Navbar = ({ toggleSidebar }) => {
             </div>
           )}
         </div>
-        
+
+        {/* Direct Logout Button */}
+        <button
+          type="button"
+          onClick={() => {
+            if (window.confirm('Apakah Anda yakin ingin keluar dari akun?')) {
+              logout();
+              navigate('/login');
+            }
+          }}
+          className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+          title="Keluar (Logout)"
+        >
+          <LogOut size={15} />
+        </button>
       </div>
     </header>
   );

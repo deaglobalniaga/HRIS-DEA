@@ -95,8 +95,8 @@ const MainLayout = () => {
       />
       
       <div className={`flex-1 flex flex-col ${isSidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-64'} min-h-screen relative w-full overflow-x-hidden transition-[margin] duration-300 ease-in-out`}>
-        {/* Desktop Navbar (Hidden on mobile for clean native app experience) */}
-        <div className="hidden lg:block">
+        {/* Top Navbar: Hidden ONLY on Employee Dashboard (which has its own custom dark hero banner), visible for all Admin roles and all other pages */}
+        <div className={isEmployeeDashboard ? 'hidden lg:block' : 'block sticky top-0 z-40'}>
           <Navbar 
             toggleSidebar={() => setIsSidebarOpen(true)} 
           />

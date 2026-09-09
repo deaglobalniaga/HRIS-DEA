@@ -8,7 +8,7 @@ import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
   UserCheck, UserX, RefreshCw,
   TrendingUp, PieChart as PieChartIcon, CalendarDays, X,
-  Calendar, Bell, Gift, Building2, Award
+  Calendar, Bell, Gift, Building2, Award, LogOut
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -44,7 +44,7 @@ const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, bgClass, onC
 
 const HRGADashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { addToast } = useToast();
   const [stats, setStats] = useState({
     totalEmployees: 0,
@@ -141,8 +141,8 @@ const HRGADashboard = () => {
           </div>
         </div>
 
-        {/* Sync Button */}
-        <div className="flex items-center gap-3">
+        {/* Actions: Sync, Profile, Logout */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button 
             onClick={fetchStats}
             disabled={isSyncing}
@@ -155,6 +155,31 @@ const HRGADashboard = () => {
                 Terakhir: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
               </span>
             </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => navigate('/settings')}
+            className="flex items-center gap-1.5 px-3 py-2.5 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
+            title="Pengaturan Profil Akun"
+          >
+            <UserCheck size={15} className="text-slate-600" />
+            <span>Profil</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm('Apakah Anda yakin ingin keluar dari akun HRGA?')) {
+                logout();
+                navigate('/login');
+              }
+            }}
+            className="flex items-center gap-1.5 px-3 py-2.5 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
+            title="Keluar dari Akun (Logout)"
+          >
+            <LogOut size={15} />
+            <span>Keluar</span>
           </button>
         </div>
       </div>
