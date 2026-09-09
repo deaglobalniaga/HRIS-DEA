@@ -14,7 +14,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import api from '../../api/api';
-import AdminActivityLogCard from '../../components/common/AdminActivityLogCard';
 
 const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, bgClass, onClick }) => (
   <div 
@@ -746,14 +745,7 @@ const HRGADashboard = () => {
         </div>
       </div>
 
-      {/* Row 6: Real-time Admin Activity Log */}
-      <div className="pt-2">
-        <AdminActivityLogCard 
-          defaultCategory="all"
-          title="Log Aktivitas Admin"
-          subtitle="Mencatat seluruh riwayat penambahan, pengubahan, pembersihan agenda, data karyawan, cuti, dan pengaturan sistem oleh semua admin"
-        />
-      </div>
+
 
       {/* Clean Copyright Footer */}
       <div className="pt-6 pb-2 text-center text-xs font-semibold text-slate-400">

@@ -13,7 +13,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
-import AdminActivityLogCard from '../../components/common/AdminActivityLogCard';
 
 const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick, className = '' }) => (
   <div 
@@ -271,8 +270,8 @@ const HSEDashboard = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            {hseData.pendingCertsCount > 0 && (
+          {hseData.pendingCertsCount > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
               <button
                 onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-slate-950 font-black text-xs rounded-2xl shadow-xs animate-pulse transition-all cursor-pointer shrink-0"
@@ -281,12 +280,8 @@ const HSEDashboard = () => {
                 <span className="hidden sm:inline">{hseData.pendingCertsCount} Permohonan User</span>
                 <span className="sm:hidden">{hseData.pendingCertsCount} Permohonan</span>
               </button>
-            )}
-            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider shadow-xs shrink-0">
-              <ShieldCheck size={13} className="text-emerald-700" /> 
-              <span>HSE Command Center</span>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Focused HSE Safety & Certification KPIs */}
@@ -806,12 +801,6 @@ const HSEDashboard = () => {
         </div>
       </div>
 
-      {/* Real-time Admin Activity Log */}
-      <AdminActivityLogCard 
-        defaultCategory="hse"
-        title="Log Aktivitas Admin"
-        subtitle="Mencatat riwayat verifikasi sertifikasi K3, perubahan status lisensi, dan agenda operasional oleh semua admin"
-      />
 
       {/* FULL-PAGE IN-WEB PREVIEW MODAL */}
       {previewDoc && (
