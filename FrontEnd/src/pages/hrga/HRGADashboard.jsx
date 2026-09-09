@@ -205,10 +205,10 @@ const HRGADashboard = () => {
           onClick={() => navigate('/attendance-hub?tab=monitor&subtab=sudah')} 
         />
         <TopBadge 
-          icon={Gift} 
+          icon={CalendarRange} 
           value={stats.leaveRequests || 0} 
-          title="Cuti Tertunda" 
-          subtitle="Menunggu persetujuan" 
+          title="Cuti Hari Ini" 
+          subtitle="Jadwal cuti aktif" 
           colorClass="text-amber-500" 
           bgClass="bg-amber-50"
           onClick={() => navigate('/attendance-hub?tab=permissions')} 
