@@ -15,22 +15,22 @@ import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
 import AdminActivityLogCard from '../../components/common/AdminActivityLogCard';
 
-const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick }) => (
+const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick, className = '' }) => (
   <div 
     onClick={onClick}
-    className={`bg-white rounded-2xl shadow-sm border border-slate-200/80 p-4 flex flex-col justify-between h-full hover:shadow-md hover:border-slate-300 transition-all ${
+    className={`bg-white rounded-2xl shadow-xs border border-slate-200/80 p-3 sm:p-4 flex flex-col justify-between h-full hover:shadow-md hover:border-slate-300 transition-all ${className} ${
       onClick ? 'cursor-pointer hover:scale-[1.02] active:scale-[0.98] group' : ''
     }`}
   >
     <div className="flex justify-between items-start mb-2">
       <div className={`p-2 rounded-xl ${colorClass} bg-opacity-10 group-hover:scale-110 transition-transform`}>
-        <Icon size={20} className={colorClass} strokeWidth={2.5} />
+        <Icon size={18} className={colorClass} strokeWidth={2.5} />
       </div>
-      <span className="text-2xl font-black text-slate-800 leading-none tracking-tight group-hover:text-red-700 transition-colors">{value}</span>
+      <span className="text-xl sm:text-2xl font-black text-slate-800 leading-none tracking-tight group-hover:text-red-700 transition-colors">{value}</span>
     </div>
     <div>
-      <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 group-hover:text-slate-800 transition-colors">{title}</h4>
-      <p className="text-[10px] text-slate-400 font-medium leading-tight">{subtitle}</p>
+      <h4 className="text-[10px] sm:text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 group-hover:text-slate-800 transition-colors">{title}</h4>
+      <p className="text-[9px] sm:text-[10px] text-slate-400 font-medium leading-tight">{subtitle}</p>
     </div>
   </div>
 );
@@ -271,55 +271,31 @@ const HSEDashboard = () => {
             </span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
             {hseData.pendingCertsCount > 0 && (
               <button
                 onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
-                className="flex items-center gap-2 px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs rounded-2xl shadow-md animate-pulse transition-all cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-slate-950 font-black text-xs rounded-2xl shadow-xs animate-pulse transition-all cursor-pointer shrink-0"
               >
-                <ShieldCheck size={15} />
-                <span>{hseData.pendingCertsCount} Permohonan User</span>
+                <ShieldCheck size={14} />
+                <span className="hidden sm:inline">{hseData.pendingCertsCount} Permohonan User</span>
+                <span className="sm:hidden">{hseData.pendingCertsCount} Permohonan</span>
               </button>
             )}
-            <div className="inline-flex items-center gap-2 px-3.5 py-2 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider shadow-sm">
+            <div className="inline-flex items-center gap-1.5 px-3 py-2 rounded-2xl bg-white/90 backdrop-blur-md border border-slate-200 text-slate-800 text-[10px] font-black uppercase tracking-wider shadow-xs shrink-0">
               <ShieldCheck size={13} className="text-emerald-700" /> 
               <span>HSE Command Center</span>
             </div>
-
-            <button
-              type="button"
-              onClick={() => navigate('/settings')}
-              className="flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
-              title="Pengaturan Profil Akun"
-            >
-              <User size={15} className="text-slate-600" />
-              <span>Profil</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm('Apakah Anda yakin ingin keluar dari akun HSE?')) {
-                  logout();
-                  navigate('/login');
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-2 bg-red-50 hover:bg-red-100 border border-red-200 text-red-700 rounded-2xl text-xs font-black shadow-xs transition-all cursor-pointer active:scale-95"
-              title="Keluar dari Akun (Logout)"
-            >
-              <LogOut size={15} />
-              <span>Keluar</span>
-            </button>
           </div>
         </div>
 
         {/* Focused HSE Safety & Certification KPIs */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 pointer-events-auto">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 pointer-events-auto">
           <TopBadge
             icon={ShieldCheck}
             value={hseData.totalEmployees}
             title="Total Karyawan"
-            subtitle="Karyawan terdaftar di sistem"
+            subtitle="Karyawan terdaftar"
             colorClass="text-emerald-600"
             onClick={() => navigate('/organization?tab=employees')}
           />
@@ -335,7 +311,7 @@ const HSEDashboard = () => {
             icon={ShieldCheck}
             value={hseData.pendingCertsCount}
             title="Permohonan User"
-            subtitle="Menunggu verifikasi HSE"
+            subtitle="Verifikasi HSE"
             colorClass={hseData.pendingCertsCount > 0 ? "text-purple-600 font-black" : "text-slate-400"}
             onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
           />
@@ -351,9 +327,10 @@ const HSEDashboard = () => {
             icon={FileCheck}
             value={hseData.expiredCertsCount}
             title="Kedaluwarsa"
-            subtitle="Perlu perpanjangan/renewal"
+            subtitle="Perlu perpanjangan"
             colorClass={hseData.expiredCertsCount > 0 ? "text-red-600" : "text-emerald-600"}
             onClick={() => navigate('/organization?tab=certifications&expiry=expired')}
+            className="col-span-2 sm:col-span-1"
           />
         </div>
 
