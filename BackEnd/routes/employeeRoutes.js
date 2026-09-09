@@ -78,5 +78,12 @@ router.delete('/employees/:id/face-samples/:index', verifyToken, blockSuperAdmin
 // GET Export Employees to Excel (Protected from Superadmin)
 router.get('/employees/export/excel', verifyToken, blockSuperAdmin, isAdmin, controller.export_employees_excel);
 
+// Activity Logs (Super Admin / Monitoring & All Admin Dashboards)
+router.get('/activity-logs/hrga', verifyToken, controller.get_hrga_activity_logs);
+router.get('/activity-logs/hse', verifyToken, controller.get_hse_activity_logs);
+router.get('/activity-logs/admin', verifyToken, controller.get_all_admin_activity_logs);
+router.get('/admin-activity-logs', verifyToken, controller.get_all_admin_activity_logs);
+
 module.exports = router;
+
 

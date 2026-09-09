@@ -4,8 +4,13 @@ import {
   Search, RefreshCw, Filter, ShieldCheck, ArrowUpRight
 } from 'lucide-react';
 import api from '../../api/api';
+import { useAuth } from '../../context/AuthContext';
 
 const DailyAttendanceMonitorTab = ({ initialSubTab = 'sudah' }) => {
+  const { user } = useAuth();
+  const role = (user?.role || '').toLowerCase();
+  const isKaryawan = ['karyawan', 'user', 'employee'].includes(role) || !role;
+
   const [dailyStatus, setDailyStatus] = useState({
     date: new Date().toISOString().split('T')[0],
     summary: { total_karyawan: 0, sudah_absen: 0, belum_absen: 0, tidak_hadir: 0 },
@@ -63,6 +68,16 @@ const DailyAttendanceMonitorTab = ({ initialSubTab = 'sudah' }) => {
       : activeTab === 'belum'
       ? filterList(dailyStatus.belum_absen)
       : filterList(dailyStatus.tidak_hadir);
+
+  if (isKaryawan) {
+    return (
+      <div className="p-8 bg-white rounded-2xl border border-slate-200 text-center flex flex-col items-center justify-center gap-2">
+        <ShieldCheck size={32} className="text-slate-400" />
+        <h4 className="text-sm font-bold text-slate-700">Akses Dibatasi</h4>
+        <p className="text-xs text-slate-500">Role Karyawan hanya memiliki akses untuk melakukan presensi mandiri.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="w-full flex flex-col gap-4 font-sans animate-in fade-in">

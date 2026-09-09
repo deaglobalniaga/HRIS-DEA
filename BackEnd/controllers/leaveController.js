@@ -2,6 +2,7 @@ const supabase = require('../config/supabase');
 const { notifyRole, createNotification } = require('./notificationController');
 const { uploadToSupabaseStorage } = require('../utils/storage');
 const { getWitaDateStr } = require('../utils/dateTime');
+const { logAdminActivity } = require('../utils/auditLogger');
 
 // GET /api/hris/leaves / get_leave_status
 // Pure log recorder & monitoring calendar — no approval workflow
@@ -135,6 +136,14 @@ exports.post_leaves = async (req, res) => {
             console.warn('Notify leave error (non-fatal):', notifErr.message);
         }
 
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Pencatatan Cuti Karyawan',
+            details: `Admin mencatat cuti/roster (${normalizedLeaveType}) untuk karyawan ${empName} (${start_date} s/d ${end_date}).`,
+            req
+        });
+
         res.status(201).json({
             message: 'Pencatatan cuti/roster karyawan berhasil disimpan ke kalender operasional',
             data
@@ -149,10 +158,31 @@ exports.post_leaves = async (req, res) => {
 exports.delete_leave = async (req, res) => {
     try {
         const { id } = req.params;
+
+        const { data: existingLeave } = await supabase
+            .from('leaves')
+            .select('leave_type, start_date, end_date, employees(nama_lengkap)')
+            .eq('id', id)
+            .maybeSingle();
+
+        const empName = existingLeave?.employees?.nama_lengkap || 'Karyawan';
+        const leaveType = existingLeave?.leave_type || 'Cuti';
+        const dateRange = existingLeave ? ` (${existingLeave.start_date} s/d ${existingLeave.end_date})` : '';
+
         const { error } = await supabase.from('leaves').delete().eq('id', id);
         if (error) throw error;
+
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Penghapusan Cuti Karyawan',
+            details: `Admin menghapus data ${leaveType} untuk karyawan ${empName}${dateRange}.`,
+            req
+        });
+
         res.json({ message: 'Data cuti berhasil dihapus' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
+

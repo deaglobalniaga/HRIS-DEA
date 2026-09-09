@@ -301,12 +301,63 @@ const OrganizationChart = ({ readOnly = false }) => {
   const [selectedDivision, setSelectedDivision] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
   const [viewMode, setViewMode] = useState('tree'); // 'tree' | 'directory'
+  const [showMobileCertLegend, setShowMobileCertLegend] = useState(false);
 
   // Canvas Pan & Zoom State
   const [scale, setScale] = useState(0.85);
   const [pan, setPan] = useState({ x: 40, y: 20 });
   const [isPanning, setIsPanning] = useState(false);
   const [startPan, setStartPan] = useState({ x: 0, y: 0 });
+
+  // Mobile initial scale adaptation
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setScale(0.5);
+      setPan({ x: 10, y: 20 });
+    }
+  }, []);
+
+  // Mobile Touch Pan & Pinch-to-Zoom
+  const touchStartRef = useRef({ x: 0, y: 0, dist: 0 });
+  const handleTouchStart = (e) => {
+    if (e.touches.length === 1) {
+      setIsPanning(true);
+      setStartPan({
+        x: e.touches[0].clientX - pan.x,
+        y: e.touches[0].clientY - pan.y
+      });
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      touchStartRef.current.dist = dist;
+    }
+  };
+
+  const handleTouchMove = (e) => {
+    if (e.touches.length === 1 && isPanning) {
+      setPan({
+        x: e.touches[0].clientX - startPan.x,
+        y: e.touches[0].clientY - startPan.y
+      });
+    } else if (e.touches.length === 2) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      if (touchStartRef.current.dist > 0) {
+        const factor = dist / touchStartRef.current.dist;
+        setScale(prev => Math.min(Math.max(prev * factor, 0.35), 1.8));
+        touchStartRef.current.dist = dist;
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    setIsPanning(false);
+    touchStartRef.current.dist = 0;
+  };
 
   // Node Drag State
   const [draggingNodeId, setDraggingNodeId] = useState(null);
@@ -584,17 +635,17 @@ const OrganizationChart = ({ readOnly = false }) => {
   return (
     <div className="w-full flex flex-col gap-4 font-sans select-none">
       {/* Top Header Bar */}
-      <div className="bg-white/80 backdrop-blur-2xl rounded-[32px] p-5 border border-white/80 ring-1 ring-slate-900/5 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-white/80 backdrop-blur-2xl rounded-2xl sm:rounded-[32px] p-4 sm:p-5 border border-white/80 ring-1 ring-slate-900/5 shadow-xl shadow-slate-200/50 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
         <div>
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-black shadow-sm">
-              <Building2 size={20} />
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-black shadow-sm shrink-0">
+              <Building2 size={18} />
             </div>
-            <h2 className="text-base lg:text-lg font-black text-slate-900 tracking-tight">
+            <h2 className="text-sm sm:text-base lg:text-lg font-black text-slate-900 tracking-tight leading-snug">
               Struktur Organisasi & Matriks Tim PT DEA GLOBAL NIAGA
             </h2>
           </div>
-          <p className="text-xs text-slate-500 font-medium mt-1">
+          <p className="text-[11px] sm:text-xs text-slate-500 font-medium mt-1">
             {canEdit
               ? 'Bagan hirarki resmi format PDF, interaktif drag-and-drop dengan garis relasi (Mode Editor HRGA).'
               : 'Bagan hirarki resmi struktur organisasi PT DEA GLOBAL NIAGA (Mode Lihat).'}
@@ -602,7 +653,7 @@ const OrganizationChart = ({ readOnly = false }) => {
         </div>
 
         {/* View Mode Switcher & Admin Action Buttons */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
           {viewMode === 'tree' && (
             <>
               {canEdit ? (
@@ -634,28 +685,28 @@ const OrganizationChart = ({ readOnly = false }) => {
             </>
           )}
 
-          <div className="flex bg-slate-100/70 backdrop-blur-md p-1 rounded-2xl border border-slate-200/60">
+          <div className="flex bg-slate-100/70 backdrop-blur-md p-1 rounded-xl sm:rounded-2xl border border-slate-200/60 w-full sm:w-auto">
             <button
               type="button"
               onClick={() => setViewMode('tree')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 viewMode === 'tree'
                   ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Building2 size={14} /> Hirarki Visual (Canvas)
+              <Building2 size={13} /> Hirarki Visual (Canvas)
             </button>
             <button
               type="button"
               onClick={() => setViewMode('directory')}
-              className={`px-4 py-2 text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer ${
+              className={`flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
                 viewMode === 'directory'
                   ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Users size={14} /> Direktori Anggota ({directoryMembers.length})
+              <Users size={13} /> Direktori Anggota ({directoryMembers.length})
             </button>
           </div>
         </div>
@@ -665,9 +716,9 @@ const OrganizationChart = ({ readOnly = false }) => {
       {/* 1. INTERACTIVE CANVAS VIEW (MATCHING OFFICIAL PDF EXACTLY) */}
       {/* ======================================================== */}
       {viewMode === 'tree' && (
-        <div className="relative w-full h-[780px] bg-white/70 backdrop-blur-2xl border border-white/80 ring-1 ring-slate-900/5 rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/40 flex">
-          {/* Left Fixed Certification Legend Sidebar */}
-          <div className="w-56 bg-white/80 backdrop-blur-xl border-r border-slate-200/70 p-3.5 flex flex-col z-30 shadow-sm overflow-y-auto shrink-0 custom-scrollbar">
+        <div className="relative w-full h-[520px] sm:h-[650px] lg:h-[780px] bg-white/70 backdrop-blur-2xl border border-white/80 ring-1 ring-slate-900/5 rounded-2xl sm:rounded-[32px] overflow-hidden shadow-xl shadow-slate-200/40 flex">
+          {/* Left Fixed Certification Legend Sidebar (Desktop Only - hidden on mobile to give canvas full width) */}
+          <div className="hidden lg:flex w-56 bg-white/80 backdrop-blur-xl border-r border-slate-200/70 p-3.5 flex-col z-30 shadow-sm overflow-y-auto shrink-0 custom-scrollbar">
             <span className="text-[11px] font-black uppercase text-slate-800 tracking-wider mb-2.5 pb-1 border-b border-slate-100 flex items-center gap-1.5">
               <Award size={14} className="text-red-700" /> Matriks Sertifikasi
             </span>
@@ -687,7 +738,7 @@ const OrganizationChart = ({ readOnly = false }) => {
               💡 <span className="font-bold text-slate-600">Panduan Canvas:</span>
               <ul className="list-disc pl-3.5 mt-1 space-y-0.5 text-[9px]">
                 <li>Geser latar belakang untuk pan</li>
-                <li>Scroll mouse untuk zoom in/out</li>
+                <li>Scroll mouse / gesture untuk zoom</li>
                 <li>Gunakan tombol kontrol di sudut kanan</li>
                 {canEdit && (
                   <>
@@ -699,14 +750,28 @@ const OrganizationChart = ({ readOnly = false }) => {
             </div>
           </div>
 
-          {/* Interactive Zoom/Pan Canvas Area */}
+          {/* Mobile Floating Button to open Certification Legend Drawer */}
+          <div className="absolute top-3 left-3 z-40 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setShowMobileCertLegend(true)}
+              className="px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 text-slate-800 text-[11px] font-black shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
+            >
+              <Award size={13} className="text-red-700" /> Matriks K3
+            </button>
+          </div>
+
+          {/* Interactive Zoom/Pan Canvas Area (With Full Touch Support on Mobile) */}
           <div
             ref={canvasRef}
             onMouseDown={handleCanvasMouseDown}
             onMouseMove={handleCanvasMouseMove}
             onMouseUp={handleCanvasMouseUp}
             onWheel={handleWheel}
-            className={`flex-1 h-full relative overflow-hidden cursor-grab active:cursor-grabbing canvas-background ${
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            className={`flex-1 h-full relative overflow-hidden cursor-grab active:cursor-grabbing canvas-background touch-none ${
               isPanning ? 'cursor-grabbing' : ''
             }`}
             style={{
@@ -901,30 +966,31 @@ const OrganizationChart = ({ readOnly = false }) => {
             </div>
 
             {/* Floating Bottom-Right Canvas Controls */}
-            <div className="absolute bottom-4 right-4 z-40 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-slate-200 shadow-xl flex items-center gap-1">
+            <div className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 z-40 bg-white/95 backdrop-blur-md p-1 sm:p-1.5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-xl flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setScale(prev => Math.min(prev + 0.15, 1.8))}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold transition-all cursor-pointer"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold transition-all cursor-pointer"
                 title="Perbesar (Zoom In)"
               >
-                <ZoomIn size={16} />
+                <ZoomIn size={15} />
               </button>
               <button
                 type="button"
-                onClick={() => setScale(prev => Math.max(prev - 0.15, 0.4))}
-                className="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold transition-all cursor-pointer"
+                onClick={() => setScale(prev => Math.max(prev - 0.15, 0.35))}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 flex items-center justify-center font-bold transition-all cursor-pointer"
                 title="Perkecil (Zoom Out)"
               >
-                <ZoomOut size={16} />
+                <ZoomOut size={15} />
               </button>
               <button
                 type="button"
                 onClick={() => {
-                  setScale(0.85);
-                  setPan({ x: 40, y: 20 });
+                  const isMobile = window.innerWidth < 768;
+                  setScale(isMobile ? 0.5 : 0.85);
+                  setPan({ x: isMobile ? 10 : 40, y: isMobile ? 20 : 20 });
                 }}
-                className="px-2.5 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-black flex items-center gap-1 transition-all cursor-pointer"
+                className="px-2 sm:px-2.5 h-7 sm:h-8 rounded-lg sm:rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] sm:text-xs font-black flex items-center gap-1 transition-all cursor-pointer"
                 title="Pusatkan Tampilan"
               >
                 <Maximize2 size={13} /> Fit
@@ -1116,6 +1182,46 @@ const OrganizationChart = ({ readOnly = false }) => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Certification Legend Modal */}
+      {showMobileCertLegend && (
+        <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-3 animate-in fade-in">
+          <div className="bg-white rounded-3xl w-full max-w-sm max-h-[80vh] overflow-y-auto p-5 shadow-2xl space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <span className="font-black text-xs uppercase tracking-wider text-slate-900 flex items-center gap-1.5">
+                <Award size={16} className="text-red-700" /> Matriks Sertifikasi K3
+              </span>
+              <button 
+                type="button" 
+                onClick={() => setShowMobileCertLegend(false)}
+                className="w-7 h-7 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 flex items-center justify-center cursor-pointer text-xs font-bold"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-1.5">
+              {Object.entries(CERT_DEFINITIONS).map(([key, cert]) => (
+                <div key={key} className="flex items-center gap-2.5 text-xs p-1.5 rounded-xl hover:bg-slate-50 transition-colors">
+                  <span className={`w-3.5 h-3.5 rounded-full border shrink-0 ${cert.color.split(' ')[0]} ${cert.color.split(' ')[2]}`} />
+                  <div className="flex flex-col min-w-0">
+                    <span className="font-black text-slate-800 leading-tight">{cert.label}</span>
+                    <span className="text-[10px] text-slate-500">{cert.name}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setShowMobileCertLegend(false)}
+                className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>
       )}

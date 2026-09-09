@@ -347,6 +347,18 @@ exports.create_employee = async (req, res) => {
             console.error('Notification error on employee create:', notifErr);
         }
 
+        // Insert audit log for HRGA
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId || null,
+                action: 'Karyawan Baru Didaftarkan',
+                details: `Admin mendaftarkan karyawan baru: ${fullName} (NIP: ${nomorPegawai || '-'}, Departemen: ${payload.department || '-'}).`,
+                status: 'Success'
+            });
+        } catch (auditErr) {
+            console.error('Audit log error on employee create:', auditErr);
+        }
+
         // Invalidate Redis caches
         await invalidateCache('emp:*');
         await invalidateCache('user:*');
@@ -697,6 +709,19 @@ exports.update_employee = async (req, res) => {
 
         const freshEmp = formatEmployee(updatedRawEmp);
 
+        // Insert audit log for HRGA
+        try {
+            const targetName = freshEmp?.nama || currentEmp?.nama_lengkap || 'Karyawan';
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId || null,
+                action: 'Data Karyawan Diperbarui',
+                details: `Admin memperbarui data personalia: ${targetName} (NIP: ${freshEmp?.nomor_pegawai || currentEmp?.nomor_pegawai || '-'}).`,
+                status: 'Success'
+            });
+        } catch (auditErr) {
+            console.error('Audit log error on update_employee:', auditErr);
+        }
+
         res.json({
             message: 'Data karyawan berhasil diperbarui',
             employee: freshEmp
@@ -910,6 +935,18 @@ exports.bulk_create_employees = async (req, res) => {
         await invalidateCache('dashboard:*');
         await invalidateCache('master:departments');
 
+        // Insert audit log for HRGA
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId || null,
+                action: 'Impor Massal Karyawan',
+                details: `Admin mengimpor data: ${createdCount} karyawan baru ditambahkan, ${updatedCount} data diperbarui.`,
+                status: 'Success'
+            });
+        } catch (auditErr) {
+            console.error('Audit log error on bulk create:', auditErr);
+        }
+
         res.json({
             message: `Bulk import berhasil! ${createdCount} karyawan baru ditambahkan, ${updatedCount} karyawan diperbarui.`,
             createdCount,
@@ -935,6 +972,19 @@ exports.bulk_delete_employees = async (req, res) => {
         if (userIds.length > 0) {
             await supabase.from('users').delete().in('id', userIds);
         }
+
+        // Insert audit log for HRGA
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId || null,
+                action: 'Penghapusan Massal Karyawan',
+                details: `Admin menghapus ${ids.length} data karyawan dari sistem.`,
+                status: 'Success'
+            });
+        } catch (auditErr) {
+            console.error('Audit log error on bulk delete:', auditErr);
+        }
+
         await invalidateCache('emp:*');
         await invalidateCache('dashboard:*');
         res.json({ message: `${ids.length} karyawan berhasil dihapus` });
@@ -947,11 +997,23 @@ exports.bulk_delete_employees = async (req, res) => {
 exports.delete_employee = async (req, res) => {
     try {
         const { id } = req.params;
-        const { data: emp } = await supabase.from('employees').select('user_id').eq('id', id).single();
+        const { data: emp } = await supabase.from('employees').select('user_id, nama_lengkap, nomor_pegawai').eq('id', id).maybeSingle();
         
         await supabase.from('employees').delete().eq('id', id);
         if (emp?.user_id) {
             await supabase.from('users').delete().eq('id', emp.user_id);
+        }
+
+        // Insert audit log for HRGA
+        try {
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId || null,
+                action: 'Data Karyawan Dihapus',
+                details: `Admin menghapus data karyawan: ${emp?.nama_lengkap || 'ID #' + id} (NIP: ${emp?.nomor_pegawai || '-'}).`,
+                status: 'Success'
+            });
+        } catch (auditErr) {
+            console.error('Audit log error on delete employee:', auditErr);
         }
 
         await invalidateCache('emp:*');
@@ -1810,4 +1872,256 @@ exports.reject_employee = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+// GET /api/hris/activity-logs/hrga (Admin HRGA Activity Audit Trail)
+exports.get_hrga_activity_logs = async (req, res) => {
+    try {
+        const { data: logs, error } = await supabase
+            .from('audit_logs')
+            .select(`
+                id,
+                action,
+                details,
+                status,
+                created_at,
+                user_id,
+                users (
+                    id,
+                    username,
+                    email,
+                    roles (name)
+                )
+            `)
+            .not('action', 'ilike', '%login%')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+
+        // Fetch employee names for user_ids
+        const userIds = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+        let empMap = {};
+        if (userIds.length > 0) {
+            const { data: emps } = await supabase
+                .from('employees')
+                .select('user_id, nama_lengkap')
+                .in('user_id', userIds);
+            (emps || []).forEach(e => {
+                if (e.user_id) empMap[e.user_id] = e.nama_lengkap;
+            });
+        }
+
+        const formatted = (logs || []).map(l => {
+            const adminName = empMap[l.user_id] || l.users?.username || 'Admin HRGA';
+            return {
+                id: l.id,
+                action: l.action,
+                details: l.details,
+                status: l.status || 'Success',
+                created_at: l.created_at,
+                admin_name: adminName,
+                role: l.users?.roles?.name || 'admin'
+            };
+        });
+
+        res.json(formatted);
+    } catch (err) {
+        console.error('get_hrga_activity_logs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// GET /api/hris/activity-logs/hse (HSE Activity Audit Trail)
+exports.get_hse_activity_logs = async (req, res) => {
+    try {
+        const { data: logs, error } = await supabase
+            .from('audit_logs')
+            .select(`
+                id,
+                action,
+                details,
+                status,
+                created_at,
+                user_id,
+                users (
+                    id,
+                    username,
+                    email,
+                    roles (name)
+                )
+            `)
+            .or('action.ilike.%sertifikat%,action.ilike.%k3%,action.ilike.%hse%,action.ilike.%lisensi%')
+            .order('created_at', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+
+        // Fetch employee names for user_ids
+        const userIds = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+        let empMap = {};
+        if (userIds.length > 0) {
+            const { data: emps } = await supabase
+                .from('employees')
+                .select('user_id, nama_lengkap')
+                .in('user_id', userIds);
+            (emps || []).forEach(e => {
+                if (e.user_id) empMap[e.user_id] = e.nama_lengkap;
+            });
+        }
+
+        const formatted = (logs || []).map(l => {
+            const adminName = empMap[l.user_id] || l.users?.username || 'Admin HSE';
+            return {
+                id: l.id,
+                action: l.action,
+                details: l.details,
+                status: l.status || 'Success',
+                created_at: l.created_at,
+                admin_name: adminName,
+                role: l.users?.roles?.name || 'hse'
+            };
+        });
+
+        res.json(formatted);
+    } catch (err) {
+        console.error('get_hse_activity_logs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// GET /api/hris/admin-activity-logs (Semua Riwayat Perubahan oleh Admin)
+exports.get_all_admin_activity_logs = async (req, res) => {
+    try {
+        const { category = 'all', limit = 60, search = '' } = req.query;
+
+        let query = supabase
+            .from('audit_logs')
+            .select(`
+                id,
+                action,
+                details,
+                ip_address,
+                user_agent,
+                status,
+                created_at,
+                user_id,
+                users (
+                    id,
+                    username,
+                    email,
+                    roles (name)
+                )
+            `)
+            .order('created_at', { ascending: false })
+            .limit(Math.min(parseInt(limit) || 60, 100));
+
+        // Filter search term
+        if (search && search.trim()) {
+            const s = `%${search.trim()}%`;
+            query = query.or(`action.ilike.${s},details.ilike.${s}`);
+        }
+
+        // Filter category if specified
+        if (category === 'calendar') {
+            query = query.or('action.ilike.%agenda%,action.ilike.%kalender%');
+        } else if (category === 'employee') {
+            query = query.or('action.ilike.%karyawan%,action.ilike.%pegawai%,action.ilike.%pkwt%,action.ilike.%departemen%,action.ilike.%struktur%');
+        } else if (category === 'leave') {
+            query = query.or('action.ilike.%cuti%,action.ilike.%roster%,action.ilike.%izin%,action.ilike.%absensi%,action.ilike.%presensi%');
+        } else if (category === 'hse') {
+            query = query.or('action.ilike.%sertifikat%,action.ilike.%k3%,action.ilike.%hse%,action.ilike.%lisensi%');
+        } else if (category === 'settings') {
+            query = query.or('action.ilike.%pengaturan%,action.ilike.%role%,action.ilike.%sistem%,action.ilike.%perangkat%,action.ilike.%pembersihan%');
+        } else if (category === 'auth') {
+            query = query.ilike('action', '%login%');
+        } else if (category === 'all') {
+            // Default "Semua Perubahan": Exclude login noise so real admin operational changes are prominently visible
+            query = query.not('action', 'ilike', '%login%');
+        }
+
+        const { data: logs, error } = await query;
+        if (error) throw error;
+
+        // Fetch employee names for user_ids to display real admin identity
+        const userIds = [...new Set((logs || []).map(l => l.user_id).filter(Boolean))];
+        let empMap = {};
+        if (userIds.length > 0) {
+            const { data: emps } = await supabase
+                .from('employees')
+                .select('user_id, nama_lengkap, jabatan, departments(name)')
+                .in('user_id', userIds);
+            (emps || []).forEach(e => {
+                if (e.user_id) {
+                    empMap[e.user_id] = {
+                        name: e.nama_lengkap,
+                        jabatan: e.jabatan,
+                        department: e.departments?.name
+                    };
+                }
+            });
+        }
+
+        const formatted = (logs || []).map(l => {
+            const empInfo = empMap[l.user_id];
+            const adminName = empInfo?.name || l.users?.username || 'Administrator';
+            const userRoleName = l.users?.roles?.name || 'admin';
+
+            // Determine categorized tag & color badge
+            const act = (l.action || '').toLowerCase();
+            let cat = 'system';
+            let catBadge = 'Sistem';
+            let catColor = 'bg-slate-100 text-slate-700 border-slate-200';
+
+            if (act.includes('login') || act.includes('otentikasi')) {
+                cat = 'auth';
+                catBadge = 'Login & Sesi';
+                catColor = 'bg-slate-100 text-slate-700 border-slate-200';
+            } else if (act.includes('agenda') || act.includes('kalender')) {
+                cat = 'calendar';
+                catBadge = 'Kalender & Agenda';
+                catColor = 'bg-blue-50 text-blue-700 border-blue-200';
+            } else if (act.includes('karyawan') || act.includes('pegawai') || act.includes('pkwt') || act.includes('departemen') || act.includes('struktur')) {
+                cat = 'employee';
+                catBadge = 'Data Karyawan';
+                catColor = 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            } else if (act.includes('cuti') || act.includes('roster') || act.includes('izin') || act.includes('absensi') || act.includes('presensi')) {
+                cat = 'leave';
+                catBadge = 'Cuti & Absensi';
+                catColor = 'bg-amber-50 text-amber-700 border-amber-200';
+            } else if (act.includes('sertifikat') || act.includes('k3') || act.includes('hse') || act.includes('lisensi')) {
+                cat = 'hse';
+                catBadge = 'K3 & HSE';
+                catColor = 'bg-purple-50 text-purple-700 border-purple-200';
+            } else if (act.includes('pengaturan') || act.includes('role') || act.includes('sistem') || act.includes('perangkat') || act.includes('pembersihan')) {
+                cat = 'settings';
+                catBadge = 'Pengaturan';
+                catColor = 'bg-rose-50 text-rose-700 border-rose-200';
+            }
+
+            return {
+                id: l.id,
+                action: l.action,
+                details: l.details,
+                status: l.status || 'Success',
+                created_at: l.created_at,
+                admin_name: adminName,
+                admin_jabatan: empInfo?.jabatan || '',
+                admin_dept: empInfo?.department || '',
+                role: userRoleName,
+                ip_address: l.ip_address || '127.0.0.1',
+                user_agent: l.user_agent || '',
+                category: cat,
+                category_badge: catBadge,
+                category_color: catColor,
+                is_mine: l.user_id === req.userId
+            };
+        });
+
+        res.json(formatted);
+    } catch (err) {
+        console.error('get_all_admin_activity_logs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
 

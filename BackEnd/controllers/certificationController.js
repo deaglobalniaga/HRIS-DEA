@@ -2,6 +2,7 @@ const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
 const { notifyRole, createNotification } = require('./notificationController');
 const mailer = require('../utils/mailer');
+const { logAdminActivity } = require('../utils/auditLogger');
 
 // Helper to resolve certificate type ID accurately without mistaking POP/POM for WAH
 const resolveCertificateTypeId = async (namaSertifikat, institusiPenerbit = 'K3/HSE') => {
@@ -543,6 +544,15 @@ exports.add_certification = async (req, res) => {
         }
 
         await invalidateCache('master:certifications_all');
+
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sertifikasi Ditambahkan',
+            details: `Admin/HSE menambahkan sertifikat "${namaSertifikat}" (${certNumber}) untuk karyawan ${data?.employees?.nama_lengkap || 'Karyawan'}.`,
+            req
+        });
+
         res.status(201).json({ message: 'Sertifikat berhasil ditambahkan', certificate: formatCert(data) });
     } catch (err) {
         console.error('Add certification error:', err);
@@ -572,9 +582,12 @@ exports.delete_certification = async (req, res) => {
         // Fetch the record first to get file_url before deleting
         const { data: cert } = await supabase
             .from('employee_certificates')
-            .select('file_url')
+            .select('file_url, certificate_number, certificate_types(name), employees(nama_lengkap)')
             .eq('id', id)
             .maybeSingle();
+
+        const certName = cert?.certificate_types?.name || 'Sertifikat K3';
+        const empName = cert?.employees?.nama_lengkap || 'Karyawan';
 
         // Delete the row from DB
         const { error } = await supabase.from('employee_certificates').delete().eq('id', id);
@@ -593,11 +606,21 @@ exports.delete_certification = async (req, res) => {
         }
 
         await invalidateCache('master:certifications_all');
+
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sertifikasi Dihapus',
+            details: `Admin HSE menghapus sertifikat "${certName}" (No: ${cert?.certificate_number || '-'}) milik karyawan ${empName}.`,
+            req
+        });
+
         res.json({ message: 'Sertifikat berhasil dihapus beserta file dokumennya.' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
+
 
 // PATCH /api/hris/certifications/:id/approve (HSE / Admin Approval)
 exports.approve_certification = async (req, res) => {
@@ -695,12 +718,22 @@ exports.approve_certification = async (req, res) => {
         }
 
         await invalidateCache('master:certifications_all');
+
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sertifikasi Disetujui',
+            details: `Admin HSE (${adminName}) menyetujui sertifikat ${data.certificate_types?.name || 'K3'} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.`,
+            req
+        });
+
         res.json({ message: 'Sertifikat karyawan berhasil diterima & diverifikasi oleh HSE.', certificate: formatCert(data) });
     } catch (err) {
         console.error('Approve certificate error:', err);
         res.status(500).json({ error: err.message });
     }
 };
+
 
 // PATCH /api/hris/certifications/:id/reject (HSE / Admin Rejection)
 exports.reject_certification = async (req, res) => {
@@ -799,9 +832,20 @@ exports.reject_certification = async (req, res) => {
         }
 
         await invalidateCache('master:certifications_all');
+
+        // Log Admin Audit Trail
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sertifikasi Ditolak',
+            details: `Admin HSE (${adminName}) menolak sertifikat ${data.certificate_types?.name || 'K3'} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.${reason ? ' Alasan: ' + reason : ''}`,
+            status: 'Warning',
+            req
+        });
+
         res.json({ message: 'Permohonan sertifikat telah ditolak.', certificate: formatCert(data) });
     } catch (err) {
         console.error('Reject certificate error:', err);
         res.status(500).json({ error: err.message });
     }
 };
+

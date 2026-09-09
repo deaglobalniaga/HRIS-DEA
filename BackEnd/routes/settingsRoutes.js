@@ -5,6 +5,7 @@ const { verifyToken, isAdmin, isSuperAdmin } = require('../middlewares/authMiddl
 const { invalidateSecurityConfigCache } = require('../config/jwtSecret');
 const UAParser = require('ua-parser-js');
 const { parseDeviceDetails } = require('../utils/deviceParser');
+const { logAdminActivity } = require('../utils/auditLogger');
 
 const defaultSettings = {
     // 1. Identitas & Kontak Perusahaan
@@ -128,6 +129,13 @@ router.patch('/', verifyToken, isAdmin, async (req, res) => {
             invalidateSecurityConfigCache();
         }
 
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Pengaturan Sistem Diperbarui',
+            details: `Admin memperbarui ${keys.length} parameter konfigurasi sistem/perusahaan (${keys.slice(0, 4).join(', ')}${keys.length > 4 ? '...' : ''}).`,
+            req
+        });
+
         res.json({ message: 'Pengaturan berhasil disimpan', settings: updates });
     } catch (error) {
         console.error("Error updating settings:", error);
@@ -211,7 +219,47 @@ router.get('/system-health', verifyToken, async (req, res) => {
     }
 });
 
-// GET /api/settings/audit-logs (Real-time Security Audit Trail with Auto-Prune to 100 Logs)
+// GET /api/settings/activity-logs (Universal Activity Logs for personal user or system-wide if admin)
+router.get('/activity-logs', verifyToken, async (req, res) => {
+    try {
+        const { scope = 'mine', limit = 60 } = req.query;
+        const role = (req.userRole || req.user?.role || '').toLowerCase();
+        const isAdmin = ['admin', 'superadmin', 'super_admin', 'hr', 'hrga_admin', 'hse_admin'].includes(role);
+
+        let query = supabase
+            .from('audit_logs')
+            .select('*, users(username, email)')
+            .order('created_at', { ascending: false })
+            .limit(parseInt(limit) || 60);
+
+        // Filter by user_id if not admin, or if user specifically requests 'mine'
+        if (!isAdmin || scope === 'mine') {
+            query = query.eq('user_id', req.userId);
+        }
+
+        const { data: logs, error } = await query;
+        if (error) throw error;
+
+        let formattedLogs = (logs || []).map(l => ({
+            id: l.id,
+            action: l.action,
+            details: l.details,
+            ip_address: l.ip_address,
+            user_agent: l.user_agent,
+            status: l.status || 'Success',
+            created_at: l.created_at,
+            user_name: l.users?.username || l.users?.email || 'Pengguna',
+            is_mine: l.user_id === req.userId
+        }));
+
+        res.json(formattedLogs);
+    } catch (err) {
+        console.error('Fetch activity-logs error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// GET /api/settings/audit-logs (Real-time Security Audit Trail with Auto-Prune to 100 Logs - Super Admin only)
 router.get('/audit-logs', verifyToken, isSuperAdmin, async (req, res) => {
     try {
         // 1. Fetch latest 50 logs for display
@@ -321,10 +369,48 @@ router.get('/my-devices', verifyToken, async (req, res) => {
     }
 });
 
+// DELETE /api/settings/my-devices (Bulk disconnect/remove user devices)
+router.delete('/my-devices', verifyToken, async (req, res) => {
+    try {
+        const { ids } = req.body || {};
+        if (!ids || !Array.isArray(ids) || ids.length === 0) {
+            return res.status(400).json({ error: 'Daftar ID perangkat wajib disertakan.' });
+        }
+        const { error } = await supabase
+            .from('user_trusted_devices')
+            .delete()
+            .in('id', ids)
+            .eq('user_id', req.userId);
+
+        if (error) throw error;
+
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sesi Perangkat Dihapus (Massal)',
+            details: `Admin/Pengguna memutuskan dan menghapus ${ids.length} sesi perangkat terhubung.`,
+            req
+        });
+
+        res.json({ message: `${ids.length} perangkat berhasil diputus dan dihapus dari akun Anda.` });
+    } catch (err) {
+        console.error('Bulk delete my-devices error:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // DELETE /api/settings/my-devices/:id (User disconnects/removes their own device)
 router.delete('/my-devices/:id', verifyToken, async (req, res) => {
     try {
         const { id } = req.params;
+
+        const { data: dev } = await supabase
+            .from('user_trusted_devices')
+            .select('device_name, os, browser')
+            .eq('id', id)
+            .maybeSingle();
+
+        const devName = dev ? `${dev.device_name || 'Perangkat'} (${dev.os || ''}, ${dev.browser || ''})` : 'Perangkat Terhubung';
+
         const { error } = await supabase
             .from('user_trusted_devices')
             .delete()
@@ -332,11 +418,20 @@ router.delete('/my-devices/:id', verifyToken, async (req, res) => {
             .eq('user_id', req.userId);
 
         if (error) throw error;
+
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Sesi Perangkat Dihapus',
+            details: `Admin/Pengguna memutuskan dan menghapus sesi: ${devName}.`,
+            req
+        });
+
         res.json({ message: 'Perangkat berhasil diputus dan dihapus dari akun Anda' });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 });
+
 
 // GET /api/settings/devices (Whitelist Perangkat & Device Management for Super Admin)
 router.get('/devices', verifyToken, isSuperAdmin, async (req, res) => {

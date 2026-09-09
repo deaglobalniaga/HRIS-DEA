@@ -824,7 +824,16 @@ exports.get_attendance_history = async (req, res) => {
             .order('date', { ascending: false })
             .limit(100);
 
-        if (employee_id) query = query.eq('employee_id', employee_id);
+        const role = (req.userRole || req.user?.role || '').toLowerCase();
+        const isAdminUser = ['admin', 'superadmin', 'super_admin', 'hrga_admin', 'hse_admin', 'hr'].includes(role) || role.includes('admin') || role.includes('hr');
+        if (!isAdminUser) {
+            // Force filter to own employee ID only (Karyawan cannot view other employees' attendance)
+            const { data: myEmp } = await supabase.from('employees').select('id').eq('user_id', req.userId).maybeSingle();
+            if (!myEmp) return res.json([]);
+            query = query.eq('employee_id', myEmp.id);
+        } else if (employee_id) {
+            query = query.eq('employee_id', employee_id);
+        }
         if (start_date) query = query.gte('date', start_date);
         if (end_date) query = query.lte('date', end_date);
 

@@ -11,6 +11,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import api from '../../api/api';
 import PdfViewerModal from '../../components/PdfViewerModal';
+import AdminActivityLogCard from '../../components/common/AdminActivityLogCard';
 
 const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick }) => (
   <div 
@@ -800,8 +801,16 @@ const HSEDashboard = () => {
         </div>
       </div>
 
+      {/* Real-time Admin Activity Log */}
+      <AdminActivityLogCard 
+        defaultCategory="hse"
+        title="Log Aktivitas Admin"
+        subtitle="Mencatat riwayat verifikasi sertifikasi K3, perubahan status lisensi, dan agenda operasional oleh semua admin"
+      />
+
       {/* FULL-PAGE IN-WEB PREVIEW MODAL */}
       {previewDoc && (
+
         <PdfViewerModal
           url={previewDoc?.url || previewDoc}
           fileName={previewDoc?.name || "Sertifikat K3 / Lisensi Karyawan"}

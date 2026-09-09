@@ -12,19 +12,28 @@ const AttendanceHub = () => {
   const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
   const username = (user?.username || '').toLowerCase();
 
-  const isSuperAdmin = ['superadmin', 'super_admin'].includes(role) || username === 'arya_admin';
-  const isHSE = role === 'hse_admin' || dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') || username === 'hse_admin';
-  const isHRAdmin = (['admin', 'hrga_admin', 'hr'].includes(role) || dept.includes('hr') || dept.includes('hrga') || username === 'admin') && !isHSE;
+  // Strict role classification: Karyawan / regular employee CANNOT see attendance lists
+  const isKaryawan = ['karyawan', 'user', 'employee'].includes(role) || !role;
+
+  const isSuperAdmin = !isKaryawan && (['superadmin', 'super_admin'].includes(role) || username === 'arya_admin');
+  const isHSE = !isKaryawan && (role === 'hse_admin' || username === 'hse_admin' || (role.includes('admin') && (dept.includes('hse') || dept.includes('k3') || dept.includes('safety'))));
+  const isHRAdmin = !isKaryawan && ((['admin', 'hrga_admin', 'hr'].includes(role) || username === 'admin' || (role.includes('admin') && dept.includes('hr'))) && !isHSE);
   
-  // Access control
-  const isAdmin = isSuperAdmin || isHRAdmin || isHSE;
-  const canViewTabs = isAdmin;
+  // Access control: only real verified admins can view tabs and attendance lists
+  const isAdmin = !isKaryawan && (isSuperAdmin || isHRAdmin || isHSE);
+  const canViewTabs = isAdmin && !isKaryawan;
 
   // Pencatatan Cuti & Roster is strictly for HRGA and Superadmin. HSE cannot manage leaves.
-  const canManageLeave = isSuperAdmin || isHRAdmin;
+  const canManageLeave = !isKaryawan && (isSuperAdmin || isHRAdmin);
 
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+
+  // For regular employee/karyawan: STRICTLY render pure Attendance Scanner directly.
+  // Karyawan can ONLY do presence and CANNOT view attendance lists.
+  if (isKaryawan || !canViewTabs) {
+    return <Attendance />;
+  }
 
   const queryTab = searchParams.get('tab') || location.state?.tab;
   const activeTab = (queryTab === 'permissions' && !canManageLeave)
@@ -34,11 +43,6 @@ const AttendanceHub = () => {
   const handleTabChange = (newTab) => {
     setSearchParams({ tab: newTab });
   };
-
-  // For Superadmin or regular Employee/User, render pure Attendance Scanner directly
-  if (!canViewTabs) {
-    return <Attendance />;
-  }
 
   return (
     <div className="w-full flex flex-col gap-6 font-sans">

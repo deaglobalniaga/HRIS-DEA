@@ -552,8 +552,18 @@ exports.getProfile = async (req, res) => {
                 mfa_enabled: Boolean(user.mfa_enabled)
             };
             if (employeeData.departments) flattenedUser.department = employeeData.departments.name;
-            if (employeeData.employee_details && employeeData.employee_details.length > 0) {
-                flattenedUser = { ...flattenedUser, ...(Array.isArray(employeeData.employee_details) ? employeeData.employee_details[0] : employeeData.employee_details) };
+            const detailsObj = Array.isArray(employeeData.employee_details) 
+                ? employeeData.employee_details[0] 
+                : employeeData.employee_details;
+
+            if (detailsObj && typeof detailsObj === 'object') {
+                flattenedUser = { ...flattenedUser, ...detailsObj };
+                // Ensure emergency contact aliases are explicitly set for frontend
+                flattenedUser.kontak_darurat = detailsObj.kontak_darurat_nama || flattenedUser.kontak_darurat || '';
+                flattenedUser.kontak_darurat_nama = detailsObj.kontak_darurat_nama || flattenedUser.kontak_darurat_nama || '';
+                flattenedUser.kontak_darurat_nomor = detailsObj.kontak_darurat_nomor || flattenedUser.kontak_darurat_nomor || '';
+                flattenedUser.hubungan = detailsObj.kontak_darurat_hubungan || flattenedUser.hubungan || '';
+                flattenedUser.kontak_darurat_hubungan = detailsObj.kontak_darurat_hubungan || flattenedUser.kontak_darurat_hubungan || '';
                 // Keep authoritative personal email & office email
                 flattenedUser.email = personalEmail || user.email;
                 flattenedUser.email_office = officeEmail;
@@ -741,6 +751,21 @@ exports.updateProfile = async (req, res) => {
             }
         }
 
+        // Insert audit log
+        try {
+            const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+            await supabase.from('audit_logs').insert({
+                user_id: targetUserId,
+                action: 'Pembaruan Data Profil',
+                details: `Data profil karyawan berhasil diperbarui mandiri (${flattenedUser.nama_lengkap || flattenedUser.username}).`,
+                ip_address: clientIp,
+                user_agent: req.headers['user-agent'] || '',
+                status: 'Success'
+            });
+        } catch (audErr) {
+            console.warn('Audit log insert error:', audErr.message);
+        }
+
         res.json({ message: "Profil berhasil diperbarui!", user: flattenedUser });
     } catch (err) {
         console.error('Update profile error:', err);
@@ -771,6 +796,21 @@ exports.changePassword = async (req, res) => {
 
         if (updateErr) throw updateErr;
 
+        // Insert audit log
+        try {
+            const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+            await supabase.from('audit_logs').insert({
+                user_id: req.userId,
+                action: 'Perubahan Kata Sandi Akun',
+                details: 'Kata sandi akun HRIS berhasil diperbarui.',
+                ip_address: clientIp,
+                user_agent: req.headers['user-agent'] || '',
+                status: 'Success'
+            });
+        } catch (audErr) {
+            console.warn('Audit log insert error:', audErr.message);
+        }
+
         // Dispatch security notification email asynchronously
         (async () => {
             try {
@@ -783,7 +823,7 @@ exports.changePassword = async (req, res) => {
                         recipientName: u?.username || 'Pengguna',
                         activityType: 'Perubahan Kata Sandi (Password)',
                         details: 'Kata sandi akun HRIS Anda telah berhasil diperbarui.',
-                        ipAddress: clientIp
+                        ip_address: clientIp
                     });
                 }
             } catch (mErr) {
@@ -800,18 +840,16 @@ exports.changePassword = async (req, res) => {
 
 exports.changeUsername = async (req, res) => {
     const { newUsername, password } = req.body;
-    const targetUserId = req.userId || req.user?.id;
-
-    if (!newUsername || String(newUsername).trim().length < 3) {
-        return res.status(400).json({ message: 'Username baru minimal 3 karakter.' });
-    }
-
-    const cleanUsername = String(newUsername).trim().toLowerCase().replace(/[^a-z0-9_.]/g, '');
-    if (cleanUsername.length < 3) {
-        return res.status(400).json({ message: 'Username hanya boleh berisi huruf, angka, titik, atau underscore.' });
-    }
-
     try {
+        const cleanUsername = String(newUsername || '').trim();
+        if (!cleanUsername || cleanUsername.length < 3) {
+            return res.status(400).json({ message: 'Username baru minimal 3 karakter.' });
+        }
+        if (/\s/.test(cleanUsername)) {
+            return res.status(400).json({ message: 'Username tidak boleh mengandung spasi.' });
+        }
+
+        const targetUserId = req.userId || req.user?.id;
         const { data: user, error: fetchErr } = await supabase.from('users').select('id, password_hash').eq('id', targetUserId).maybeSingle();
         if (fetchErr || !user) return res.status(404).json({ message: 'User tidak ditemukan' });
 
@@ -834,6 +872,21 @@ exports.changeUsername = async (req, res) => {
 
         if (updateErr) throw updateErr;
 
+        // Insert audit log
+        try {
+            const clientIp = req.ip || req.headers['x-forwarded-for'] || '127.0.0.1';
+            await supabase.from('audit_logs').insert({
+                user_id: targetUserId,
+                action: 'Perubahan Username Akun',
+                details: `Username diubah menjadi "${cleanUsername}".`,
+                ip_address: clientIp,
+                user_agent: req.headers['user-agent'] || '',
+                status: 'Success'
+            });
+        } catch (audErr) {
+            console.warn('Audit log insert error:', audErr.message);
+        }
+
         // Dispatch security notification email asynchronously
         (async () => {
             try {
@@ -845,7 +898,7 @@ exports.changeUsername = async (req, res) => {
                         recipientName: cleanUsername,
                         activityType: 'Perubahan Username Akun',
                         details: `Username akun HRIS Anda telah diperbarui menjadi "${cleanUsername}".`,
-                        ipAddress: clientIp
+                        ip_address: clientIp
                     });
                 }
             } catch (mErr) {

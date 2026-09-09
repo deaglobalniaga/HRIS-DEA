@@ -78,6 +78,8 @@ const Settings = () => {
     }, [mfaEmailCooldown]);
 
     const [devices, setDevices] = useState([]);
+    const [selectedDeviceIds, setSelectedDeviceIds] = useState([]);
+    const [bulkDeletingDevices, setBulkDeletingDevices] = useState(false);
 
     const fetchProfile = async () => {
         try {
@@ -132,7 +134,9 @@ const Settings = () => {
                     'x-client-device': encodeURIComponent(JSON.stringify(devInfo))
                 }
             });
-            setDevices(res.data || []);
+            const fetched = res.data || [];
+            setDevices(fetched);
+            setSelectedDeviceIds(prev => prev.filter(id => fetched.some(d => d.id === id)));
         } catch (e) {
             console.error('Fetch devices error:', e);
         }
@@ -294,17 +298,55 @@ const Settings = () => {
         }
     };
 
-    // DELETE / DISCONNECT DEVICE
+    // SELECTION & BULK DELETE DEVICE HANDLERS
+    const handleToggleDeviceSelection = (devId) => {
+        setSelectedDeviceIds(prev => 
+            prev.includes(devId) ? prev.filter(id => id !== devId) : [...prev, devId]
+        );
+    };
+
+    const handleSelectAllDevices = () => {
+        const validIds = devices.map(d => d.id).filter(Boolean);
+        if (selectedDeviceIds.length === validIds.length && validIds.length > 0) {
+            setSelectedDeviceIds([]);
+        } else {
+            setSelectedDeviceIds(validIds);
+        }
+    };
+
+    const handleBulkDeleteDevices = async () => {
+        if (!selectedDeviceIds || selectedDeviceIds.length === 0) return;
+        if (!window.confirm(`Apakah Anda yakin ingin memutuskan dan menghapus ${selectedDeviceIds.length} sesi perangkat yang dipilih dari akun Anda?`)) return;
+
+        setBulkDeletingDevices(true);
+        try {
+            const res = await api.delete('/settings/my-devices', {
+                data: { ids: selectedDeviceIds }
+            });
+            addToast(res.data?.message || `${selectedDeviceIds.length} perangkat berhasil diputus dan dihapus!`, 'success');
+            setSelectedDeviceIds([]);
+            fetchDevices();
+        } catch (error) {
+            console.error('Bulk delete devices error:', error);
+            addToast('Gagal menghapus perangkat terpilih: ' + (error.response?.data?.error || error.response?.data?.message || error.message), 'error');
+        } finally {
+            setBulkDeletingDevices(false);
+        }
+    };
+
+    // DELETE / DISCONNECT INDIVIDUAL DEVICE
     const handleDeleteDevice = async (devId) => {
         if (!window.confirm('Putuskan dan hapus sesi perangkat ini?')) return;
         try {
             await api.delete(`/settings/my-devices/${devId}`);
             addToast('Perangkat berhasil diputus dan dihapus dari akun!', 'success');
+            setSelectedDeviceIds(prev => prev.filter(id => id !== devId));
             fetchDevices();
         } catch (error) {
             addToast('Gagal menghapus perangkat: ' + (error.response?.data?.message || error.message), 'error');
         }
     };
+
 
     // DELETE INDIVIDUAL DOCUMENT
     const handleDeleteDocByType = async (docType, docName) => {
@@ -1165,23 +1207,65 @@ const Settings = () => {
 
                             {/* Active Devices & Sessions */}
                             <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                     <div>
                                         <h4 className="text-xs font-black text-slate-900 flex items-center gap-2">
                                             <Smartphone size={15} className="text-red-700" /> Sesi & Perangkat Terhubung
                                         </h4>
                                         <p className="text-[11px] text-slate-500 mt-0.5">Daftar perangkat keras dan sistem operasi yang digunakan untuk masuk ke akun Anda.</p>
                                     </div>
-                                    <button 
-                                        type="button" 
-                                        onClick={fetchDevices} 
-                                        className="p-1.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-1 shadow-sm"
-                                    >
-                                        <RefreshCw size={11} /> Muat Ulang
-                                    </button>
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        <button 
+                                            type="button" 
+                                            onClick={fetchDevices} 
+                                            className="p-1.5 px-2.5 bg-white border border-slate-200 text-slate-600 hover:text-slate-900 rounded-lg text-[10px] font-bold flex items-center gap-1.5 shadow-2xs transition-all hover:bg-slate-50 cursor-pointer"
+                                        >
+                                            <RefreshCw size={11} /> Muat Ulang
+                                        </button>
+                                    </div>
                                 </div>
 
-                                <div className="space-y-2 pt-1">
+                                {/* Select All & Bulk Action Bar */}
+                                {devices.length > 0 && (
+                                    <div className="flex items-center justify-between bg-white px-3 py-2 rounded-xl border border-slate-200 text-xs">
+                                        <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer select-none text-[11px]">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={devices.length > 0 && selectedDeviceIds.length === devices.map(d => d.id).filter(Boolean).length}
+                                                onChange={handleSelectAllDevices}
+                                                className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer accent-red-600"
+                                            />
+                                            <span>Pilih Semua</span>
+                                            <span className="text-[10px] font-semibold text-slate-400">
+                                                ({selectedDeviceIds.length}/{devices.length} dipilih)
+                                            </span>
+                                        </label>
+
+                                        {selectedDeviceIds.length > 0 && (
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSelectedDeviceIds([])}
+                                                    className="text-[10px] font-bold text-slate-400 hover:text-slate-600 px-2 py-1 rounded transition-colors cursor-pointer"
+                                                >
+                                                    Batal
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    disabled={bulkDeletingDevices}
+                                                    onClick={handleBulkDeleteDevices}
+                                                    className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg text-[10px] flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer disabled:opacity-50"
+                                                >
+                                                    <Trash2 size={12} />
+                                                    <span>{bulkDeletingDevices ? 'Menghapus...' : `Hapus Terpilih (${selectedDeviceIds.length})`}</span>
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Scrollable Device List Container */}
+                                <div className="space-y-2 pt-1 max-h-[380px] overflow-y-auto pr-1.5 scrollbar-thin scrollbar-thumb-slate-200 hover:scrollbar-thumb-slate-300">
                                     {devices.length === 0 ? (
                                         <div className="p-4 bg-white rounded-xl border border-slate-200 text-center text-xs text-slate-400 font-bold">
                                             Belum ada data riwayat perangkat lain. Sesi saat ini aktif & aman.
@@ -1192,20 +1276,39 @@ const Settings = () => {
                                             const isLap = type === 'laptop' || (dev.device_name || '').toLowerCase().includes('laptop') || (dev.device_name || '').toLowerCase().includes('macbook');
                                             const isTab = type === 'tablet' || (dev.device_name || '').toLowerCase().includes('ipad') || (dev.device_name || '').toLowerCase().includes('tablet');
                                             const isMob = type === 'mobile' || (dev.device_name || '').toLowerCase().includes('iphone') || (dev.device_name || '').toLowerCase().includes('smartphone') || (dev.os || '').toLowerCase().includes('android') || (dev.os || '').toLowerCase().includes('ios');
-                                            
+                                            const isSelected = dev.id && selectedDeviceIds.includes(dev.id);
+
                                             return (
-                                                <div key={idx} className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between text-xs hover:border-slate-300 transition-all">
-                                                    <div className="flex items-center gap-3">
+                                                <div 
+                                                    key={dev.id || idx} 
+                                                    className={`p-3 rounded-xl border flex items-center justify-between text-xs transition-all ${
+                                                        isSelected 
+                                                            ? 'border-red-300 bg-red-50/40 ring-1 ring-red-200/80 shadow-2xs' 
+                                                            : 'border-slate-200 bg-white hover:border-slate-300'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center gap-3 min-w-0">
+                                                        {dev.id && (
+                                                            <div className="flex items-center shrink-0">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={() => handleToggleDeviceSelection(dev.id)}
+                                                                    className="w-4 h-4 rounded border-slate-300 text-red-600 focus:ring-red-500 cursor-pointer accent-red-600"
+                                                                    aria-label={`Pilih perangkat ${dev.device_name || 'ini'}`}
+                                                                />
+                                                            </div>
+                                                        )}
                                                         <div className="w-9 h-9 rounded-xl bg-red-50 text-red-700 flex items-center justify-center font-bold shrink-0 shadow-2xs">
                                                             {isLap ? <Laptop size={17} /> : isTab ? <Tablet size={17} /> : isMob ? <Smartphone size={17} /> : <Monitor size={17} />}
                                                         </div>
-                                                        <div>
+                                                        <div className="min-w-0">
                                                             <div className="flex items-center gap-2 flex-wrap">
-                                                                <h5 className="font-black text-slate-900 text-xs">
+                                                                <h5 className="font-black text-slate-900 text-xs truncate">
                                                                     {dev.device_name || (isLap ? 'Laptop' : isMob ? 'Smartphone' : 'Desktop PC')}
                                                                 </h5>
                                                                 {idx === 0 && (
-                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                                                    <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
                                                                         Sesi Aktif Saat Ini
                                                                     </span>
                                                                 )}
@@ -1225,8 +1328,8 @@ const Settings = () => {
                                                             </div>
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="text-right text-[10px] font-mono text-slate-400">
+                                                    <div className="flex items-center gap-3 shrink-0 ml-3">
+                                                        <div className="text-right text-[10px] font-mono text-slate-400 whitespace-nowrap">
                                                             {dev.last_login ? new Date(dev.last_login).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Baru saja'}
                                                         </div>
                                                         {dev.id && (

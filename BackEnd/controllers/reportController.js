@@ -1,5 +1,6 @@
 const supabase = require('../config/supabase');
 const { getOrSetCache, invalidateCache } = require('../utils/cache');
+const { logAdminActivity } = require('../utils/auditLogger');
 
 // GET /api/hris/reports/attendance-monthly — Rekap kehadiran bulanan seluruh karyawan
 exports.get_attendance_monthly = async (req, res) => {
@@ -239,6 +240,14 @@ exports.cleanup_old_data = async (req, res) => {
         await supabase.from('leaves').delete().lte('end_date', cutoffDate);
 
         await invalidateCache('attendance:*');
+
+        await logAdminActivity({
+            userId: req.userId,
+            action: 'Pembersihan Data Riwayat Presensi',
+            details: `Admin membersihkan seluruh data riwayat kehadiran dan cuti sebelum tahun ${year}.`,
+            req
+        });
+
         res.json({ message: `Data kehadiran sebelum ${year} berhasil dibersihkan` });
     } catch (err) {
         res.status(500).json({ error: err.message });

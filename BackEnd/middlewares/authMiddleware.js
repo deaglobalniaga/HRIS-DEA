@@ -60,9 +60,10 @@ const verifyToken = async (req, res, next) => {
 const isAdmin = (req, res, next) => {
     const role = (req.userRole || req.user?.role || '').toLowerCase();
     if (
-        ['admin', 'superadmin', 'super_admin', 'super admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga', 'hse_admin'].includes(role) ||
+        ['admin', 'superadmin', 'super_admin', 'super admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga', 'hse_admin', 'hse_officer', 'admin_hse'].includes(role) ||
         role.includes('admin') ||
-        role.includes('hr')
+        role.includes('hr') ||
+        role.includes('hse')
     ) {
         next();
     } else {
