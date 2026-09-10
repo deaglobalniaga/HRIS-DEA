@@ -93,7 +93,46 @@ exports.get_employees = async (req, res) => {
                 .order('nama_lengkap', { ascending: true });
 
             if (error) throw error;
-            return (employees || []).map(formatEmployee);
+            const mapped = (employees || []).map(formatEmployee);
+
+            // Also include any unverified user accounts from users table that do not have an employee record yet
+            try {
+                const { data: unverifiedUsers } = await supabase
+                    .from('users')
+                    .select('id, username, email, is_active, role_id, roles (id, name)')
+                    .eq('is_active', false);
+
+                if (unverifiedUsers && unverifiedUsers.length > 0) {
+                    const linkedUserIds = new Set(mapped.map(e => e.user_id).filter(Boolean));
+                    for (const u of unverifiedUsers) {
+                        if (!linkedUserIds.has(u.id)) {
+                            mapped.push({
+                                id: u.id,
+                                user_id: u.id,
+                                employee_id: u.id,
+                                nama: u.username,
+                                nama_lengkap: u.username,
+                                full_name: u.username,
+                                name: u.username,
+                                username: u.username,
+                                email: u.email || '',
+                                role: (u.roles?.name || 'user').toLowerCase(),
+                                department: 'Pendaftaran Akun Baru',
+                                department_name: 'Pendaftaran Akun Baru',
+                                jabatan: 'Menunggu Verifikasi',
+                                nomor_pegawai: 'PENDING',
+                                is_active: false,
+                                camera_access: true,
+                                gps_access: true
+                            });
+                        }
+                    }
+                }
+            } catch (uErr) {
+                console.warn('Warning fetching unverified users:', uErr.message);
+            }
+
+            return mapped;
         });
 
         res.json(data);
@@ -1505,84 +1544,6 @@ exports.delete_employee_document = async (req, res) => {
     }
 };
 
-// PUT /api/hris/employees/:id/verify (Super Admin verification and activation)
-exports.verify_employee = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const requestingUserRole = (req.userRole || '').toLowerCase();
-        const isSuperAdmin = ['superadmin', 'super_admin'].includes(requestingUserRole);
-
-        if (!isSuperAdmin) {
-            return res.status(403).json({ message: 'Hanya Super Admin yang berwenang memverifikasi & mengaktifkan akun karyawan baru!' });
-        }
-
-        const { data: emp, error: fetchErr } = await supabase.from('employees').select('*, users(*)').eq('id', id).single();
-        if (fetchErr || !emp) {
-            return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
-        }
-
-        if (emp.user_id) {
-            await supabase.from('users').update({ is_active: true }).eq('id', emp.user_id);
-        }
-
-        // Send confirmation notification to user
-        if (emp.user_id) {
-            await supabase.from('notifications').insert({
-                user_id: emp.user_id,
-                target_role: null,
-                title: 'Akun Anda Telah Diverifikasi',
-                message: `Selamat, akun Anda (${emp.nama_lengkap}) telah diverifikasi dan diaktifkan oleh Super Admin. Anda sekarang dapat masuk ke sistem.`,
-                type: 'success',
-                link: '/dashboard'
-            });
-        }
-
-        await invalidateCache('emp:*');
-        await invalidateCache('dashboard:*');
-
-        res.json({ message: `Akun ${emp.nama_lengkap} berhasil diverifikasi dan diaktifkan!` });
-    } catch (err) {
-        console.error('Verify employee error:', err);
-        res.status(500).json({ error: err.message });
-    }
-};
-
-// DELETE /api/hris/employees/:id/reject (Super Admin rejects and deletes unverified intruder/data)
-exports.reject_employee = async (req, res) => {
-    try {
-        const { id } = req.params;
-        const requestingUserRole = (req.userRole || '').toLowerCase();
-        const isSuperAdmin = ['superadmin', 'super_admin'].includes(requestingUserRole);
-
-        if (!isSuperAdmin) {
-            return res.status(403).json({ message: 'Hanya Super Admin yang berwenang menolak pendaftaran akun karyawan!' });
-        }
-
-        const { data: emp, error: fetchErr } = await supabase.from('employees').select('*, users(*)').eq('id', id).single();
-        if (fetchErr || !emp) {
-            return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
-        }
-
-        const empName = emp.nama_lengkap;
-        const userId = emp.user_id;
-
-        // Clean up documents, details, employee, and user
-        await supabase.from('employee_documents').delete().eq('employee_id', id);
-        await supabase.from('employee_details').delete().eq('employee_id', id);
-        await supabase.from('employees').delete().eq('id', id);
-        if (userId) {
-            await supabase.from('users').delete().eq('id', userId);
-        }
-
-        await invalidateCache('emp:*');
-        await invalidateCache('dashboard:*');
-
-        res.json({ message: `Pendaftaran akun ${empName} berhasil ditolak dan data telah dibersihkan demi keamanan sistem.` });
-    } catch (err) {
-        console.error('Reject employee error:', err);
-        res.status(500).json({ error: err.message });
-    }
-};
 
 // POST /api/hris/role-requests (Admin HRGA submits role change request)
 exports.create_role_request = async (req, res) => {
