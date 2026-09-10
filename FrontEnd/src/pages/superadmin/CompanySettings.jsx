@@ -102,7 +102,7 @@ const CompanySettings = () => {
   const [settings, setSettings] = useState({
     company_name: 'PT DEA GLOBAL NIAGA',
     brand_name: 'DEA Global Niaga',
-    company_email: 'dea.global.niaga1@gmail.com',
+    company_email: 'info@deaglobalniaga.com',
     company_phone: '0812-3456-7890',
     company_address: 'Banjarbaru, Kalimantan Selatan',
     npwp: '01.234.567.8-901.000',
@@ -1431,20 +1431,6 @@ const CompanySettings = () => {
                       checked={settings.require_gps_geofence !== false}
                       onChange={(e) => setSettings({ ...settings, require_gps_geofence: e.target.checked })}
                       className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
-                    />
-                  </div>
-
-                  {/* Toggle 3: MFA */}
-                  <div className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-slate-800 block">Wajibkan MFA Akun Administrator</span>
-                      <span className="text-[10px] text-slate-400">Tingkatkan skor keamanan governance perusahaan</span>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={settings.mfa_enforced_for_superadmin !== false}
-                      onChange={(e) => setSettings({ ...settings, mfa_enforced_for_superadmin: e.target.checked })}
-                      className="w-5 h-5 accent-red-700 rounded cursor-pointer"
                     />
                   </div>
                 </div>

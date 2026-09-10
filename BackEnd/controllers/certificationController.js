@@ -145,9 +145,20 @@ const formatCert = (cert) => {
     const verifiedAt = atMatch ? atMatch[1].trim() : (status !== 'Pending' ? cert.created_at : null);
     const rejectionReason = reasonMatch ? reasonMatch[1].trim() : null;
 
+    // Parse category
+    const catMatch = (cert.notes || '').match(/\[CATEGORY:([^\]]+)\]/i);
+    const categoryTag = catMatch ? catMatch[1].toUpperCase() : null;
+    const isGeneral = categoryTag === 'GENERAL' || 
+                      (certType.category || '').toUpperCase().includes('GENERAL') || 
+                      (certType.category || '').toUpperCase().includes('UMUM') || 
+                      (certType.name || '').toUpperCase().includes('GENERAL') ||
+                      (certType.name || '').toUpperCase().includes('UMUM');
+    const finalCategory = isGeneral ? 'General' : 'K3';
+
     // Clean notes for display
     const cleanNotes = (cert.notes || '')
         .replace(/\[STATUS:(PENDING|APPROVED|REJECTED)\]/g, '')
+        .replace(/\[CATEGORY:(K3|GENERAL)\]/g, '')
         .replace(/\[VERIFIED_BY:[^\]]+\]/g, '')
         .replace(/\[VERIFIED_AT:[^\]]+\]/g, '')
         .replace(/Alasan:[^|]+(\|)?/g, '')
@@ -200,7 +211,9 @@ const formatCert = (cert) => {
         rejection_reason: rejectionReason,
         nama_sertifikat: certType.name || cert.nama_sertifikat || 'Sertifikat Kompetensi',
         certificate_name: certType.name || cert.nama_sertifikat || 'Sertifikat Kompetensi',
-        kategori: certType.category || 'Umum',
+        kategori: finalCategory,
+        category: finalCategory,
+        is_general: isGeneral,
         institusi_penerbit: certType.category || (cleanNotes ? cleanNotes.split(' | ')[0]?.replace('Penerbit: ', '') : 'Lembaga Resmi'),
         nomor_sertifikat: cert.certificate_number,
         tanggal_diterbitkan: cert.issue_date,
@@ -338,6 +351,8 @@ exports.add_my_certification = async (req, res) => {
         const issueDate = cleanDate(body.issue_date || body.tanggal_diterbitkan);
         const expiredDate = isLifetime ? null : cleanDate(body.expired_date || body.tanggal_kadaluarsa);
         const notes = body.notes || '';
+        const categoryRaw = (body.category || body.kategori || 'K3').toUpperCase();
+        const categoryTag = categoryRaw.includes('GENERAL') || categoryRaw.includes('UMUM') ? 'GENERAL' : 'K3';
 
         // Handle uploaded file purely in table with compression
         let fileUrl = null;
@@ -352,6 +367,7 @@ exports.add_my_certification = async (req, res) => {
 
         const fullNotes = [
             '[STATUS:PENDING]',
+            `[CATEGORY:${categoryTag}]`,
             institusiPenerbit ? `Penerbit: ${institusiPenerbit}` : null,
             credentialUrl ? `URL: ${credentialUrl}` : null,
             notes ? notes : null
@@ -375,21 +391,25 @@ exports.add_my_certification = async (req, res) => {
         if (error) throw error;
 
         try {
-            await notifyRole('hse_admin', 'Pengajuan Sertifikasi', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat baru (${namaSertifikat}). Menunggu verifikasi.`, 'info', '/organization?tab=certifications');
-            
-            // Send email notification to all registered HSE Admins
-            mailer.getHseAdminEmails(supabase).then(hseEmails => {
-                if (hseEmails && hseEmails.length > 0) {
-                    mailer.sendHseNewCertUploadEmail({
-                        toEmails: hseEmails,
-                        employeeName: emp.nama_lengkap || req.user?.nama || 'Karyawan',
-                        certName: namaSertifikat,
-                        certNumber: certNumber,
-                        issueDate: issueDate,
-                        expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
-                    }).catch(err => console.error('HSE cert email send err:', err.message));
-                }
-            }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
+            if (categoryTag === 'GENERAL') {
+                await notifyRole('hrga_admin', 'Pengajuan Sertifikasi General', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat general baru (${namaSertifikat}). Menunggu verifikasi HRGA.`, 'info', '/organization?tab=certifications');
+            } else {
+                await notifyRole('hse_admin', 'Pengajuan Sertifikasi K3', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat K3 baru (${namaSertifikat}). Menunggu verifikasi HSE.`, 'info', '/organization?tab=certifications');
+                
+                // Send email notification to registered HSE Admins for K3 certs only
+                mailer.getHseAdminEmails(supabase).then(hseEmails => {
+                    if (hseEmails && hseEmails.length > 0) {
+                        mailer.sendHseNewCertUploadEmail({
+                            toEmails: hseEmails,
+                            employeeName: emp.nama_lengkap || req.user?.nama || 'Karyawan',
+                            certName: namaSertifikat,
+                            certNumber: certNumber,
+                            issueDate: issueDate,
+                            expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                        }).catch(err => console.error('HSE cert email send err:', err.message));
+                    }
+                }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
+            }
         } catch (nErr) {
             console.warn('Silent notification error in add_my_certification:', nErr.message);
         }
@@ -507,6 +527,10 @@ exports.add_certification = async (req, res) => {
             certTypeId = await resolveCertificateTypeId(namaSertifikat, institusiPenerbit);
         }
 
+        const categoryRaw = (body.category || body.kategori || 'K3').toUpperCase();
+        const categoryTag = categoryRaw.includes('GENERAL') || categoryRaw.includes('UMUM') ? 'GENERAL' : 'K3';
+        const notesWithTag = `[CATEGORY:${categoryTag}] ${notes || `Penerbit: ${institusiPenerbit}`}`.trim();
+
         const { data, error } = await supabase
             .from('employee_certificates')
             .insert({
@@ -517,7 +541,7 @@ exports.add_certification = async (req, res) => {
                 issue_date: issueDate,
                 expired_date: expiredDate,
                 file_url: fileUrl,
-                notes: notes || `Penerbit: ${institusiPenerbit}`
+                notes: notesWithTag
             })
             .select('*, certificate_types(*), employees(*)')
             .single();

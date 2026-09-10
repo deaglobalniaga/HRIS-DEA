@@ -11,7 +11,7 @@ const defaultSettings = {
     // 1. Identitas & Kontak Perusahaan
     company_name: 'PT DEA GLOBAL NIAGA',
     brand_name: 'DEA Global Niaga',
-    company_email: 'dea.global.niaga1@gmail.com',
+    company_email: process.env.HR_EMAIL || process.env.SMTP_USER || 'info@deaglobalniaga.com',
     company_phone: '0812-3456-7890',
     company_address: 'Banjarbaru, Kalimantan Selatan',
     npwp: '01.234.567.8-901.000',

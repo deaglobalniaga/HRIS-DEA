@@ -7,7 +7,7 @@ require('dotenv').config();
 const createTransporter = () => {
     const host = process.env.SMTP_HOST || 'smtp.gmail.com';
     const isGmail = host.includes('gmail') || process.env.SMTP_SERVICE === 'gmail';
-    const user = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
+    const user = process.env.SMTP_USER || '';
     const rawPass = process.env.SMTP_PASS || '';
     const pass = rawPass.replace(/\s+/g, ''); // strip any accidental copy-pasted spaces
 
@@ -30,7 +30,7 @@ const createTransporter = () => {
 };
 
 const transporter = createTransporter();
-const SENDER_EMAIL = process.env.SMTP_USER || 'dea.global.niaga1@gmail.com';
+const SENDER_EMAIL = process.env.SMTP_USER || process.env.HR_EMAIL || '';
 const SENDER_NAME = '"HRIS PT DEA GLOBAL NIAGA"';
 const FRONTEND_URL = (process.env.FRONTEND_URL || 'https://hris-dea.vercel.app').replace(/\/+$/, '');
 
@@ -751,9 +751,7 @@ const getHseAdminEmails = async (supabaseClient) => {
                           deptName.includes('k3') || 
                           deptName.includes('safety') || 
                           jabatan.includes('hse') || 
-                          jabatan.includes('k3') ||
-                          username === 'admin' ||
-                          username === 'dellams';
+                          jabatan.includes('k3');
 
             if (isHSE) {
                 if (u.recovery_email && u.recovery_email.includes('@')) {

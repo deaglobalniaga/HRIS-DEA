@@ -27,11 +27,11 @@ const upload = multer({
     }
 });
 
-// GET All Employees (Protected from Superadmin)
-router.get('/employees', verifyToken, blockSuperAdmin, controller.get_employees);
+// GET All Employees (Accessible by Admin and Superadmin for Access Rights & Account Verification)
+router.get('/employees', verifyToken, controller.get_employees);
 
-// GET Single Employee (Protected from Superadmin)
-router.get('/employees/:id', verifyToken, blockSuperAdmin, controller.get_employee_by_id);
+// GET Single Employee
+router.get('/employees/:id', verifyToken, controller.get_employee_by_id);
 
 // GET Departments
 router.get('/departments', verifyToken, controller.get_departments);
@@ -50,8 +50,8 @@ router.delete('/employees/bulk', verifyToken, blockSuperAdmin, isAdmin, controll
 // POST New Employee (HRGA / Admin only - Protected from Superadmin)
 router.post('/employees', verifyToken, blockSuperAdmin, isAdmin, upload.any(), controller.create_employee);
 
-// PUT Update Employee (HRGA / Admin only - Protected from Superadmin)
-router.put('/employees/:id', verifyToken, blockSuperAdmin, isAdmin, upload.any(), controller.update_employee);
+// PUT Update Employee (Admin & Super Admin for role/permissions)
+router.put('/employees/:id', verifyToken, isAdmin, upload.any(), controller.update_employee);
 
 // DELETE Employee (HRGA / Admin only - Protected from Superadmin)
 router.delete('/employees/:id', verifyToken, blockSuperAdmin, isAdmin, controller.delete_employee);
@@ -59,11 +59,11 @@ router.delete('/employees/:id', verifyToken, blockSuperAdmin, isAdmin, controlle
 // DELETE Employee Document (HRGA / Admin only - Protected from Superadmin)
 router.delete('/employees/:id/documents/:docType', verifyToken, blockSuperAdmin, isAdmin, controller.delete_employee_document);
 
-// PUT Verify & Activate New Employee Account (HRGA Admin only)
-router.put('/employees/:id/verify', verifyToken, blockSuperAdmin, isAdmin, controller.verify_employee);
+// PUT Verify & Activate New Employee Account (Admin & Super Admin)
+router.put('/employees/:id/verify', verifyToken, isAdmin, controller.verify_employee);
 
-// DELETE Reject & Clean up New Employee Account (HRGA Admin only)
-router.delete('/employees/:id/reject', verifyToken, blockSuperAdmin, isAdmin, controller.reject_employee);
+// DELETE Reject & Clean up New Employee Account (Admin & Super Admin)
+router.delete('/employees/:id/reject', verifyToken, isAdmin, controller.reject_employee);
 
 // ROLE REQUESTS (Admin HRGA Request & Super Admin Review)
 router.get('/role-requests', verifyToken, controller.get_role_requests);

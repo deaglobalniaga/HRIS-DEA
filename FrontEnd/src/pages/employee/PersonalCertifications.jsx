@@ -46,6 +46,7 @@ const PersonalCertifications = () => {
 
   // LinkedIn Style Form Fields
   const [formData, setFormData] = useState({
+    category: 'K3',
     nama_sertifikat: '',
     organisasi_penerbit: '',
     issue_date: '',
@@ -136,20 +137,21 @@ const PersonalCertifications = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!formData.nama_sertifikat.trim() || !formData.organisasi_penerbit.trim()) {
-      addToast('Nama Sertifikasi dan Lembaga Penerbit wajib diisi.', 'error');
+      addToast('Nama sertifikasi dan Lembaga Penerbit wajib diisi.', 'error');
       return;
     }
     if (!formData.issue_date) {
-      addToast('Tanggal penerbitan sertifikat wajib diisi.', 'error');
+      addToast('Tanggal penerbitan wajib diisi.', 'error');
       return;
     }
     if (!formData.is_lifetime && !formData.expired_date) {
-      addToast('Tanggal kedaluwarsa sertifikat wajib diisi.', 'error');
+      addToast('Tanggal kadaluarsa wajib diisi jika bukan seumur hidup.', 'error');
       return;
     }
     if (!formData.certificate_number.trim()) {
-      addToast('Nomor Registrasi / ID Kredensial sertifikat wajib diisi.', 'error');
+      addToast('ID Kredensial / No. Sertifikat wajib diisi.', 'error');
       return;
     }
     if (!formData.file) {
@@ -160,6 +162,7 @@ const PersonalCertifications = () => {
     setSubmitting(true);
     try {
       const data = new FormData();
+      data.append('category', formData.category || 'K3');
       data.append('nama_sertifikat', formData.nama_sertifikat);
       data.append('organisasi_penerbit', formData.organisasi_penerbit);
       data.append('certificate_number', formData.certificate_number);
@@ -174,9 +177,11 @@ const PersonalCertifications = () => {
         headers: { 'Content-Type': 'multipart/form-data' }
       });
 
-      addToast('Lisensi & Sertifikasi berhasil diajukan untuk verifikasi HSE!', 'success');
+      const verifierName = formData.category === 'General' ? 'HRGA' : 'HSE';
+      addToast(`Lisensi & Sertifikasi berhasil diajukan untuk verifikasi ${verifierName}!`, 'success');
       setShowModal(false);
       setFormData({
+        category: 'K3',
         nama_sertifikat: '',
         organisasi_penerbit: '',
         issue_date: '',
@@ -531,19 +536,34 @@ const PersonalCertifications = () => {
                   <div>
                     {/* Top Row: Verification & Expiry Badges */}
                     <div className="flex items-center justify-between gap-2 mb-3">
-                      {isRejected ? (
-                        <span className="px-3 py-1 bg-rose-50 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
-                          <X size={12} className="text-rose-600" /> Ditolak. Silahkan unggah kembali
-                        </span>
-                      ) : isPending ? (
-                        <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
-                          <Clock size={12} className="text-amber-600" /> Menunggu Verifikasi HSE
-                        </span>
-                      ) : (
-                        <span className="px-3 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
-                          <CheckCircle2 size={12} className="text-emerald-600" /> Terverifikasi & Aktif
-                        </span>
-                      )}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {(() => {
+                          const isGeneral = cert.category === 'General' || cert.kategori === 'General' || cert.is_general || cert.notes?.includes('[CATEGORY:GENERAL]');
+                          return (
+                            <>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
+                                isGeneral ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'
+                              }`}>
+                                {isGeneral ? 'General' : 'K3'}
+                              </span>
+
+                              {isRejected ? (
+                                <span className="px-2.5 py-1 bg-rose-50 text-rose-800 border border-rose-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
+                                  <X size={12} className="text-rose-600" /> Ditolak. Silahkan unggah kembali
+                                </span>
+                              ) : isPending ? (
+                                <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
+                                  <Clock size={12} className="text-amber-600" /> Menunggu Verifikasi {isGeneral ? 'HRGA' : 'HSE'}
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full text-[10px] font-black inline-flex items-center gap-1.5 shadow-2xs">
+                                  <CheckCircle2 size={12} className="text-emerald-600" /> Terverifikasi & Aktif
+                                </span>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
 
                       {isExpired ? (
                         <span className="px-2.5 py-0.5 bg-red-100 text-red-800 text-[10px] font-black rounded-lg">
@@ -725,6 +745,49 @@ const PersonalCertifications = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs font-medium">
+              <div>
+                <label className="block text-slate-700 font-bold mb-1.5">
+                  Kategori Sertifikasi <span className="text-red-600">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, category: 'K3' }))}
+                    className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                      formData.category === 'K3'
+                        ? 'border-red-600 bg-red-50/70 text-red-950 font-bold ring-2 ring-red-600/20'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${formData.category === 'K3' ? 'border-red-600' : 'border-slate-400'}`}>
+                      {formData.category === 'K3' && <div className="w-1.5 h-1.5 rounded-full bg-red-600" />}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold">K3 & Keselamatan</div>
+                      <div className="text-[10px] text-slate-500 font-normal">Diverifikasi oleh Tim HSE</div>
+                    </div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, category: 'General' }))}
+                    className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                      formData.category === 'General'
+                        ? 'border-blue-600 bg-blue-50/70 text-blue-950 font-bold ring-2 ring-blue-600/20'
+                        : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
+                    }`}
+                  >
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${formData.category === 'General' ? 'border-blue-600' : 'border-slate-400'}`}>
+                      {formData.category === 'General' && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold">General / Umum</div>
+                      <div className="text-[10px] text-slate-500 font-normal">Diverifikasi oleh Tim HRGA</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
                   <div className="flex items-center justify-between mb-1">

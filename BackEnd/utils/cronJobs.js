@@ -211,57 +211,54 @@ cron.schedule('0 0 * * *', async () => {
                 const emp = cert.employees || {};
                 const u = emp.users || {};
                 const empEmail = emp.email_office || u.recovery_email || u.email;
-                const certName = cert.certificate_types?.name || 'Sertifikat K3';
+                const certName = cert.certificate_types?.name || 'Sertifikat Kompetensi';
 
-                expiringList.push({
-                    certName,
-                    certNumber: cert.certificate_number || '-',
-                    employeeName: emp.nama_lengkap || 'Karyawan',
-                    expiryDate: cert.expired_date,
-                    daysLeft: diffDays,
-                    empEmail
-                });
+                // Reminder interval: every 10 days (90, 80, 70, 60, 50, 40, 30, 20, 10) and day 0
+                const isTenDayMilestone = (diffDays % 10 === 0) || (diffDays === 0);
 
-                // Send individual email reminder to the employee if interval matches (90, 60, 30, 14, 7, 3, 1, 0)
-                const alertMilestones = [90, 60, 30, 14, 7, 3, 1, 0];
-                if (alertMilestones.includes(diffDays) && empEmail) {
-                    await mailer.sendCertExpiringEmail({
-                        toEmail: empEmail,
-                        recipientName: emp.nama_lengkap,
+                if (isTenDayMilestone) {
+                    expiringList.push({
                         certName,
                         certNumber: cert.certificate_number || '-',
+                        employeeName: emp.nama_lengkap || 'Karyawan',
                         expiryDate: cert.expired_date,
                         daysLeft: diffDays,
-                        roleType: 'user'
-                    }).catch(e => console.error('Silent cert expiring email to employee err:', e.message));
-                }
-            }
-        }
+                        empEmail
+                    });
 
-        // If there are expiring certs, notify all HSE Admins
-        if (expiringList.length > 0) {
-            const hseEmails = await mailer.getHseAdminEmails(supabase);
-            if (hseEmails && hseEmails.length > 0) {
-                for (const item of expiringList) {
-                    // Send to HSE admins on key milestones
-                    if ([90, 60, 30, 14, 7, 0].includes(item.daysLeft)) {
-                        for (const hseEmail of hseEmails) {
-                            await mailer.sendCertExpiringEmail({
-                                toEmail: hseEmail,
-                                recipientName: 'Admin HSE',
-                                certName: `${item.certName} (${item.employeeName})`,
-                                certNumber: item.certNumber,
-                                expiryDate: item.expiryDate,
-                                daysLeft: item.daysLeft,
-                                roleType: 'hse_admin'
-                            }).catch(e => console.error('Silent cert expiring email to HSE err:', e.message));
-                        }
+                    // 1. Web in-app notification strictly to the certificate owner
+                    if (emp.user_id) {
+                        const notifMsg = diffDays === 0
+                            ? `Sertifikat "${certName}" (${cert.certificate_number || '-'}) Anda habis masa berlakunya hari ini. Harap segera perpanjang.`
+                            : `Sertifikat "${certName}" (${cert.certificate_number || '-'}) Anda akan kedaluwarsa dalam ${diffDays} hari. Harap siapkan dokumen perpanjangan.`;
+
+                        await supabase.from('notifications').insert({
+                            user_id: emp.user_id,
+                            title: '⏰ Pengingat Masa Berlaku Sertifikat',
+                            message: notifMsg,
+                            type: 'warning',
+                            link: '/personal-certifications',
+                            is_read: false
+                        }).catch(e => console.warn('[CRON] In-app cert notification err:', e.message));
+                    }
+
+                    // 2. Email reminder strictly to the certificate owner (no spam to unrelated users)
+                    if (empEmail) {
+                        await mailer.sendCertExpiringEmail({
+                            toEmail: empEmail,
+                            recipientName: emp.nama_lengkap || 'Karyawan',
+                            certName,
+                            certNumber: cert.certificate_number || '-',
+                            expiryDate: cert.expired_date,
+                            daysLeft: diffDays,
+                            roleType: 'user'
+                        }).catch(e => console.error('[CRON] Cert expiring email to employee err:', e.message));
                     }
                 }
             }
         }
 
-        console.log(`[CRON] Certificate check completed. Found ${expiringList.length} certificates expiring within 90 days.`);
+        console.log(`[CRON] Certificate check completed. Processed reminders for ${expiringList.length} certificate(s) reaching 10-day milestones.`);
     } catch (e) {
         console.error('[CRON] Error in Certificate Expiration Check:', e);
     }

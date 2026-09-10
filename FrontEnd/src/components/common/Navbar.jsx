@@ -76,6 +76,7 @@ const Navbar = ({ toggleSidebar }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   
   // Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -489,8 +490,7 @@ const Navbar = ({ toggleSidebar }) => {
                   type="button"
                   onClick={() => {
                     setShowProfileMenu(false);
-                    logout();
-                    navigate('/login');
+                    setShowLogoutModal(true);
                   }}
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold text-red-700 hover:bg-red-50 transition-all text-left group cursor-pointer"
                 >
@@ -507,18 +507,61 @@ const Navbar = ({ toggleSidebar }) => {
         {/* Direct Logout Button */}
         <button
           type="button"
-          onClick={() => {
-            if (window.confirm('Apakah Anda yakin ingin keluar dari akun?')) {
-              logout();
-              navigate('/login');
-            }
-          }}
+          onClick={() => setShowLogoutModal(true)}
           className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
           title="Keluar (Logout)"
         >
           <LogOut size={15} />
         </button>
       </div>
+
+      {/* Modern Confirmation Modal for Logout */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative scale-100 animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setShowLogoutModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30 mb-4">
+              <LogOut size={26} />
+            </div>
+
+            <h3 className="text-base sm:text-lg font-black text-slate-900 mb-1.5">
+              Konfirmasi Keluar
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed mb-6">
+              Apakah Anda yakin ingin keluar dari akun HRIS ini? Sesi Anda akan diakhiri dan dialihkan ke halaman login.
+            </p>
+
+            <div className="flex items-center gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutModal(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white font-black text-xs shadow-md shadow-red-900/20 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <LogOut size={14} />
+                <span>Ya, Keluar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 };

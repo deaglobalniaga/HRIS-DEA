@@ -110,22 +110,11 @@ const isHSE = async (req, res, next) => {
         const isSuper = ['superadmin', 'super_admin', 'super admin'].includes(role) || role.includes('super');
         if (isSuper) return next();
 
-        // 1. If role is explicitly HRGA only, reject
-        const isHRGAOnly = ['hrga_admin', 'hr_admin', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
-            (role.includes('hr') && !role.includes('hse'));
-        if (isHRGAOnly) {
-            return res.status(403).json({ 
-                message: 'Akses ditolak: Hanya Admin HSE yang berwenang menyetujui, menolak, atau menambahkan sertifikasi karyawan. HRGA hanya dapat membaca data sertifikasi.' 
-            });
-        }
+        // 1. Resolve user profile for department/job title
+        let isHSEUser = ['hse_admin', 'hse', 'hse_officer'].includes(role) || (role.includes('hse') && !role.includes('hr'));
+        let isHRGAUser = ['admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga'].includes(role) || role.includes('admin') || role.includes('hr');
 
-        // 2. If role is explicitly HSE, allow
-        if (['hse_admin', 'hse', 'hse_officer'].includes(role) || (role.includes('hse') && !role.includes('hr'))) {
-            return next();
-        }
-
-        // 3. For role 'admin', disambiguate using username, department, and position
-        if (userId) {
+        if (userId && !isHSEUser) {
             const { data: userProfile } = await supabase
                 .from('users')
                 .select(`
@@ -146,23 +135,70 @@ const isHSE = async (req, res, next) => {
             const jabatan = (emp?.jabatan || '').toLowerCase();
             const namaLengkap = (emp?.nama_lengkap || '').toLowerCase();
 
-            const isHSEUser = username === 'hse_admin' || 
+            isHSEUser = username === 'hse_admin' || 
                 username.includes('hse') ||
                 deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || deptName.includes('pengelola k3') ||
                 jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
                 namaLengkap.includes('hse');
 
-            if (isHSEUser) {
-                return next();
+            if (username === 'admin' || deptName.includes('hr') || deptName.includes('hrga')) {
+                isHRGAUser = true;
             }
         }
 
+        // HSE Admin has full access to both K3 & General certificates
+        if (isHSEUser) {
+            return next();
+        }
+
+        // Check if this action is for a 'General' certificate (which HRGA is authorized to manage)
+        if (isHRGAUser) {
+            // Case A: Adding new certificate (check category in body)
+            if (req.method === 'POST') {
+                const reqCat = (req.body?.kategori || req.body?.category || req.body?.institusi_penerbit || '').toLowerCase();
+                const certName = (req.body?.nama_sertifikat || req.body?.certificate_name || '').toLowerCase();
+                if (reqCat.includes('general') || reqCat.includes('umum') || certName.includes('general') || certName.includes('umum')) {
+                    return next();
+                }
+                return res.status(403).json({ 
+                    message: 'Akses ditolak: HRGA hanya berwenang mengelola Sertifikat General/Umum. Sertifikat K3/Keselamatan dikelola oleh Tim HSE.' 
+                });
+            }
+
+            // Case B: Approving, rejecting, or deleting existing cert (check cert category in DB)
+            const certId = req.params.id;
+            if (certId) {
+                const { data: cert } = await supabase
+                    .from('employee_certificates')
+                    .select('notes, certificate_types (name, category)')
+                    .eq('id', certId)
+                    .maybeSingle();
+
+                const typeCat = (cert?.certificate_types?.category || '').toLowerCase();
+                const certName = (cert?.certificate_types?.name || '').toLowerCase();
+                const notes = (cert?.notes || '').toLowerCase();
+
+                const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
+                                  certName.includes('general') || certName.includes('umum') ||
+                                  notes.includes('[category:general]') || notes.includes('[cat:general]');
+
+                if (isGeneral) {
+                    return next();
+                }
+                return res.status(403).json({ 
+                    message: 'Akses ditolak: HRGA hanya berwenang memverifikasi Sertifikat General/Umum. Sertifikat K3 wajib diverifikasi oleh Tim HSE.' 
+                });
+            }
+
+            return next();
+        }
+
         return res.status(403).json({ 
-            message: 'Akses ditolak: Hanya Admin HSE yang berwenang menyetujui, menolak, atau menambahkan sertifikasi karyawan. HRGA hanya dapat membaca data sertifikasi.' 
+            message: 'Akses ditolak: Memerlukan hak akses Admin HSE atau HRGA.' 
         });
     } catch (err) {
         console.error('isHSE check error:', err);
-        return res.status(500).json({ message: 'Gagal memvalidasi hak akses HSE.' });
+        return res.status(500).json({ message: 'Gagal memvalidasi hak akses sertifikasi.' });
     }
 };
 

