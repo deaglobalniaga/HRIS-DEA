@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   Users, Clock, CalendarRange, Briefcase, Activity, FileText,
-  UserCheck, UserX, RefreshCw,
+  UserCheck, UserX,
   TrendingUp, PieChart as PieChartIcon, CalendarDays, X,
   Calendar, Bell, Gift, Building2, Award, LogOut
 } from 'lucide-react';
@@ -63,12 +63,9 @@ const HRGADashboard = () => {
   const [timeframe, setTimeframe] = useState(6);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState(new Date());
 
   const fetchStats = async () => {
     try {
-      setIsSyncing(true);
       const res = await api.get('/hris/dashboard-stats');
       setStats(res.data);
       const [trendRes, heatRes] = await Promise.all([
@@ -76,11 +73,8 @@ const HRGADashboard = () => {
         api.get('/hris/analytics/heatmap').catch(() => ({ data: [] }))
       ]);
       setAdvStats({ trend: trendRes.data || [], heatmap: heatRes.data || [] });
-      setLastSyncTime(new Date());
     } catch (err) { 
       console.error("Failed to fetch dashboard stats", err); 
-    } finally {
-      setIsSyncing(false);
     }
   };
 
@@ -138,23 +132,6 @@ const HRGADashboard = () => {
               {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
             </span>
           </div>
-        </div>
-
-        {/* Sync Button */}
-        <div className="flex items-center gap-3">
-          <button 
-            onClick={fetchStats}
-            disabled={isSyncing}
-            className="flex items-center gap-2.5 bg-white px-3.5 py-2 rounded-2xl border border-slate-200/90 shadow-xs hover:bg-slate-50 hover:border-slate-300 transition-all text-left cursor-pointer"
-          >
-            <RefreshCw size={16} className={`text-blue-600 ${isSyncing ? 'animate-spin' : ''}`} />
-            <div className="flex flex-col">
-              <span className="text-xs font-black text-slate-800 leading-none">Sinkronisasi Data</span>
-              <span className="text-[10px] font-medium text-slate-400 leading-none mt-1">
-                Terakhir: {lastSyncTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
-              </span>
-            </div>
-          </button>
         </div>
       </div>
 
