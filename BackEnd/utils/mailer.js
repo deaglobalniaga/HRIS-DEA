@@ -469,17 +469,21 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
 /**
  * Sends warning email when certificate is expiring within 90 days
  */
-const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNumber, expiryDate, daysLeft, roleType }) => {
+const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNumber, expiryDate, daysLeft, roleType, category = 'K3' }) => {
     if (!toEmail) return { success: false, message: 'No email provided' };
 
+    const resolvedCategory = (category && category.toLowerCase().includes('gen')) ? 'General' : 'K3';
     const isHseRecipient = roleType === 'hse_admin';
-    const actionLink = isHseRecipient 
+    const uploadLink = isHseRecipient 
         ? `${FRONTEND_URL}/organization?tab=certifications&expiry=expiring`
-        : `${FRONTEND_URL}/personal-certifications`;
+        : `${FRONTEND_URL}/personal-certifications?action=upload&certName=${encodeURIComponent(certName || '')}&category=${encodeURIComponent(resolvedCategory)}`;
+
+    const verifierTeam = resolvedCategory === 'General' ? 'Tim HRGA' : 'Tim HSE';
+    const remainingText = daysLeft === 0 ? 'Habis Masa Berlaku Hari Ini' : `${daysLeft} Hari Lagi`;
 
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            ${getEmailHeaderHtml('Peringatan Masa Berlaku Kualifikasi K3')}
+            ${getEmailHeaderHtml(`Peringatan Masa Berlaku Sertifikat ${resolvedCategory}`)}
 
             <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -487,12 +491,16 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
                     <h2 style="color: #92400e; font-size: 16px; font-weight: 800; margin: 0;">Masa Berlaku Sertifikat Mendekati Batas Akhir</h2>
                 </div>
                 <p style="color: #78350f; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
-                    Halo <strong>${recipientName || 'Pengguna'}</strong>, sistem mendeteksi masa berlaku sertifikat berikut tersisa <strong>≤ 90 hari</strong>:
+                    Halo <strong>${recipientName || 'Pengguna'}</strong>, sistem mendeteksi sertifikat Anda berikut ini tersisa <strong>≤ 90 hari</strong> sebelum kedaluwarsa:
                 </p>
 
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b;">
                     <tr>
-                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7; width: 35%;">Jenis Sertifikat</td>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7; width: 35%;">Kategori</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: bold; color: ${resolvedCategory === 'General' ? '#2563eb' : '#b91c1c'};">${resolvedCategory}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7;">Nama Sertifikat</td>
                         <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: bold; color: #b45309;">${certName || '-'}</td>
                     </tr>
                     <tr>
@@ -504,24 +512,29 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
                         <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: bold;">${expiryDate || '-'}</td>
                     </tr>
                     <tr>
-                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7;">Sisa Hari</td>
-                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: 900; color: #dc2626;">${daysLeft} Hari Lagi</td>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7;">Sisa Masa Berlaku</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: 900; color: #dc2626;">${remainingText}</td>
                     </tr>
                 </table>
             </div>
 
             <p style="font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 20px;">
-                Harap segera mempersiapkan pembaharuan lisensi / sertifikasi untuk memastikan kepatuhan regulasi keselamatan kerja di lingkungan operasional PT DEA GLOBAL NIAGA.
+                Harap segera memperbarui dokumen sertifikat atau lisensi kompetensi Anda. Klik tombol <strong>"Perbarui Sertifikat Sekarang"</strong> di bawah untuk langsung membuka formulir pengunggahan sertifikat terbaru agar dapat diverifikasi oleh <strong>${verifierTeam}</strong> di sistem HRIS PT DEA GLOBAL NIAGA.
             </p>
 
-            <div style="text-align: center; margin: 24px 0;">
-                <a href="${actionLink}" style="background-color: #d97706; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block;">
-                    Buka Rincian Sertifikat
+            <div style="text-align: center; margin: 26px 0;">
+                <a href="${uploadLink}" style="background: linear-gradient(135deg, #b91c1c, #dc2626); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-size: 14px; font-weight: 800; display: inline-block; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);">
+                    🔄 Perbarui Sertifikat Sekarang
                 </a>
+                <div style="margin-top: 12px;">
+                    <a href="${FRONTEND_URL}/personal-certifications" style="color: #64748b; text-decoration: underline; font-size: 12px; font-weight: 600;">
+                        Atau lihat seluruh riwayat sertifikat saya
+                    </a>
+                </div>
             </div>
 
             <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
-                Email ini dikirim otomatis oleh Scheduler Sistem HRIS PT DEA GLOBAL NIAGA.
+                Email ini dikirim otomatis setiap 10 hari oleh Pengingat Sistem HRIS PT DEA GLOBAL NIAGA.
             </p>
         </div>
     `;
@@ -531,7 +544,7 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
             from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
             replyTo: SENDER_EMAIL,
             to: toEmail,
-            subject: `[HRIS DGN] Peringatan Masa Berlaku Sertifikat K3 (Sisa ${daysLeft} Hari): ${certName}`,
+            subject: `[HRIS DGN] Peringatan Masa Berlaku Sertifikat ${resolvedCategory} (${remainingText}): ${certName}`,
             html: htmlContent,
             attachments: getLogoAttachments()
         });

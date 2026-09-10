@@ -212,6 +212,8 @@ cron.schedule('0 0 * * *', async () => {
                 const u = emp.users || {};
                 const empEmail = emp.email_office || u.recovery_email || u.email;
                 const certName = cert.certificate_types?.name || 'Sertifikat Kompetensi';
+                const isGeneral = notes.includes('[CATEGORY:GENERAL]') || cert.category === 'General';
+                const certCategory = isGeneral ? 'General' : 'K3';
 
                 // Reminder interval: every 10 days (90, 80, 70, 60, 50, 40, 30, 20, 10) and day 0
                 const isTenDayMilestone = (diffDays % 10 === 0) || (diffDays === 0);
@@ -223,26 +225,29 @@ cron.schedule('0 0 * * *', async () => {
                         employeeName: emp.nama_lengkap || 'Karyawan',
                         expiryDate: cert.expired_date,
                         daysLeft: diffDays,
-                        empEmail
+                        empEmail,
+                        category: certCategory
                     });
 
-                    // 1. Web in-app notification strictly to the certificate owner
+                    // 1. Web in-app notification strictly to the certificate owner with direct upload action link
                     if (emp.user_id) {
                         const notifMsg = diffDays === 0
-                            ? `Sertifikat "${certName}" (${cert.certificate_number || '-'}) Anda habis masa berlakunya hari ini. Harap segera perpanjang.`
-                            : `Sertifikat "${certName}" (${cert.certificate_number || '-'}) Anda akan kedaluwarsa dalam ${diffDays} hari. Harap siapkan dokumen perpanjangan.`;
+                            ? `Sertifikat ${certCategory} "${certName}" (${cert.certificate_number || '-'}) Anda habis masa berlakunya hari ini. Harap segera unggah perpanjangan.`
+                            : `Sertifikat ${certCategory} "${certName}" (${cert.certificate_number || '-'}) Anda akan kedaluwarsa dalam ${diffDays} hari. Klik untuk unggah sertifikat terbaru.`;
+
+                        const directUploadLink = `/personal-certifications?action=upload&certName=${encodeURIComponent(certName)}&category=${certCategory}`;
 
                         await supabase.from('notifications').insert({
                             user_id: emp.user_id,
                             title: '⏰ Pengingat Masa Berlaku Sertifikat',
                             message: notifMsg,
                             type: 'warning',
-                            link: '/personal-certifications',
+                            link: directUploadLink,
                             is_read: false
                         }).catch(e => console.warn('[CRON] In-app cert notification err:', e.message));
                     }
 
-                    // 2. Email reminder strictly to the certificate owner (no spam to unrelated users)
+                    // 2. Email reminder strictly to the certificate owner with "Perbarui Sertifikat" button
                     if (empEmail) {
                         await mailer.sendCertExpiringEmail({
                             toEmail: empEmail,
@@ -251,7 +256,9 @@ cron.schedule('0 0 * * *', async () => {
                             certNumber: cert.certificate_number || '-',
                             expiryDate: cert.expired_date,
                             daysLeft: diffDays,
-                            roleType: 'user'
+                            roleType: 'user',
+                            category: certCategory,
+                            certId: cert.id
                         }).catch(e => console.error('[CRON] Cert expiring email to employee err:', e.message));
                     }
                 }

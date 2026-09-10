@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { Award, Plus, Upload, Trash2, ExternalLink, FileText, CheckCircle2, ShieldCheck, Calendar, Building, X, AlertCircle, Clock, Shield, UserCheck, Search, Filter, HelpCircle, ChevronRight, Download, Eye, ArrowRight } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
@@ -11,6 +11,7 @@ const PersonalCertifications = () => {
   const { user } = useAuth();
   const { addToast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [certs, setCerts] = useState([]);
   const [certTypes, setCertTypes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +124,32 @@ const PersonalCertifications = () => {
     fetchMyCerts();
   }, []);
 
+  // Listen for direct URL action link (e.g. from 10-day expiring notification email)
+  useEffect(() => {
+    const action = searchParams.get('action');
+    const upload = searchParams.get('upload');
+    if (action === 'upload' || upload === 'true') {
+      const certName = searchParams.get('certName') || '';
+      const categoryParam = searchParams.get('category') || '';
+      const resolvedCategory = (categoryParam && categoryParam.toLowerCase().includes('gen')) ? 'General' : 'K3';
+
+      setFormData(prev => ({
+        ...prev,
+        category: resolvedCategory,
+        nama_sertifikat: certName || prev.nama_sertifikat
+      }));
+      setShowModal(true);
+      addToast(`Mode Perbarui Sertifikat: Silakan lengkapi dan unggah dokumen hasil perpanjangan terbaru (${certName || resolvedCategory}).`, 'info');
+    }
+  }, [searchParams]);
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    if (searchParams.get('action') || searchParams.get('upload')) {
+      setSearchParams({});
+    }
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files[0]) {
       const selectedFile = e.target.files[0];
@@ -179,7 +206,7 @@ const PersonalCertifications = () => {
 
       const verifierName = formData.category === 'General' ? 'HRGA' : 'HSE';
       addToast(`Lisensi & Sertifikasi berhasil diajukan untuk verifikasi ${verifierName}!`, 'success');
-      setShowModal(false);
+      handleCloseModal();
       setFormData({
         category: 'K3',
         nama_sertifikat: '',
@@ -646,6 +673,32 @@ const PersonalCertifications = () => {
                         </button>
                       )}
 
+                      {(isExpiringSoon || isExpired) && !isPending && !isRejected && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const isGen = cert.category === 'General' || cert.kategori === 'General' || cert.is_general || cert.notes?.includes('[CATEGORY:GENERAL]');
+                            setFormData({
+                              category: isGen ? 'General' : 'K3',
+                              nama_sertifikat: certName,
+                              organisasi_penerbit: (issuer && issuer !== 'Lembaga Resmi') ? issuer : '',
+                              issue_date: '',
+                              expired_date: '',
+                              is_lifetime: false,
+                              certificate_number: '',
+                              credential_url: cert.credential_url || '',
+                              notes: `Perpanjangan dari sertifikat No: ${credId}`,
+                              file: null
+                            });
+                            setShowModal(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-black rounded-xl transition-all shadow-xs cursor-pointer active:scale-95"
+                          title="Perbarui & Unggah Berkas Sertifikat Terbaru"
+                        >
+                          <Upload size={13} /> Perbarui Sertifikat
+                        </button>
+                      )}
+
                       {cert.credential_url && (
                         <a
                           href={cert.credential_url}
@@ -731,18 +784,36 @@ const PersonalCertifications = () => {
           <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-2xl bg-red-50 text-red-900 flex items-center justify-center">
+                <div className={`w-10 h-10 rounded-2xl ${searchParams.get('action') === 'upload' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-900'} flex items-center justify-center`}>
                   <Award size={22} />
                 </div>
                 <div>
-                  <h2 className="text-base font-black text-slate-900">Tambah Lisensi & Sertifikasi Pribadi</h2>
-                  <p className="text-[10px] text-slate-400 font-medium">Unggah berkas untuk diverifikasi secara resmi oleh tim HSE</p>
+                  <h2 className="text-base font-black text-slate-900">
+                    {searchParams.get('action') === 'upload' ? 'Perbarui Lisensi & Sertifikasi' : 'Tambah Lisensi & Sertifikasi Pribadi'}
+                  </h2>
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {formData.category === 'General'
+                      ? 'Unggah berkas untuk diverifikasi secara resmi oleh Tim HRGA'
+                      : 'Unggah berkas untuk diverifikasi secara resmi oleh Tim HSE'}
+                  </p>
                 </div>
               </div>
-              <button onClick={() => setShowModal(false)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer">
+              <button onClick={handleCloseModal} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center transition-colors cursor-pointer">
                 <X size={18} />
               </button>
             </div>
+
+            {searchParams.get('action') === 'upload' && (
+              <div className="mb-4 p-3 bg-amber-50/90 border border-amber-200 rounded-2xl text-xs text-amber-950 flex items-start gap-2.5 animate-in fade-in">
+                <AlertCircle size={16} className="text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold">Mode Pembaruan Sertifikat:</span>
+                  <p className="text-[11px] text-amber-900 font-medium mt-0.5">
+                    Sertifikat Anda akan kedaluwarsa atau perlu diperbarui. Silakan lengkapi nomor sertifikat baru, tanggal masa berlaku perpanjangan, dan lampirkan berkas terbaru Anda.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-4 text-xs font-medium">
               <div>
@@ -943,7 +1014,7 @@ const PersonalCertifications = () => {
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
                 <button
                   type="button"
-                  onClick={() => setShowModal(false)}
+                  onClick={handleCloseModal}
                   className="px-4 py-2.5 rounded-xl text-slate-600 hover:bg-slate-100 font-bold text-xs cursor-pointer"
                 >
                   Batal
