@@ -36,7 +36,7 @@ const getAllMenus = (role, user = {}) => {
     if (isHSEAdmin) {
         return [
             { title: 'Dashboard HSE', path: '/dashboard', icon: Layout },
-            { title: 'Matriks Sertifikasi K3', path: '/organization', icon: Users },
+            { title: 'Struktur Organisasi', path: '/organization', icon: Users },
             { title: 'Sertifikasi Saya', path: '/personal-certifications', icon: Briefcase },
             { title: 'Pusat Kehadiran', path: '/attendance-hub', icon: Users },
             { title: 'Jam Kerja (Timesheet)', path: '/timesheet', icon: Layout },

@@ -46,7 +46,7 @@ const MobileBottomNav = () => {
     if (isHSEAdmin) {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
-        { label: 'Matriks K3', path: '/organization?tab=certifications', icon: ShieldCheck },
+        { label: 'Struktur Organisasi', path: '/organization', icon: Building2 },
         { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isSpecial: true },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
         { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
@@ -67,7 +67,7 @@ const MobileBottomNav = () => {
     // 4. Default Employee / Karyawan
     return [
       { label: 'Home', path: '/dashboard', icon: Home },
-      { label: 'Organisasi', path: '/organization-tree', icon: Building2 },
+      { label: 'Struktur Organisasi', path: '/organization-tree', icon: Building2 },
       { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isSpecial: true },
       { label: 'Kalender', path: '/calendar', icon: CalendarDays },
       { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
@@ -95,7 +95,7 @@ const MobileBottomNav = () => {
 
     // HSE Admin matching
     if (isHSEAdmin) {
-      if (path === '/organization' && search.includes('tab=certifications')) return 1;
+      if (path === '/organization' || path.includes('organization')) return 1;
     }
 
     // HRGA Admin matching
@@ -349,7 +349,7 @@ const MobileBottomNav = () => {
 
               {/* Text Label: Crisp Dark before clicked, Vibrant Orange when active */}
               <span
-                className={`text-[9.5px] tracking-tight mt-1 transition-all duration-200 leading-none ${
+                className={`text-[8px] min-[360px]:text-[8.5px] sm:text-[9.5px] tracking-tight mt-1 transition-all duration-200 leading-none text-center max-w-full px-0.5 truncate ${
                   isZoomed
                     ? 'font-black text-orange-600 scale-105 drop-shadow-[0_1px_1px_rgba(255,255,255,0.9)]'
                     : 'font-semibold text-[#374151] scale-100 group-hover:text-orange-600'

@@ -48,7 +48,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
           title: 'K3 & Keselamatan Kerja',
           items: [
             { name: 'Dashboard HSE', path: '/dashboard', icon: LayoutDashboard },
-            { name: 'Struktur & Matriks K3', path: '/organization', icon: Award },
+            { name: 'Struktur Organisasi', path: '/organization', icon: Building2 },
             { name: 'Sertifikasi Pribadi', path: '/personal-certifications', icon: ShieldCheck },
           ]
         },
