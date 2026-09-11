@@ -114,7 +114,7 @@ const isHSE = async (req, res, next) => {
         let isHSEUser = ['hse_admin', 'hse', 'hse_officer'].includes(role) || (role.includes('hse') && !role.includes('hr'));
         let isHRGAUser = ['admin', 'hrga_admin', 'hr_admin', 'admin_hr', 'admin_hrga', 'hr', 'hrga'].includes(role) || role.includes('admin') || role.includes('hr');
 
-        if (userId && !isHSEUser) {
+        if (userId) {
             const { data: userProfile } = await supabase
                 .from('users')
                 .select(`
@@ -135,67 +135,90 @@ const isHSE = async (req, res, next) => {
             const jabatan = (emp?.jabatan || '').toLowerCase();
             const namaLengkap = (emp?.nama_lengkap || '').toLowerCase();
 
-            isHSEUser = username === 'hse_admin' || 
+            if (username === 'hse_admin' || 
                 username.includes('hse') ||
                 deptName.includes('hse') || deptName.includes('k3') || deptName.includes('safety') || deptName.includes('pengelola k3') ||
                 jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
-                namaLengkap.includes('hse');
+                namaLengkap.includes('hse')) {
+                isHSEUser = true;
+                if (username !== 'admin' && !deptName.includes('hr')) {
+                    isHRGAUser = false;
+                }
+            }
 
-            if (username === 'admin' || deptName.includes('hr') || deptName.includes('hrga')) {
+            if (username === 'admin' || 
+                username.includes('hr') || 
+                deptName.includes('hr') || deptName.includes('hrga') ||
+                jabatan.includes('hr') || jabatan.includes('hrga')) {
                 isHRGAUser = true;
+                if (!username.includes('hse') && !deptName.includes('hse')) {
+                    isHSEUser = false;
+                }
             }
         }
 
-        // HSE Admin has full access to both K3 & General certificates
-        if (isHSEUser) {
-            return next();
+        if (!isHSEUser && !isHRGAUser) {
+            return res.status(403).json({ 
+                message: 'Akses ditolak: Memerlukan hak akses Admin HSE atau HRGA.' 
+            });
         }
 
-        // Check if this action is for a 'General' certificate (which HRGA is authorized to manage)
-        if (isHRGAUser) {
-            // Case A: Adding new certificate (check category in body)
-            if (req.method === 'POST') {
-                const reqCat = (req.body?.kategori || req.body?.category || req.body?.institusi_penerbit || '').toLowerCase();
-                const certName = (req.body?.nama_sertifikat || req.body?.certificate_name || '').toLowerCase();
-                if (reqCat.includes('general') || reqCat.includes('umum') || certName.includes('general') || certName.includes('umum')) {
+        // Case A: Adding new certificate via POST /certifications (check category in body)
+        if (req.method === 'POST') {
+            const reqCat = (req.body?.kategori || req.body?.category || req.body?.institusi_penerbit || '').toLowerCase();
+            const certName = (req.body?.nama_sertifikat || req.body?.certificate_name || '').toLowerCase();
+            const isGeneral = reqCat.includes('general') || reqCat.includes('umum') || certName.includes('general') || certName.includes('umum');
+
+            if (isGeneral) {
+                if (isHRGAUser) return next();
+                return res.status(403).json({ 
+                    message: 'Akses ditolak: Sertifikat General/Umum hanya dapat didaftarkan oleh Admin HRGA. Admin HSE hanya berwenang mengelola Sertifikat K3.' 
+                });
+            } else {
+                if (isHSEUser) return next();
+                return res.status(403).json({ 
+                    message: 'Akses ditolak: Sertifikat K3 hanya dapat didaftarkan oleh Admin HSE. Admin HRGA hanya berwenang mengelola Sertifikat General/Umum.' 
+                });
+            }
+        }
+
+        // Case B: Approving, rejecting, or deleting existing cert (check cert category in DB)
+        const certId = req.params.id;
+        if (certId) {
+            const { data: cert } = await supabase
+                .from('employee_certificates')
+                .select('notes, certificate_types (name, category)')
+                .eq('id', certId)
+                .maybeSingle();
+
+            const typeCat = (cert?.certificate_types?.category || '').toLowerCase();
+            const certName = (cert?.certificate_types?.name || '').toLowerCase();
+            const notes = (cert?.notes || '').toLowerCase();
+
+            const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
+                              certName.includes('general') || certName.includes('umum') ||
+                              notes.includes('[category:general]') || notes.includes('[cat:general]');
+
+            if (isGeneral) {
+                // Only HRGA can approve/reject/delete General certs! HSE has read-only access.
+                if (isHRGAUser) {
                     return next();
                 }
                 return res.status(403).json({ 
-                    message: 'Akses ditolak: HRGA hanya berwenang mengelola Sertifikat General/Umum. Sertifikat K3/Keselamatan dikelola oleh Tim HSE.' 
+                    message: 'Akses ditolak: Sertifikat General/Umum hanya dapat diverifikasi dan dikelola oleh Admin HRGA. Admin HSE hanya memiliki akses baca (read-only).' 
                 });
-            }
-
-            // Case B: Approving, rejecting, or deleting existing cert (check cert category in DB)
-            const certId = req.params.id;
-            if (certId) {
-                const { data: cert } = await supabase
-                    .from('employee_certificates')
-                    .select('notes, certificate_types (name, category)')
-                    .eq('id', certId)
-                    .maybeSingle();
-
-                const typeCat = (cert?.certificate_types?.category || '').toLowerCase();
-                const certName = (cert?.certificate_types?.name || '').toLowerCase();
-                const notes = (cert?.notes || '').toLowerCase();
-
-                const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
-                                  certName.includes('general') || certName.includes('umum') ||
-                                  notes.includes('[category:general]') || notes.includes('[cat:general]');
-
-                if (isGeneral) {
+            } else {
+                // Only HSE can approve/reject/delete K3 certs! HRGA has read-only access.
+                if (isHSEUser) {
                     return next();
                 }
                 return res.status(403).json({ 
-                    message: 'Akses ditolak: HRGA hanya berwenang memverifikasi Sertifikat General/Umum. Sertifikat K3 wajib diverifikasi oleh Tim HSE.' 
+                    message: 'Akses ditolak: Sertifikat K3/Keselamatan hanya dapat diverifikasi dan dikelola oleh Admin HSE. Admin HRGA hanya memiliki akses baca (read-only).' 
                 });
             }
-
-            return next();
         }
 
-        return res.status(403).json({ 
-            message: 'Akses ditolak: Memerlukan hak akses Admin HSE atau HRGA.' 
-        });
+        return next();
     } catch (err) {
         console.error('isHSE check error:', err);
         return res.status(500).json({ message: 'Gagal memvalidasi hak akses sertifikasi.' });

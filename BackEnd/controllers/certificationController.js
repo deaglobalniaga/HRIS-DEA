@@ -173,10 +173,10 @@ const formatCert = (cert) => {
 
     if (status === 'Rejected') {
         expiryStatus = 'Rejected';
-        statusBadge = 'Ditolak HSE';
+        statusBadge = isGeneral ? 'Ditolak HRGA' : 'Ditolak HSE';
     } else if (status === 'Pending') {
         expiryStatus = 'Pending';
-        statusBadge = 'Menunggu Verifikasi';
+        statusBadge = isGeneral ? 'Menunggu Verifikasi HRGA' : 'Menunggu Verifikasi HSE';
     } else if (cert.is_lifetime || !cert.expired_date) {
         expiryStatus = 'Lifetime';
         statusBadge = 'Seumur Hidup';
@@ -392,9 +392,23 @@ exports.add_my_certification = async (req, res) => {
 
         try {
             if (categoryTag === 'GENERAL') {
-                await notifyRole('hrga_admin', 'Pengajuan Sertifikasi General', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat general baru (${namaSertifikat}). Menunggu verifikasi HRGA.`, 'info', '/organization?tab=certifications');
+                await notifyRole('hrga_admin', 'Pengajuan Sertifikasi General', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat general baru (${namaSertifikat}). Menunggu verifikasi HRGA.`, 'info', '/organization?tab=certifications&subtab=pending');
+                
+                // Send email notification to registered HRGA Admins for General certs
+                mailer.getHrgaAdminEmails(supabase).then(hrgaEmails => {
+                    if (hrgaEmails && hrgaEmails.length > 0) {
+                        mailer.sendHrgaNewCertUploadEmail({
+                            toEmails: hrgaEmails,
+                            employeeName: emp.nama_lengkap || req.user?.nama || 'Karyawan',
+                            certName: namaSertifikat,
+                            certNumber: certNumber,
+                            issueDate: issueDate,
+                            expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                        }).catch(err => console.error('HRGA cert email send err:', err.message));
+                    }
+                }).catch(err => console.error('Resolve HRGA admin emails err:', err.message));
             } else {
-                await notifyRole('hse_admin', 'Pengajuan Sertifikasi K3', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat K3 baru (${namaSertifikat}). Menunggu verifikasi HSE.`, 'info', '/organization?tab=certifications');
+                await notifyRole('hse_admin', 'Pengajuan Sertifikasi K3', `Karyawan ${emp.nama_lengkap || ''} telah mengunggah sertifikat K3 baru (${namaSertifikat}). Menunggu verifikasi HSE.`, 'info', '/organization?tab=certifications&subtab=pending');
                 
                 // Send email notification to registered HSE Admins for K3 certs only
                 mailer.getHseAdminEmails(supabase).then(hseEmails => {
@@ -415,7 +429,8 @@ exports.add_my_certification = async (req, res) => {
         }
 
         await invalidateCache('master:certifications_all');
-        res.status(201).json({ message: 'Sertifikat berhasil diunggah dan sedang menunggu verifikasi Admin HSE', certificate: formatCert(data) });
+        const verifier = categoryTag === 'GENERAL' ? 'Admin HRGA' : 'Admin HSE';
+        res.status(201).json({ message: `Sertifikat berhasil diunggah dan sedang menunggu verifikasi ${verifier}`, certificate: formatCert(data) });
     } catch (err) {
         console.error('Add my cert error:', err);
         res.status(500).json({ error: err.message || 'Terjadi kesalahan saat menyimpan sertifikat' });
@@ -548,21 +563,36 @@ exports.add_certification = async (req, res) => {
 
         if (error) throw error;
 
-        // Automated Email Notification to all HSE Admins
+        // Automated Email Notification to responsible Admins (HRGA for General, HSE for K3)
         try {
             const empName = data?.employees?.nama_lengkap || 'Karyawan';
-            mailer.getHseAdminEmails(supabase).then(hseEmails => {
-                if (hseEmails && hseEmails.length > 0) {
-                    mailer.sendHseNewCertUploadEmail({
-                        toEmails: hseEmails,
-                        employeeName: empName,
-                        certName: namaSertifikat,
-                        certNumber: certNumber,
-                        issueDate: issueDate,
-                        expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
-                    }).catch(err => console.error('HSE cert email send err:', err.message));
-                }
-            }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
+            if (categoryTag === 'GENERAL') {
+                mailer.getHrgaAdminEmails(supabase).then(hrgaEmails => {
+                    if (hrgaEmails && hrgaEmails.length > 0) {
+                        mailer.sendHrgaNewCertUploadEmail({
+                            toEmails: hrgaEmails,
+                            employeeName: empName,
+                            certName: namaSertifikat,
+                            certNumber: certNumber,
+                            issueDate: issueDate,
+                            expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                        }).catch(err => console.error('HRGA cert email send err:', err.message));
+                    }
+                }).catch(err => console.error('Resolve HRGA admin emails err:', err.message));
+            } else {
+                mailer.getHseAdminEmails(supabase).then(hseEmails => {
+                    if (hseEmails && hseEmails.length > 0) {
+                        mailer.sendHseNewCertUploadEmail({
+                            toEmails: hseEmails,
+                            employeeName: empName,
+                            certName: namaSertifikat,
+                            certNumber: certNumber,
+                            issueDate: issueDate,
+                            expiryDate: isLifetime ? 'Seumur Hidup' : (expiredDate || '-')
+                        }).catch(err => console.error('HSE cert email send err:', err.message));
+                    }
+                }).catch(err => console.error('Resolve HSE admin emails err:', err.message));
+            }
         } catch (nErr) {
             console.warn('Silent notification error in add_certification:', nErr.message);
         }
@@ -570,14 +600,15 @@ exports.add_certification = async (req, res) => {
         await invalidateCache('master:certifications_all');
 
         // Log Admin Audit Trail
+        const adminDept = categoryTag === 'GENERAL' ? 'HRGA' : 'HSE';
         await logAdminActivity({
             userId: req.userId,
             action: 'Sertifikasi Ditambahkan',
-            details: `Admin/HSE menambahkan sertifikat "${namaSertifikat}" (${certNumber}) untuk karyawan ${data?.employees?.nama_lengkap || 'Karyawan'}.`,
+            details: `Admin ${adminDept} menambahkan sertifikat "${namaSertifikat}" (${certNumber}) untuk karyawan ${data?.employees?.nama_lengkap || 'Karyawan'}.`,
             req
         });
 
-        res.status(201).json({ message: 'Sertifikat berhasil ditambahkan', certificate: formatCert(data) });
+        res.status(201).json({ message: `Sertifikat berhasil ditambahkan oleh Admin ${adminDept}`, certificate: formatCert(data) });
     } catch (err) {
         console.error('Add certification error:', err);
         res.status(500).json({ error: err.message || 'Terjadi kesalahan saat menambahkan sertifikat' });
@@ -603,14 +634,21 @@ exports.delete_certification = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Fetch the record first to get file_url before deleting
+        // Fetch the record first to get metadata and file_url before deleting
         const { data: cert } = await supabase
             .from('employee_certificates')
-            .select('file_url, certificate_number, certificate_types(name), employees(nama_lengkap)')
+            .select('file_url, notes, certificate_number, certificate_types(name, category), employees(nama_lengkap)')
             .eq('id', id)
             .maybeSingle();
 
-        const certName = cert?.certificate_types?.name || 'Sertifikat K3';
+        const typeCat = (cert?.certificate_types?.category || '').toLowerCase();
+        const typeName = (cert?.certificate_types?.name || '').toLowerCase();
+        const rawNotes = (cert?.notes || '').toLowerCase();
+        const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
+                          typeName.includes('general') || typeName.includes('umum') ||
+                          rawNotes.includes('[category:general]');
+        const deptName = isGeneral ? 'HRGA' : 'HSE';
+        const certName = cert?.certificate_types?.name || (isGeneral ? 'Sertifikat Umum' : 'Sertifikat K3');
         const empName = cert?.employees?.nama_lengkap || 'Karyawan';
 
         // Delete the row from DB
@@ -635,7 +673,7 @@ exports.delete_certification = async (req, res) => {
         await logAdminActivity({
             userId: req.userId,
             action: 'Sertifikasi Dihapus',
-            details: `Admin HSE menghapus sertifikat "${certName}" (No: ${cert?.certificate_number || '-'}) milik karyawan ${empName}.`,
+            details: `Admin ${deptName} menghapus sertifikat "${certName}" (No: ${cert?.certificate_number || '-'}) milik karyawan ${empName}.`,
             req
         });
 
@@ -651,8 +689,23 @@ exports.approve_certification = async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Resolve HSE Admin Name
-        let adminName = 'HSE Officer Admin';
+        // Fetch existing cert first to determine category and retain metadata
+        const { data: currentCert } = await supabase
+            .from('employee_certificates')
+            .select('notes, certificate_types(name, category)')
+            .eq('id', id)
+            .single();
+
+        const typeCat = (currentCert?.certificate_types?.category || '').toLowerCase();
+        const typeName = (currentCert?.certificate_types?.name || '').toLowerCase();
+        const rawNotes = (currentCert?.notes || '').toLowerCase();
+        const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
+                          typeName.includes('general') || typeName.includes('umum') ||
+                          rawNotes.includes('[category:general]');
+        const deptName = isGeneral ? 'HRGA' : 'HSE';
+
+        // Resolve Admin Name
+        let adminName = `${deptName} Officer Admin`;
         if (req.userId) {
             const { data: adminEmp } = await supabase.from('employees').select('nama_lengkap').eq('user_id', req.userId).maybeSingle();
             if (adminEmp && adminEmp.nama_lengkap) {
@@ -662,13 +715,6 @@ exports.approve_certification = async (req, res) => {
                 if (adminUser?.username) adminName = adminUser.username;
             }
         }
-
-        // Fetch existing cert to retain metadata
-        const { data: currentCert } = await supabase
-            .from('employee_certificates')
-            .select('notes')
-            .eq('id', id)
-            .single();
 
         const currentNotes = (currentCert?.notes || '')
             .replace(/\[STATUS:(PENDING|REJECTED|APPROVED)\]/g, '')
@@ -715,25 +761,41 @@ exports.approve_certification = async (req, res) => {
                         await mailer.sendCertApprovalEmail({
                             toEmail: empEmail,
                             employeeName: data.employees?.nama_lengkap || 'Karyawan',
-                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certName: data.certificate_types?.name || (isGeneral ? 'Sertifikat Umum' : 'Sertifikat K3'),
                             certNumber: data.certificate_number || '-',
                             adminName: adminName,
+                            certCategory: isGeneral ? 'General' : 'K3',
                             expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
                         });
                     }
 
-                    // Also notify HSE Admins
-                    const hseEmails = await mailer.getHseAdminEmails(supabase);
-                    if (hseEmails && hseEmails.length > 0) {
-                        await mailer.sendHseCertStatusNotificationEmail({
-                            toEmails: hseEmails,
-                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
-                            certName: data.certificate_types?.name || 'Sertifikat K3',
-                            certNumber: data.certificate_number || '-',
-                            adminName: adminName,
-                            status: 'APPROVED',
-                            expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
-                        });
+                    // Send verification report to responsible Admins
+                    if (isGeneral) {
+                        const hrgaEmails = await mailer.getHrgaAdminEmails(supabase);
+                        if (hrgaEmails && hrgaEmails.length > 0) {
+                            await mailer.sendHrgaCertStatusNotificationEmail({
+                                toEmails: hrgaEmails,
+                                employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                                certName: data.certificate_types?.name || 'Sertifikat Umum',
+                                certNumber: data.certificate_number || '-',
+                                adminName: adminName,
+                                status: 'APPROVED',
+                                expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
+                            });
+                        }
+                    } else {
+                        const hseEmails = await mailer.getHseAdminEmails(supabase);
+                        if (hseEmails && hseEmails.length > 0) {
+                            await mailer.sendHseCertStatusNotificationEmail({
+                                toEmails: hseEmails,
+                                employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                                certName: data.certificate_types?.name || 'Sertifikat K3',
+                                certNumber: data.certificate_number || '-',
+                                adminName: adminName,
+                                status: 'APPROVED',
+                                expiryDate: data.is_lifetime ? 'Seumur Hidup' : (data.expired_date || '-')
+                            });
+                        }
                     }
                 } catch (eErr) {
                     console.error('Silent cert approval email error:', eErr.message);
@@ -747,11 +809,11 @@ exports.approve_certification = async (req, res) => {
         await logAdminActivity({
             userId: req.userId,
             action: 'Sertifikasi Disetujui',
-            details: `Admin HSE (${adminName}) menyetujui sertifikat ${data.certificate_types?.name || 'K3'} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.`,
+            details: `Admin ${deptName} (${adminName}) menyetujui sertifikat ${data.certificate_types?.name || deptName} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.`,
             req
         });
 
-        res.json({ message: 'Sertifikat karyawan berhasil diterima & diverifikasi oleh HSE.', certificate: formatCert(data) });
+        res.json({ message: `Sertifikat karyawan berhasil diterima & diverifikasi oleh ${deptName}.`, certificate: formatCert(data) });
     } catch (err) {
         console.error('Approve certificate error:', err);
         res.status(500).json({ error: err.message });
@@ -765,8 +827,27 @@ exports.reject_certification = async (req, res) => {
         const { id } = req.params;
         const { reason } = req.body || {};
 
-        // Resolve HSE Admin Name
-        let adminName = 'HSE Officer Admin';
+        if (!reason || !reason.trim()) {
+            return res.status(400).json({ error: 'Alasan penolakan sertifikat wajib diisi agar karyawan mengetahui penyebabnya.' });
+        }
+
+        // Fetch existing cert first to determine category and retain metadata
+        const { data: currentCert } = await supabase
+            .from('employee_certificates')
+            .select('notes, certificate_types(name, category)')
+            .eq('id', id)
+            .single();
+
+        const typeCat = (currentCert?.certificate_types?.category || '').toLowerCase();
+        const typeName = (currentCert?.certificate_types?.name || '').toLowerCase();
+        const rawNotes = (currentCert?.notes || '').toLowerCase();
+        const isGeneral = typeCat.includes('general') || typeCat.includes('umum') || 
+                          typeName.includes('general') || typeName.includes('umum') ||
+                          rawNotes.includes('[category:general]');
+        const deptName = isGeneral ? 'HRGA' : 'HSE';
+
+        // Resolve Admin Name
+        let adminName = `${deptName} Officer Admin`;
         if (req.userId) {
             const { data: adminEmp } = await supabase.from('employees').select('nama_lengkap').eq('user_id', req.userId).maybeSingle();
             if (adminEmp && adminEmp.nama_lengkap) {
@@ -776,12 +857,6 @@ exports.reject_certification = async (req, res) => {
                 if (adminUser?.username) adminName = adminUser.username;
             }
         }
-
-        const { data: currentCert } = await supabase
-            .from('employee_certificates')
-            .select('notes')
-            .eq('id', id)
-            .single();
 
         const currentNotes = (currentCert?.notes || '')
             .replace(/\[STATUS:(PENDING|REJECTED|APPROVED)\]/g, '')
@@ -829,25 +904,41 @@ exports.reject_certification = async (req, res) => {
                         await mailer.sendCertRejectionEmail({
                             toEmail: empEmail,
                             employeeName: data.employees?.nama_lengkap || 'Karyawan',
-                            certName: data.certificate_types?.name || 'Sertifikat K3',
+                            certName: data.certificate_types?.name || (isGeneral ? 'Sertifikat Umum' : 'Sertifikat K3'),
                             certNumber: data.certificate_number || '-',
                             adminName: adminName,
-                            reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
+                            certCategory: isGeneral ? 'General' : 'K3',
+                            reason: reason || (isGeneral ? 'Dokumen belum memenuhi kelayakan verifikasi HRGA.' : 'Dokumen belum memenuhi standar verifikasi legalitas K3.')
                         });
                     }
 
-                    // Also notify HSE Admins
-                    const hseEmails = await mailer.getHseAdminEmails(supabase);
-                    if (hseEmails && hseEmails.length > 0) {
-                        await mailer.sendHseCertStatusNotificationEmail({
-                            toEmails: hseEmails,
-                            employeeName: data.employees?.nama_lengkap || 'Karyawan',
-                            certName: data.certificate_types?.name || 'Sertifikat K3',
-                            certNumber: data.certificate_number || '-',
-                            adminName: adminName,
-                            status: 'REJECTED',
-                            reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
-                        });
+                    // Send rejection report to responsible Admins
+                    if (isGeneral) {
+                        const hrgaEmails = await mailer.getHrgaAdminEmails(supabase);
+                        if (hrgaEmails && hrgaEmails.length > 0) {
+                            await mailer.sendHrgaCertStatusNotificationEmail({
+                                toEmails: hrgaEmails,
+                                employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                                certName: data.certificate_types?.name || 'Sertifikat Umum',
+                                certNumber: data.certificate_number || '-',
+                                adminName: adminName,
+                                status: 'REJECTED',
+                                reason: reason || 'Dokumen belum memenuhi kelayakan verifikasi HRGA.'
+                            });
+                        }
+                    } else {
+                        const hseEmails = await mailer.getHseAdminEmails(supabase);
+                        if (hseEmails && hseEmails.length > 0) {
+                            await mailer.sendHseCertStatusNotificationEmail({
+                                toEmails: hseEmails,
+                                employeeName: data.employees?.nama_lengkap || 'Karyawan',
+                                certName: data.certificate_types?.name || 'Sertifikat K3',
+                                certNumber: data.certificate_number || '-',
+                                adminName: adminName,
+                                status: 'REJECTED',
+                                reason: reason || 'Dokumen belum memenuhi standar verifikasi legalitas K3.'
+                            });
+                        }
                     }
                 } catch (eErr) {
                     console.error('Silent cert rejection email error:', eErr.message);
@@ -861,12 +952,12 @@ exports.reject_certification = async (req, res) => {
         await logAdminActivity({
             userId: req.userId,
             action: 'Sertifikasi Ditolak',
-            details: `Admin HSE (${adminName}) menolak sertifikat ${data.certificate_types?.name || 'K3'} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.${reason ? ' Alasan: ' + reason : ''}`,
+            details: `Admin ${deptName} (${adminName}) menolak sertifikat ${data.certificate_types?.name || deptName} untuk karyawan ${data.employees?.nama_lengkap || 'Karyawan'}.${reason ? ' Alasan: ' + reason : ''}`,
             status: 'Warning',
             req
         });
 
-        res.json({ message: 'Permohonan sertifikat telah ditolak.', certificate: formatCert(data) });
+        res.json({ message: `Permohonan sertifikat telah ditolak oleh Admin ${deptName}.`, certificate: formatCert(data) });
     } catch (err) {
         console.error('Reject certificate error:', err);
         res.status(500).json({ error: err.message });

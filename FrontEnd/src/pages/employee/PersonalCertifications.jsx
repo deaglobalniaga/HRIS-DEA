@@ -448,16 +448,38 @@ const PersonalCertifications = () => {
         </div>
       </div>
 
-      {/* 4. HSE Compliance Info Box */}
-      <div className="bg-gradient-to-r from-red-50 to-orange-50/50 border border-red-200/80 rounded-3xl p-5 flex items-start gap-4 shadow-2xs">
-        <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-900 flex items-center justify-center shrink-0 mt-0.5">
-          <HelpCircle size={22} />
+      {/* 4. Dual Compliance & General Certification Info Boxes */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Card 1: Ketentuan Lisensi & Sertifikasi K3 */}
+        <div className="bg-gradient-to-br from-red-50 via-rose-50/60 to-amber-50/40 border border-red-200/90 rounded-3xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+          <div className="w-10 h-10 rounded-2xl bg-red-100 text-red-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+            <Shield size={20} className="text-red-700" />
+          </div>
+          <div className="flex-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-black text-red-950 text-xs sm:text-sm">Ketentuan Verifikasi & Lisensi K3</h3>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-red-100 text-red-800 border border-red-200 shrink-0 uppercase tracking-wider">Wewenang HSE</span>
+            </div>
+            <p className="text-red-900/85 font-medium mt-1.5 leading-relaxed text-[11px] sm:text-xs">
+              Sertifikat K3 (K3 Umum, POP, POM, First Aid, Lisensi Alat Berat) diverifikasi oleh <strong>HSE Compliance Officer</strong> sebagai syarat wajib kelaikan dan kepatuhan keselamatan operasional di site pertambangan.
+            </p>
+          </div>
         </div>
-        <div className="flex-1 text-xs">
-          <h3 className="font-black text-red-950 text-sm">Ketentuan Verifikasi & Standar Lisensi K3</h3>
-          <p className="text-red-900/80 font-medium mt-1 leading-relaxed">
-            Seluruh berkas sertifikat yang Anda unggah otomatis terhubung ke <strong>Matriks Sertifikasi HSE</strong> untuk diperiksa keasliannya oleh HSE Compliance Officer sebelum diverifikasi sebagai syarat operasional di site pertambangan.
-          </p>
+
+        {/* Card 2: Ketentuan Sertifikasi Umum / Pelatihan HRGA */}
+        <div className="bg-gradient-to-br from-blue-50 via-sky-50/60 to-indigo-50/40 border border-blue-200/90 rounded-3xl p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+          <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-900 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+            <Award size={20} className="text-blue-700" />
+          </div>
+          <div className="flex-1 text-xs">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-black text-blue-950 text-xs sm:text-sm">Ketentuan Sertifikasi Umum & Pelatihan</h3>
+              <span className="px-2 py-0.5 rounded-full text-[9px] font-black bg-blue-100 text-blue-800 border border-blue-200 shrink-0 uppercase tracking-wider">Wewenang HRGA</span>
+            </div>
+            <p className="text-blue-900/85 font-medium mt-1.5 leading-relaxed text-[11px] sm:text-xs">
+              Sertifikat kompetensi umum, pelatihan teknis, manajerial, bahasa, IT, dan pengembangan diri diverifikasi oleh <strong>Tim HRGA</strong> untuk pembaharuan portofolio talenta dan catatan karir karyawan.
+            </p>
+          </div>
         </div>
       </div>
 

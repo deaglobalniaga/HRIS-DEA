@@ -152,19 +152,24 @@ const Attendance = () => {
         setAttendanceMode('already_in');
         setScheduleStatusMessage(`Sudah Absen Masuk (${formatTimeStr(myToday.check_in_time)} WITA) • Jadwal Pulang: ${companySettings.checkOutStart || '17:00'} WITA`);
       }
-    } else if (currentTotalMins >= inStart && currentTotalMins <= inLateLimit) {
+    } else if (currentTotalMins >= inStart && currentTotalMins < outStart) {
       setAttendanceMode('in');
       if (currentTotalMins > inEnd) {
-        setScheduleStatusMessage(`Jadwal Masuk (Terlambat) • Batas ${companySettings.checkInEnd || '08:00'} (+${maxLate}m toleransi)`);
+        setScheduleStatusMessage(`Jadwal Masuk (Terlambat) • Jam: ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} WITA (Presensi tetap dibuka dan tercatat Terlambat)`);
       } else {
         setScheduleStatusMessage(`Jadwal Masuk Tepat Waktu • ${companySettings.checkInStart || '06:00'} - ${companySettings.checkInEnd || '08:00'} WITA`);
       }
     } else if (currentTotalMins >= outStart && currentTotalMins <= outEnd) {
-      setAttendanceMode('out');
-      setScheduleStatusMessage(`Jadwal Presensi Pulang • ${companySettings.checkOutStart || '17:00'} - ${companySettings.checkOutEnd || '22:00'} WITA`);
+      if (!myToday?.has_checked_in) {
+        setAttendanceMode('in');
+        setScheduleStatusMessage(`Jadwal Masuk (Terlambat) • Jam: ${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} WITA (Tercatat Terlambat)`);
+      } else {
+        setAttendanceMode('out');
+        setScheduleStatusMessage(`Jadwal Presensi Pulang • ${companySettings.checkOutStart || '17:00'} - ${companySettings.checkOutEnd || '22:00'} WITA`);
+      }
     } else {
       setAttendanceMode('locked');
-      setScheduleStatusMessage(`Di Luar Jam Presensi (${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} WITA) • Masuk: ${companySettings.checkInStart || '06:00'}-${companySettings.checkInEnd || '08:00'} | Pulang: ${companySettings.checkOutStart || '17:00'}-${companySettings.checkOutEnd || '22:00'} WITA`);
+      setScheduleStatusMessage(`Di Luar Jam Operasional (${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} WITA) • Jadwal: ${companySettings.checkInStart || '06:00'}-${companySettings.checkOutEnd || '22:00'} WITA`);
     }
   }, [currentTime, companySettings, myToday]);
 

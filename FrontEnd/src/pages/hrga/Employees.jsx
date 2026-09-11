@@ -208,8 +208,8 @@ const Employees = ({ readOnly = false }) => {
         }
     };
 
-    const handleAddEmployee = async (e) => {
-        e.preventDefault();
+    const handleNextAddStep = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
         setMessage('');
 
         if (wizardStep === 1) {
@@ -219,7 +219,7 @@ const Employees = ({ readOnly = false }) => {
             }
             const rawNik = String(empForm.nik || '').replace(/\D/g, '');
             if (!rawNik || rawNik.length < 16) {
-                addToast('NIK wajib 16 digit angka', 'error');
+                addToast(`NIK wajib 16 digit angka (saat ini ${rawNik ? rawNik.length : 0} digit)`, 'error');
                 return;
             }
             if (!empForm.tempat_lahir || !empForm.tempat_lahir.trim()) {
@@ -252,7 +252,7 @@ const Employees = ({ readOnly = false }) => {
                 return;
             }
             if (!empForm.jurusan || !empForm.jurusan.trim()) {
-                addToast('Jurusan pendidikan wajib diisi', 'error');
+                addToast('Jurusan pendidikan wajib diisi (silakan gulir ke bawah)', 'error');
                 return;
             }
             if (!empForm.kontak_darurat || !empForm.kontak_darurat.trim()) {
@@ -332,6 +332,144 @@ const Employees = ({ readOnly = false }) => {
             setWizardStep(3);
             return;
         }
+    };
+
+    const handleNextEditStep = (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        setMessage('');
+
+        if (!selectedEmp) return;
+
+        if (editWizardStep === 1) {
+            if (!selectedEmp.nama && !selectedEmp.nama_lengkap) {
+                addToast('Nama lengkap karyawan wajib diisi', 'error');
+                return;
+            }
+            const rawNik = String(selectedEmp.nik || selectedEmp.no_ktp || '').replace(/\D/g, '');
+            if (!rawNik || rawNik.length < 16) {
+                addToast(`NIK harus 16 digit angka (saat ini ${rawNik ? rawNik.length : 0} digit)`, 'error');
+                return;
+            }
+            if (!selectedEmp.tempat_lahir || !String(selectedEmp.tempat_lahir).trim()) {
+                addToast('Tempat lahir wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.tanggal_lahir) {
+                addToast('Tanggal lahir wajib diisi', 'error');
+                return;
+            }
+            const rawHp = String(selectedEmp.no_handphone || '').replace(/\D/g, '');
+            if (!rawHp || rawHp.length < 10) {
+                addToast('Nomor handphone / WhatsApp minimal 10 digit', 'error');
+                return;
+            }
+            if (!selectedEmp.alamat || !String(selectedEmp.alamat).trim()) {
+                addToast('Alamat domisili lengkap wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.agama) {
+                addToast('Agama wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.status_perkawinan) {
+                addToast('Status perkawinan wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.pendidikan) {
+                addToast('Pendidikan terakhir wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.jurusan || !String(selectedEmp.jurusan).trim()) {
+                addToast('Jurusan pendidikan wajib diisi (silakan gulir ke bawah pada form)', 'error');
+                return;
+            }
+            if (!selectedEmp.kontak_darurat || !String(selectedEmp.kontak_darurat).trim()) {
+                addToast('Nama kontak darurat wajib diisi (silakan gulir ke bawah pada form)', 'error');
+                return;
+            }
+            if (!selectedEmp.hubungan || !String(selectedEmp.hubungan).trim()) {
+                addToast('Hubungan kontak darurat wajib diisi (silakan gulir ke bawah pada form)', 'error');
+                return;
+            }
+            const rawKdHp = String(selectedEmp.kontak_darurat_nomor || '').replace(/\D/g, '');
+            if (!rawKdHp || rawKdHp.length < 10) {
+                addToast('Nomor telepon kontak darurat wajib minimal 10 digit (silakan gulir ke bawah pada form)', 'error');
+                return;
+            }
+            setEditWizardStep(2);
+            return;
+        }
+
+        if (editWizardStep === 2) {
+            if (!selectedEmp.perusahaan) {
+                addToast('Perusahaan legal wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.penempatan || !String(selectedEmp.penempatan).trim()) {
+                addToast('Lokasi penempatan kerja wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.department && !selectedEmp.departments?.name) {
+                addToast('Departemen karyawan wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.cost_center || !String(selectedEmp.cost_center).trim()) {
+                addToast('Cost center wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.jabatan || !String(selectedEmp.jabatan).trim()) {
+                addToast('Jabatan karyawan wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.level) {
+                addToast('Level jabatan wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.status_karyawan) {
+                addToast('Status karyawan wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.nomor_pegawai) {
+                addToast('Nomor pegawai / NIK internal wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.nomor_pkwt) {
+                addToast('Nomor PKWT / Kontrak kerja wajib diisi', 'error');
+                return;
+            }
+            if (!selectedEmp.join_date) {
+                addToast('Tanggal bergabung (Join Date) wajib diisi', 'error');
+                return;
+            }
+            if (selectedEmp.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedEmp.email)) {
+                addToast('Format email pribadi tidak valid', 'error');
+                return;
+            }
+            if (selectedEmp.email_office && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedEmp.email_office)) {
+                addToast('Format email kantor tidak valid', 'error');
+                return;
+            }
+            if (!selectedEmp.role) {
+                addToast('Role hak akses sistem wajib dipilih', 'error');
+                return;
+            }
+            if (!selectedEmp.roster_type) {
+                addToast('Tipe roster kerja wajib dipilih', 'error');
+                return;
+            }
+            setEditWizardStep(3);
+            return;
+        }
+    };
+
+    const handleAddEmployee = async (e) => {
+        e.preventDefault();
+        setMessage('');
+
+        if (wizardStep < 3) {
+            handleNextAddStep(e);
+            return;
+        }
 
         // Step 3 Validation
         if (!empForm.status_pajak) {
@@ -399,124 +537,8 @@ const Employees = ({ readOnly = false }) => {
 
         if (!selectedEmp) return;
 
-        if (editWizardStep === 1) {
-            if (!selectedEmp.nama && !selectedEmp.nama_lengkap) {
-                addToast('Nama lengkap karyawan wajib diisi', 'error');
-                return;
-            }
-            const rawNik = String(selectedEmp.nik || selectedEmp.no_ktp || '').replace(/\D/g, '');
-            if (!rawNik || rawNik.length < 16) {
-                addToast('NIK harus 16 digit angka', 'error');
-                return;
-            }
-            if (!selectedEmp.tempat_lahir) {
-                addToast('Tempat lahir wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.tanggal_lahir) {
-                addToast('Tanggal lahir wajib diisi', 'error');
-                return;
-            }
-            const rawHp = String(selectedEmp.no_handphone || '').replace(/\D/g, '');
-            if (!rawHp || rawHp.length < 10) {
-                addToast('Nomor handphone / WhatsApp minimal 10 digit', 'error');
-                return;
-            }
-            if (!selectedEmp.alamat) {
-                addToast('Alamat domisili lengkap wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.agama) {
-                addToast('Agama wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.status_perkawinan) {
-                addToast('Status perkawinan wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.pendidikan) {
-                addToast('Pendidikan terakhir wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.jurusan) {
-                addToast('Jurusan pendidikan wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.kontak_darurat) {
-                addToast('Nama kontak darurat wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.hubungan) {
-                addToast('Hubungan kontak darurat wajib diisi', 'error');
-                return;
-            }
-            const rawKdHp = String(selectedEmp.kontak_darurat_nomor || '').replace(/\D/g, '');
-            if (!rawKdHp || rawKdHp.length < 10) {
-                addToast('Nomor telepon kontak darurat wajib minimal 10 digit', 'error');
-                return;
-            }
-            setEditWizardStep(2);
-            return;
-        }
-
-        if (editWizardStep === 2) {
-            if (!selectedEmp.perusahaan) {
-                addToast('Perusahaan legal wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.penempatan) {
-                addToast('Lokasi penempatan kerja wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.department && !selectedEmp.departments?.name) {
-                addToast('Departemen karyawan wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.cost_center) {
-                addToast('Cost center wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.jabatan) {
-                addToast('Jabatan karyawan wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.level) {
-                addToast('Level jabatan wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.status_karyawan) {
-                addToast('Status karyawan wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.nomor_pegawai) {
-                addToast('Nomor pegawai / NIK internal wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.nomor_pkwt) {
-                addToast('Nomor PKWT / Kontrak kerja wajib diisi', 'error');
-                return;
-            }
-            if (!selectedEmp.join_date) {
-                addToast('Tanggal bergabung (Join Date) wajib diisi', 'error');
-                return;
-            }
-            if (selectedEmp.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedEmp.email)) {
-                addToast('Format email pribadi tidak valid', 'error');
-                return;
-            }
-            if (selectedEmp.email_office && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(selectedEmp.email_office)) {
-                addToast('Format email kantor tidak valid', 'error');
-                return;
-            }
-            if (!selectedEmp.role) {
-                addToast('Role hak akses sistem wajib dipilih', 'error');
-                return;
-            }
-            if (!selectedEmp.roster_type) {
-                addToast('Tipe roster kerja wajib dipilih', 'error');
-                return;
-            }
-            setEditWizardStep(3);
+        if (editWizardStep < 3) {
+            handleNextEditStep(e);
             return;
         }
 
@@ -1198,7 +1220,7 @@ const Employees = ({ readOnly = false }) => {
                         </div>
 
                         <div className="overflow-y-auto p-8 bg-white flex-1">
-                            <form id="edit-emp-form" onSubmit={handleEditEmployee} className="space-y-6">
+                            <form id="edit-emp-form" noValidate onSubmit={handleEditEmployee} className="space-y-6">
                                 {message && (
                                     <div className={`p-4 text-sm font-bold rounded-xl flex items-center gap-3 ${message.includes('Gagal') ? 'bg-red-50 text-red-900 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
                                         <AlertCircle size={18} /> {message}
@@ -1515,13 +1537,15 @@ const Employees = ({ readOnly = false }) => {
 
                             <div className="flex gap-2">
                                 <button type="button" onClick={() => { setShowEditModal(false); setSelectedEmp(null); }} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-100 transition">Batal</button>
-                                <button type="submit" form="edit-emp-form" disabled={submitting} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition disabled:opacity-50 flex items-center gap-2">
-                                    {editWizardStep < 3 ? (
-                                        <>Lanjut <ArrowRight size={16} /></>
-                                    ) : (
-                                        submitting ? 'Menyimpan...' : 'Simpan Perubahan'
-                                    )}
-                                </button>
+                                {editWizardStep < 3 ? (
+                                    <button type="button" onClick={handleNextEditStep} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition flex items-center gap-2">
+                                        Lanjut <ArrowRight size={16} />
+                                    </button>
+                                ) : (
+                                    <button type="submit" form="edit-emp-form" disabled={submitting} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition disabled:opacity-50 flex items-center gap-2">
+                                        {submitting ? 'Menyimpan...' : 'Simpan Perubahan'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -1564,7 +1588,7 @@ const Employees = ({ readOnly = false }) => {
                         </div>
 
                         <div className="overflow-y-auto p-8 bg-white flex-1">
-                            <form id="add-emp-form" onSubmit={handleAddEmployee} className="space-y-6">
+                            <form id="add-emp-form" noValidate onSubmit={handleAddEmployee} className="space-y-6">
                                 {message && (
                                     <div className={`p-4 text-sm font-bold rounded-xl flex items-center gap-3 ${message.includes('Gagal') ? 'bg-red-50 text-red-900 border border-red-100' : 'bg-green-50 text-green-700 border border-green-100'}`}>
                                         <AlertCircle size={18} /> {message}
@@ -1865,13 +1889,15 @@ const Employees = ({ readOnly = false }) => {
 
                             <div className="flex gap-2">
                                 <button type="button" onClick={() => setShowAddModal(false)} className="px-6 py-2 bg-white border border-slate-200 text-slate-700 font-bold rounded-xl hover:bg-slate-100 transition">Batal</button>
-                                <button type="submit" form="add-emp-form" disabled={submitting} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition disabled:opacity-50 flex items-center gap-2">
-                                    {wizardStep < 3 ? (
-                                        <>Lanjut <ArrowRight size={16} /></>
-                                    ) : (
-                                        submitting ? 'Menyimpan...' : 'Simpan Karyawan'
-                                    )}
-                                </button>
+                                {wizardStep < 3 ? (
+                                    <button type="button" onClick={handleNextAddStep} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition flex items-center gap-2">
+                                        Lanjut <ArrowRight size={16} />
+                                    </button>
+                                ) : (
+                                    <button type="submit" form="add-emp-form" disabled={submitting} className="px-6 py-2 bg-red-900 text-white font-bold rounded-xl hover:bg-red-800 transition disabled:opacity-50 flex items-center gap-2">
+                                        {submitting ? 'Menyimpan...' : 'Simpan Karyawan'}
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </div>

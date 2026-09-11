@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Calendar as CalendarIcon, Users, Clock, AlertCircle, Plus, X, ChevronLeft, 
+import {
+  Calendar as CalendarIcon, Users, Clock, AlertCircle, Plus, X, ChevronLeft,
   ChevronRight, Bookmark, MapPin, Check, Info, Tag, Layers, CalendarCheck,
   Edit, Trash2, AlertTriangle, Sparkles, Eye
 } from 'lucide-react';
@@ -29,13 +29,13 @@ const LeaveTimeline = () => {
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  
+
   // Modals
   const [showAddAgendaModal, setShowAddAgendaModal] = useState(false);
   const [showEditAgendaModal, setShowEditAgendaModal] = useState(false);
   const [showClearMonthModal, setShowClearMonthModal] = useState(false);
   const [agendaToDelete, setAgendaToDelete] = useState(null);
-  
+
   // Forms & Action States
   const [agendaForm, setAgendaForm] = useState({
     title: '',
@@ -270,16 +270,16 @@ const LeaveTimeline = () => {
 
   // Calendar Helpers
   const monthNames = [
-    "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+    "Januari", "Februari", "Maret", "April", "Mei", "Juni",
     "Juli", "Agustus", "September", "Oktober", "November", "Desember"
   ];
-  
+
   const getDaysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
   const getFirstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
 
   const daysInMonthCount = getDaysInMonth(currentMonth, currentYear);
   const firstDay = getFirstDayOfMonth(currentMonth, currentYear);
-  
+
   const daysArray = Array.from({ length: daysInMonthCount }, (_, i) => i + 1);
   const emptySlots = Array.from({ length: firstDay }, (_, i) => i);
 
@@ -314,7 +314,7 @@ const LeaveTimeline = () => {
   };
 
   const selectedDateEvents = selectedDate ? getEventsForDate(selectedDate) : [];
-  
+
   // Format helpers
   const getEventBadge = (item) => {
     const type = (item.type || '').toLowerCase();
@@ -337,7 +337,7 @@ const LeaveTimeline = () => {
     <div className="w-full flex flex-col gap-5 sm:gap-6 min-h-[85vh] pb-32 sm:pb-12">
       {/* Full Width Calendar */}
       <div className="w-full flex flex-col gap-4 sm:gap-5">
-        
+
         {/* Alerts / Warnings for Concurrent Leaves */}
         {(() => {
           let maxLeave = 0;
@@ -346,7 +346,7 @@ const LeaveTimeline = () => {
             let leaveCount = eventsOnDay.filter(e => e.type === 'leave' || (e.title || '').toLowerCase().includes('cuti')).length;
             if (leaveCount > maxLeave) maxLeave = leaveCount;
           });
-          
+
           if (maxLeave >= 3) {
             return (
               <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 sm:px-4 sm:py-3 rounded-xl sm:rounded-2xl flex items-center gap-2.5 sm:gap-3 font-bold text-[11px] sm:text-xs shadow-sm">
@@ -380,7 +380,7 @@ const LeaveTimeline = () => {
 
               {/* Month Navigator */}
               <div className="flex items-center justify-between sm:justify-center gap-1.5 bg-white px-2 py-1.5 rounded-xl sm:rounded-2xl border border-slate-200 shadow-2xs shrink-0 self-stretch sm:self-auto">
-                <button 
+                <button
                   onClick={prevMonth}
                   className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
                   title="Bulan Sebelumnya"
@@ -390,7 +390,7 @@ const LeaveTimeline = () => {
                 <span className="text-xs font-black text-slate-800 px-2 min-w-[110px] text-center whitespace-nowrap">
                   {monthNames[currentMonth]} {currentYear}
                 </span>
-                <button 
+                <button
                   onClick={nextMonth}
                   className="w-8 h-8 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
                   title="Bulan Berikutnya"
@@ -424,14 +424,14 @@ const LeaveTimeline = () => {
               {/* Action Buttons: Responsive stacking on mobile */}
               {canManageAgenda && (
                 <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
-                  <button 
+                  <button
                     onClick={() => setShowClearMonthModal(true)}
                     className="flex-1 sm:flex-none bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer hover:border-rose-300 whitespace-nowrap"
                     title={`Bersihkan seluruh agenda operasional rapat/kegiatan pada bulan ${monthNames[currentMonth]} ${currentYear}`}
                   >
                     <Trash2 size={13} className="text-rose-600" /> Bersihkan Agenda
                   </button>
-                  <button 
+                  <button
                     onClick={() => setShowAddAgendaModal(true)}
                     className="flex-1 sm:flex-none bg-red-700 hover:bg-red-800 text-white px-3.5 py-2 rounded-xl text-[11px] sm:text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm shadow-red-700/20 cursor-pointer whitespace-nowrap"
                   >
@@ -453,18 +453,18 @@ const LeaveTimeline = () => {
               <div>Jum</div>
               <div className="text-amber-600">Sab</div>
             </div>
-            
+
             {/* Calendar Grid */}
             <div className="grid grid-cols-7 gap-1 sm:gap-2 flex-1">
               {emptySlots.map((_, i) => (
                 <div key={`empty-${i}`} className="p-1 sm:p-2 border border-transparent min-h-[52px] sm:min-h-[90px]"></div>
               ))}
-              
+
               {daysArray.map(day => {
                 const empOnLeave = getEventsForDate(day);
                 const isSelected = selectedDate === day;
                 const isToday = new Date().getDate() === day && new Date().getMonth() === currentMonth && new Date().getFullYear() === currentYear;
-                
+
                 // Group events cleanly by legend type
                 const cutiEvents = empOnLeave.filter(e => {
                   const t = (e.type || '').toLowerCase();
@@ -504,24 +504,22 @@ const LeaveTimeline = () => {
                 }
 
                 return (
-                  <div 
-                    key={day} 
+                  <div
+                    key={day}
                     onClick={() => setSelectedDate(day)}
-                    className={`relative p-1 sm:p-2.5 border rounded-xl sm:rounded-2xl cursor-pointer transition-all min-h-[52px] sm:min-h-[96px] flex flex-col justify-between group shadow-2xs ${
-                      isSelected 
-                        ? 'ring-2 ring-red-900 border-red-900 shadow-md bg-white' 
+                    className={`relative p-1 sm:p-2.5 border rounded-xl sm:rounded-2xl cursor-pointer transition-all min-h-[52px] sm:min-h-[96px] flex flex-col justify-between group shadow-2xs ${isSelected
+                        ? 'ring-2 ring-red-900 border-red-900 shadow-md bg-white'
                         : 'border-slate-200/80'
-                    } ${bgClass}`}
+                      } ${bgClass}`}
                   >
                     {/* Header with Date Number */}
                     <div className="flex items-center justify-between">
-                      <span className={`text-[11px] sm:text-xs font-black transition-all ${
-                        isToday 
-                          ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-700 text-white flex items-center justify-center text-[9px] sm:text-[10px] shadow-xs' 
-                          : isSelected 
-                          ? 'text-red-900 font-extrabold sm:text-sm' 
-                          : 'text-slate-800'
-                      }`}>
+                      <span className={`text-[11px] sm:text-xs font-black transition-all ${isToday
+                          ? 'w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-red-700 text-white flex items-center justify-center text-[9px] sm:text-[10px] shadow-xs'
+                          : isSelected
+                            ? 'text-red-900 font-extrabold sm:text-sm'
+                            : 'text-slate-800'
+                        }`}>
                         {day}
                       </span>
                       {empOnLeave.length > 0 && (
@@ -600,7 +598,7 @@ const LeaveTimeline = () => {
               })}
             </div>
           </div>
-          
+
           {/* Details Bar for Selected Date - Shown when a date cell is clicked */}
           {selectedDate && (
             <div className="border-t border-slate-200 p-5 bg-slate-50 animate-in slide-in-from-bottom-3">
@@ -614,7 +612,7 @@ const LeaveTimeline = () => {
                     Daftar lengkap karyawan yang cuti, off roster, izin/sakit, dan agenda operasional pada tanggal ini.
                   </p>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedDate(null)}
                   className="text-xs font-bold text-slate-500 hover:text-slate-800 hover:underline cursor-pointer"
                 >
@@ -625,8 +623,8 @@ const LeaveTimeline = () => {
               {selectedDateEvents.length > 0 ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {selectedDateEvents.map((emp, idx) => (
-                    <div 
-                      key={idx} 
+                    <div
+                      key={idx}
                       onClick={() => setSelectedAgendaDetail(emp)}
                       className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col justify-between shadow-2xs hover:shadow-md hover:border-red-900/40 transition cursor-pointer group"
                     >
@@ -689,7 +687,7 @@ const LeaveTimeline = () => {
                 Keterangan Penjelasan Kalender & Manajemen Cuti:
               </h4>
               <ul className="list-disc pl-4 space-y-1 text-slate-600 font-medium">
-                <li><strong>Cuti Karyawan (🟢):</strong> Pengambilan hak cuti tahunan (maksimal 12 hari kerja/tahun).</li>
+                <li><strong>Cuti Karyawan (🟢):</strong> Pengambilan hak cuti tahunan.</li>
                 <li><strong>Off / Roster Leave (🟡):</strong> Jadwal libur rotasi 8/2 (14 hari) atau hari wajib istirahat 13/1 (1 hari off) sesuai rotasi operasional lapangan.</li>
                 <li><strong>Agenda Kerja / Rapat (🔵):</strong> Jadwal agenda internal perusahaan, inspeksi lapangan HSE, rapat koordinasi, atau audit sertifikasi.</li>
                 <li><strong>Libur Nasional / Sakit (🔴):</strong> Tanggal merah resmi nasional atau karyawan yang berhalangan hadir disertai surat keterangan dokter.</li>
@@ -723,7 +721,7 @@ const LeaveTimeline = () => {
             {canManageAgenda && (
               <div className="flex items-center gap-2 shrink-0">
                 {events.filter(e => e.type === 'event' || e.is_agenda).length > 0 && (
-                  <button 
+                  <button
                     type="button"
                     onClick={() => setShowClearMonthModal(true)}
                     className="bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer hover:border-rose-300"
@@ -732,7 +730,7 @@ const LeaveTimeline = () => {
                     <Trash2 size={13} className="text-rose-600" /> Bersihkan Agenda Bulan Ini
                   </button>
                 )}
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowAddAgendaModal(true)}
                   className="bg-red-700 hover:bg-red-800 text-white px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-sm shadow-red-700/20 cursor-pointer"
@@ -770,7 +768,7 @@ const LeaveTimeline = () => {
             return (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
                 {monthAgendas.map((item, idx) => (
-                  <div 
+                  <div
                     key={item.id || idx}
                     className="bg-slate-50/70 border border-slate-200/90 rounded-2xl p-4 flex flex-col justify-between hover:bg-white hover:shadow-md hover:border-blue-300 transition-all group"
                   >
@@ -855,8 +853,8 @@ const LeaveTimeline = () => {
                 </h2>
                 <p className="text-xs font-bold text-slate-400 mt-0.5">Jadwalkan rapat, inspeksi site, atau pengumuman resmi.</p>
               </div>
-              <button 
-                onClick={() => setShowAddAgendaModal(false)} 
+              <button
+                onClick={() => setShowAddAgendaModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition cursor-pointer"
               >
                 <X size={16} />
@@ -866,18 +864,18 @@ const LeaveTimeline = () => {
             <form onSubmit={handleAddAgenda} className="p-6 space-y-4 bg-white">
               {formError && (
                 <div className="p-3 text-xs font-bold rounded-xl flex items-center gap-2 bg-rose-50 text-rose-800 border border-rose-200">
-                  <AlertCircle size={15} className="shrink-0 text-rose-600" /> 
+                  <AlertCircle size={15} className="shrink-0 text-rose-600" />
                   <span>{formError}</span>
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Judul Agenda *</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
                   value={agendaForm.title}
-                  onChange={e => setAgendaForm({...agendaForm, title: e.target.value})}
+                  onChange={e => setAgendaForm({ ...agendaForm, title: e.target.value })}
                   placeholder="Contoh: Safety Talk Mingguan Site BIB"
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition"
                 />
@@ -887,7 +885,7 @@ const LeaveTimeline = () => {
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Kategori Agenda *</label>
                 <select
                   value={agendaForm.category}
-                  onChange={e => setAgendaForm({...agendaForm, category: e.target.value})}
+                  onChange={e => setAgendaForm({ ...agendaForm, category: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                 >
                   <option value="Rapat Internal">Rapat Internal</option>
@@ -903,21 +901,21 @@ const LeaveTimeline = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Tanggal Mulai *</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     required
                     value={agendaForm.date}
-                    onChange={e => setAgendaForm({...agendaForm, date: e.target.value})}
+                    onChange={e => setAgendaForm({ ...agendaForm, date: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Tanggal Selesai (Opsional)</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     value={agendaForm.end_date}
                     min={agendaForm.date}
-                    onChange={e => setAgendaForm({...agendaForm, end_date: e.target.value})}
+                    onChange={e => setAgendaForm({ ...agendaForm, end_date: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
@@ -926,21 +924,21 @@ const LeaveTimeline = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Waktu (Jam) *</label>
-                  <input 
-                    type="time" 
+                  <input
+                    type="time"
                     required
                     value={agendaForm.time}
-                    onChange={e => setAgendaForm({...agendaForm, time: e.target.value})}
+                    onChange={e => setAgendaForm({ ...agendaForm, time: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Lokasi / Link Pertemuan *</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={agendaForm.location}
-                    onChange={e => setAgendaForm({...agendaForm, location: e.target.value})}
+                    onChange={e => setAgendaForm({ ...agendaForm, location: e.target.value })}
                     placeholder="Ruang Rapat Site / Zoom"
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition"
                   />
@@ -949,25 +947,25 @@ const LeaveTimeline = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Deskripsi & Catatan</label>
-                <textarea 
+                <textarea
                   rows="2"
                   value={agendaForm.description}
-                  onChange={e => setAgendaForm({...agendaForm, description: e.target.value})}
+                  onChange={e => setAgendaForm({ ...agendaForm, description: e.target.value })}
                   placeholder="Detail agenda, pembicara, atau perlengkapan yang perlu disiapkan..."
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition resize-none"
                 ></textarea>
               </div>
 
               <div className="pt-3 flex gap-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowAddAgendaModal(false)}
                   className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer"
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={submitting}
                   className="flex-1 py-2.5 bg-red-700 hover:bg-red-800 text-white font-bold text-xs rounded-xl transition disabled:opacity-50 shadow-md cursor-pointer"
                 >
@@ -989,8 +987,8 @@ const LeaveTimeline = () => {
                 {getEventBadge(selectedAgendaDetail)}
                 <span className="text-xs font-bold text-slate-500">Rincian Agenda / Cuti</span>
               </div>
-              <button 
-                onClick={() => setSelectedAgendaDetail(null)} 
+              <button
+                onClick={() => setSelectedAgendaDetail(null)}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition cursor-pointer"
               >
                 <X size={15} />
@@ -1038,7 +1036,7 @@ const LeaveTimeline = () => {
               <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                 {(selectedAgendaDetail.is_agenda || selectedAgendaDetail.type === 'event' || !selectedAgendaDetail.is_leave) && canManageAgenda ? (
                   <div className="flex items-center gap-2">
-                    <button 
+                    <button
                       type="button"
                       onClick={() => {
                         const target = selectedAgendaDetail;
@@ -1049,7 +1047,7 @@ const LeaveTimeline = () => {
                     >
                       <Trash2 size={13} className="text-rose-600" /> Hapus
                     </button>
-                    <button 
+                    <button
                       type="button"
                       onClick={() => openEditModal(selectedAgendaDetail)}
                       className="px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
@@ -1059,7 +1057,7 @@ const LeaveTimeline = () => {
                     </button>
                   </div>
                 ) : <div />}
-                <button 
+                <button
                   type="button"
                   onClick={() => setSelectedAgendaDetail(null)}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-bold rounded-xl transition cursor-pointer"
@@ -1085,8 +1083,8 @@ const LeaveTimeline = () => {
                 </h2>
                 <p className="text-xs font-bold text-slate-400 mt-0.5">Perbarui jadwal, lokasi, atau keterangan agenda.</p>
               </div>
-              <button 
-                onClick={() => setShowEditAgendaModal(false)} 
+              <button
+                onClick={() => setShowEditAgendaModal(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition cursor-pointer"
               >
                 <X size={16} />
@@ -1096,18 +1094,18 @@ const LeaveTimeline = () => {
             <form onSubmit={handleUpdateAgenda} className="p-6 space-y-4 bg-white">
               {editFormError && (
                 <div className="p-3 text-xs font-bold rounded-xl flex items-center gap-2 bg-rose-50 text-rose-800 border border-rose-200">
-                  <AlertCircle size={15} className="shrink-0 text-rose-600" /> 
+                  <AlertCircle size={15} className="shrink-0 text-rose-600" />
                   <span>{editFormError}</span>
                 </div>
               )}
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Judul Agenda *</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   required
                   value={editForm.title}
-                  onChange={e => setEditForm({...editForm, title: e.target.value})}
+                  onChange={e => setEditForm({ ...editForm, title: e.target.value })}
                   placeholder="Contoh: Safety Talk Mingguan Site BIB"
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition"
                 />
@@ -1117,7 +1115,7 @@ const LeaveTimeline = () => {
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Kategori Agenda *</label>
                 <select
                   value={editForm.category}
-                  onChange={e => setEditForm({...editForm, category: e.target.value})}
+                  onChange={e => setEditForm({ ...editForm, category: e.target.value })}
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                 >
                   <option value="Rapat Internal">Rapat Internal</option>
@@ -1133,21 +1131,21 @@ const LeaveTimeline = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Tanggal Mulai *</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     required
                     value={editForm.date}
-                    onChange={e => setEditForm({...editForm, date: e.target.value})}
+                    onChange={e => setEditForm({ ...editForm, date: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Tanggal Selesai</label>
-                  <input 
-                    type="date" 
+                  <input
+                    type="date"
                     value={editForm.end_date}
                     min={editForm.date}
-                    onChange={e => setEditForm({...editForm, end_date: e.target.value})}
+                    onChange={e => setEditForm({ ...editForm, end_date: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
@@ -1156,21 +1154,21 @@ const LeaveTimeline = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Waktu (Jam) *</label>
-                  <input 
-                    type="time" 
+                  <input
+                    type="time"
                     required
                     value={editForm.time}
-                    onChange={e => setEditForm({...editForm, time: e.target.value})}
+                    onChange={e => setEditForm({ ...editForm, time: e.target.value })}
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition cursor-pointer"
                   />
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Lokasi / Link *</label>
-                  <input 
-                    type="text" 
+                  <input
+                    type="text"
                     required
                     value={editForm.location}
-                    onChange={e => setEditForm({...editForm, location: e.target.value})}
+                    onChange={e => setEditForm({ ...editForm, location: e.target.value })}
                     placeholder="Ruang Rapat Site / Zoom"
                     className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-bold text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition"
                   />
@@ -1179,25 +1177,25 @@ const LeaveTimeline = () => {
 
               <div>
                 <label className="block text-xs font-bold text-slate-600 uppercase tracking-wider mb-1">Deskripsi & Catatan</label>
-                <textarea 
+                <textarea
                   rows="2"
                   value={editForm.description}
-                  onChange={e => setEditForm({...editForm, description: e.target.value})}
+                  onChange={e => setEditForm({ ...editForm, description: e.target.value })}
                   placeholder="Detail agenda, pembicara, atau perlengkapan yang perlu disiapkan..."
                   className="w-full bg-slate-50 border border-slate-200 text-slate-900 font-medium text-xs rounded-xl px-3.5 py-2.5 outline-none focus:border-red-600 focus:ring-1 focus:ring-red-600 transition resize-none"
                 ></textarea>
               </div>
 
               <div className="pt-3 flex gap-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowEditAgendaModal(false)}
                   className="flex-1 py-2.5 bg-white border border-slate-200 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-50 transition cursor-pointer"
                 >
                   Batal
                 </button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={editSubmitting}
                   className="flex-1 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition disabled:opacity-50 shadow-md cursor-pointer"
                 >
@@ -1228,8 +1226,8 @@ const LeaveTimeline = () => {
                   </p>
                 </div>
               </div>
-              <button 
-                onClick={() => setShowClearMonthModal(false)} 
+              <button
+                onClick={() => setShowClearMonthModal(false)}
                 className="w-7 h-7 flex items-center justify-center rounded-full bg-rose-200/80 text-rose-800 hover:bg-rose-300 transition cursor-pointer"
               >
                 <X size={15} />
@@ -1256,7 +1254,7 @@ const LeaveTimeline = () => {
               </div>
 
               <div className="pt-2 flex gap-2.5">
-                <button 
+                <button
                   type="button"
                   onClick={() => setShowClearMonthModal(false)}
                   disabled={clearingMonth}
@@ -1264,7 +1262,7 @@ const LeaveTimeline = () => {
                 >
                   Batal
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={handleClearMonthAgendas}
                   disabled={clearingMonth}
@@ -1309,7 +1307,7 @@ const LeaveTimeline = () => {
               </p>
 
               <div className="pt-2 flex gap-2">
-                <button 
+                <button
                   type="button"
                   onClick={() => setAgendaToDelete(null)}
                   disabled={deletingAgenda}
@@ -1317,7 +1315,7 @@ const LeaveTimeline = () => {
                 >
                   Batal
                 </button>
-                <button 
+                <button
                   type="button"
                   onClick={() => handleDeleteAgenda(agendaToDelete)}
                   disabled={deletingAgenda}

@@ -1226,7 +1226,7 @@ exports.get_face_samples = async (req, res) => {
         const { id } = req.params;
         const { data: emp, error } = await supabase
             .from('employees')
-            .select('id, nama_lengkap, nomor_pegawai, jabatan, face_descriptor')
+            .select('id, nama_lengkap, nomor_pegawai, jabatan, face_descriptor, profile_photo_url')
             .eq('id', id)
             .single();
 
@@ -1249,6 +1249,10 @@ exports.get_face_samples = async (req, res) => {
             } catch (e) {
                 sampleCount = 1;
             }
+        }
+
+        if (images.length === 0 && emp.profile_photo_url) {
+            images = [emp.profile_photo_url];
         }
 
         res.json({

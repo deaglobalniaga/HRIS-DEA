@@ -156,7 +156,13 @@ exports.recognize_face = async (req, res) => {
                     const isTooClose = selfSamples.some(s => calculateFaceDistance(face_descriptor, s) < 0.12);
                     if (!isTooClose) {
                         const updatedSamples = [...selfSamples, face_descriptor];
-                        const updatedObj = { descriptors: updatedSamples, count: updatedSamples.length, updated_at: new Date().toISOString() };
+                        const existingImages = (storedRaw && Array.isArray(storedRaw.images)) ? storedRaw.images : [];
+                        const updatedObj = { 
+                            descriptors: updatedSamples, 
+                            count: updatedSamples.length, 
+                            images: existingImages, 
+                            updated_at: new Date().toISOString() 
+                        };
                         supabase.from('employees').update({ face_descriptor: updatedObj }).eq('id', selfEmp.id).then(() => {
                             invalidateCache('emp:*');
                             invalidateCache('master:enrolled_faces');
@@ -392,7 +398,13 @@ exports.clock_in_out = async (req, res) => {
                         const isTooClose = samples.some(s => calculateFaceDistance(incomingFaceDesc, s) < 0.12);
                         if (!isTooClose) {
                             const updatedSamples = [...samples, incomingFaceDesc];
-                            const updatedObj = { descriptors: updatedSamples, count: updatedSamples.length, updated_at: new Date().toISOString() };
+                            const existingImages = (storedRaw && Array.isArray(storedRaw.images)) ? storedRaw.images : [];
+                            const updatedObj = { 
+                                descriptors: updatedSamples, 
+                                count: updatedSamples.length, 
+                                images: existingImages, 
+                                updated_at: new Date().toISOString() 
+                            };
                             supabase.from('employees').update({ face_descriptor: updatedObj }).eq('id', empRecord.id).then(() => {
                                 invalidateCache('emp:*');
                                 invalidateCache('master:enrolled_faces');
@@ -547,12 +559,7 @@ exports.clock_in_out = async (req, res) => {
                 });
             }
 
-            if (currentTotalMinutes > inLateLimitMin) {
-                return res.status(400).json({
-                    message: `Presensi masuk ditolak: Batas jam masuk dan toleransi keterlambatan hari ini telah berakhir (Batas akhir: ${checkInEnd} WITA + toleransi ${maxLateMinutes} menit, waktu saat ini: ${currentTimeDisplay}). Harap hubungi HRGA.`
-                });
-            }
-
+            // Note: Allow clock-in throughout the workday, marking as 'Terlambat' rather than hard blocking
             const attendanceStatus = currentTotalMinutes > inEndMin ? 'Terlambat' : 'Hadir';
             actionType = 'Clock In';
             const { data, error } = await supabase

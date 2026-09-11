@@ -89,8 +89,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
 
-    // HSE role: can add/edit/delete and approve/reject certifications
-    // Detected by role, username ('hse_admin'), department ('HSE'/'K3'), or position/name
+    // HSE role: can manage and approve/reject K3 certifications
     const isHSERole = isSuperAdmin || (
         ['hse_admin', 'hse', 'hse_officer'].includes(role) ||
         (role.includes('hse') && !role.includes('hr')) ||
@@ -98,17 +97,18 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         username.includes('hse') ||
         dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') ||
         jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
-        name.includes('hse')
+        (name.includes('hse') && !dept.includes('hr'))
     );
 
-    // HRGA: read-only for other employees' certs; can only submit their own
-    const isHRGARole = !isSuperAdmin && !isHSERole && (
+    // HRGA role: can manage and approve/reject General certifications
+    const isHRGARole = isSuperAdmin || (
         ['admin', 'hrga_admin', 'hr_admin', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
-        role.includes('hr') || role.includes('admin') ||
+        (role.includes('hr') && !role.includes('hse')) ||
+        (role.includes('admin') && !role.includes('hse')) ||
         username === 'admin' || dept.includes('hr') || dept.includes('hrga')
     );
 
-    // canManage: can VIEW all cert data (both HSE and HRGA), but actions differ
+    // canManage: can VIEW all cert data (both HSE and HRGA), but actions differ by category
     const canManage = isHSERole || isHRGARole;
 
     const [certifications, setCertifications] = useState([]);
@@ -153,8 +153,13 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [certToDelete, setCertToDelete] = useState(null);
     const [deletingCert, setDeletingCert] = useState(false);
     
+    // Modal Tolak Sertifikat State
+    const [rejectModalCert, setRejectModalCert] = useState(null);
+    const [rejectReason, setRejectReason] = useState('');
+    const [rejectError, setRejectError] = useState('');
+    
     // LinkedIn-Style Form state
-    const [certCategory, setCertCategory] = useState(isHRGARole ? 'General' : 'K3');
+    const [certCategory, setCertCategory] = useState(isHRGARole && !isHSERole ? 'General' : 'K3');
     const [selectedUserId, setSelectedUserId] = useState('');
     const [namaSertifikat, setNamaSertifikat] = useState('');
     const [certNumber, setCertNumber] = useState('');
@@ -296,7 +301,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
             fetchData();
         } catch (err) {
             console.error(err);
-            addToast('Gagal menghapus sertifikat', 'error');
+            addToast(err.response?.data?.error || err.response?.data?.message || 'Gagal menghapus sertifikat', 'error');
         } finally {
             setDeletingCert(false);
         }
@@ -310,22 +315,34 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
             fetchData();
         } catch (err) {
             console.error(err);
-            addToast('Gagal menyetujui sertifikat', 'error');
+            addToast(err.response?.data?.error || err.response?.data?.message || 'Gagal menyetujui sertifikat', 'error');
         } finally {
             setActionLoading(null);
         }
     };
 
-    const handleReject = async (certId) => {
-        const reason = window.prompt ? window.prompt('Alasan penolakan sertifikat (opsional):') : '';
-        setActionLoading(certId);
+    const handleConfirmReject = async (e) => {
+        if (e && e.preventDefault) e.preventDefault();
+        if (!rejectModalCert) return;
+        const trimmedReason = rejectReason.trim();
+        if (!trimmedReason) {
+            setRejectError('Alasan penolakan wajib diisi supaya karyawan mengetahui penyebabnya.');
+            return;
+        }
+
+        setActionLoading(rejectModalCert.id);
         try {
-            await api.patch(`/hris/certifications/${certId}/reject`, { reason });
-            addToast('Permohonan sertifikat telah ditolak.', 'info');
+            await api.patch(`/hris/certifications/${rejectModalCert.id}/reject`, { reason: trimmedReason });
+            addToast('Permohonan sertifikat telah ditolak dengan alasan yang tercatat.', 'info');
+            setRejectModalCert(null);
+            setRejectReason('');
+            setRejectError('');
             fetchData();
         } catch (err) {
             console.error(err);
-            addToast('Gagal menolak sertifikat', 'error');
+            const msg = err.response?.data?.error || err.response?.data?.message || 'Gagal menolak sertifikat';
+            setRejectError(msg);
+            addToast(msg, 'error');
         } finally {
             setActionLoading(null);
         }
@@ -333,7 +350,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const resetForm = () => {
         if (!preSelectedUser) setSelectedUserId('');
-        setCertCategory(isHRGARole ? 'General' : 'K3');
+        setCertCategory(isHRGARole && !isHSERole ? 'General' : 'K3');
         setNamaSertifikat('');
         setCertNumber('');
         setInstitusi('');
@@ -598,7 +615,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 const emp = cert.karyawan || {};
                                 const isBusy = actionLoading === cert.id;
                                 const isGen = cert.category === 'General' || cert.kategori === 'General' || cert.is_general || cert.notes?.includes('[CATEGORY:GENERAL]');
-                                const canAction = isSuperAdmin || (isGen ? (isHSERole || isHRGARole) : isHSERole);
+                                const canAction = isSuperAdmin || (isGen ? isHRGARole : isHSERole);
 
                                 return (
                                     <div key={cert.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between gap-3.5 hover:border-slate-300 transition">
@@ -679,8 +696,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                         <button
                                                             type="button"
                                                             disabled={isBusy}
-                                                            onClick={() => handleReject(cert.id)}
-                                                            className="px-3 py-1.5 bg-slate-200 hover:bg-red-50 text-slate-700 hover:text-red-700 text-xs font-bold rounded-xl transition disabled:opacity-50 cursor-pointer"
+                                                            onClick={() => { setRejectModalCert(cert); setRejectReason(''); setRejectError(''); }}
+                                                            className="px-3 py-1.5 bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-700 text-xs font-bold rounded-xl transition disabled:opacity-50 cursor-pointer"
                                                         >
                                                             Tolak
                                                         </button>
@@ -696,8 +713,12 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <span className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-xl font-bold">
-                                                        Wewenang Tim HSE
+                                                    <span className={`text-[10px] px-2.5 py-1 rounded-xl font-bold border ${
+                                                        isGen 
+                                                            ? 'text-blue-700 bg-blue-50 border-blue-200' 
+                                                            : 'text-amber-700 bg-amber-50 border-amber-200'
+                                                    }`}>
+                                                        {isGen ? 'Wewenang Tim HRGA (Hanya Baca)' : 'Wewenang Tim HSE (Hanya Baca)'}
                                                     </span>
                                                 )}
                                             </div>
@@ -1287,7 +1308,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
                                                     {(() => {
                                                         const isGen = cert.category === 'General' || cert.kategori === 'General' || cert.is_general || cert.notes?.includes('[CATEGORY:GENERAL]');
-                                                        const canDelete = isSuperAdmin || (isGen ? (isHSERole || isHRGARole) : isHSERole);
+                                                        const canDelete = isSuperAdmin || (isGen ? isHRGARole : isHSERole);
                                                         if (!canDelete) return null;
                                                         return (
                                                             <button
@@ -1411,8 +1432,11 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
                                     <button
                                         type="button"
+                                        disabled={isHSERole && !isSuperAdmin && !isHRGARole}
                                         onClick={() => setCertCategory('General')}
-                                        className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 cursor-pointer ${
+                                        className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
+                                            isHSERole && !isSuperAdmin && !isHRGARole ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'
+                                        } ${
                                             certCategory === 'General'
                                                 ? 'border-blue-600 bg-blue-50/70 text-blue-950 font-bold ring-2 ring-blue-600/20'
                                                 : 'border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700'
@@ -1429,7 +1453,12 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 </div>
                                 {isHRGARole && !isSuperAdmin && (
                                     <p className="text-[10px] text-blue-600 font-medium mt-1">
-                                        * Sebagai Admin HRGA, Anda berwenang mengelola sertifikat kategori General (pelatihan teknis/umum non-K3).
+                                        * Sebagai Admin HRGA, Anda berwenang mendaftarkan dan memverifikasi sertifikat kategori General (pelatihan teknis/umum non-K3).
+                                    </p>
+                                )}
+                                {isHSERole && !isHRGARole && !isSuperAdmin && (
+                                    <p className="text-[10px] text-red-600 font-medium mt-1">
+                                        * Sebagai Admin HSE, Anda berwenang mendaftarkan dan memverifikasi sertifikat kategori K3 & Keselamatan Kerja.
                                     </p>
                                 )}
                             </div>
@@ -1684,17 +1713,30 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                     allCertificates={previewDoc?.userCerts || (previewDoc ? [previewDoc] : [])}
                     activeId={previewDoc?.id}
                     onClose={() => setPreviewDoc(null)}
-                    onDelete={isHSERole ? (doc) => setCertToDelete({
-                        id: doc.id,
-                        nama_sertifikat: doc.title || doc.nama_sertifikat,
-                        nomor_sertifikat: doc.certNumber,
-                        institusi_penerbit: doc.issuer,
-                        tanggal_kadaluarsa: doc.expiry,
-                        is_lifetime: doc.isLifetime,
-                        employeeName: doc.employeeName,
-                        employeeDept: doc.employeeDept,
-                        employeeNip: doc.employeeNip
-                    }) : null}
+                    canDelete={(doc) => {
+                        const isGen = (doc?.certCategory || doc?.kategori || '').toUpperCase() === 'GENERAL';
+                        return isSuperAdmin || (isGen ? isHRGARole : isHSERole);
+                    }}
+                    onDelete={(doc) => {
+                        const isGen = (doc?.certCategory || doc?.kategori || '').toUpperCase() === 'GENERAL';
+                        const canDel = isSuperAdmin || (isGen ? isHRGARole : isHSERole);
+                        if (!canDel) {
+                            addToast(isGen ? 'Hanya Tim HRGA yang berwenang menghapus Sertifikasi Umum' : 'Hanya Tim HSE yang berwenang menghapus Sertifikasi K3', 'error');
+                            return;
+                        }
+                        setCertToDelete({
+                            id: doc.id,
+                            nama_sertifikat: doc.title || doc.nama_sertifikat,
+                            nomor_sertifikat: doc.certNumber,
+                            institusi_penerbit: doc.issuer,
+                            tanggal_kadaluarsa: doc.expiry,
+                            is_lifetime: doc.isLifetime,
+                            employeeName: doc.employeeName,
+                            employeeDept: doc.employeeDept,
+                            employeeNip: doc.employeeNip,
+                            certCategory: doc.certCategory || (isGen ? 'GENERAL' : 'K3')
+                        });
+                    }}
                 />
             )}
 
@@ -1751,6 +1793,107 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 {deletingCert ? 'Menghapus...' : 'Hapus Sertifikat Ini Saja'}
                             </button>
                         </div>
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* MODAL TOLAK PENGAJUAN SERTIFIKAT (ALASAN WAJIB DIISI) */}
+            {rejectModalCert && typeof document !== 'undefined' && createPortal(
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-[99999] flex items-center justify-center p-4">
+                    <div className="bg-white rounded-3xl w-full max-w-lg overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 flex flex-col border border-slate-100">
+                        {/* Header */}
+                        <div className="p-5 border-b border-rose-100 bg-rose-50/70 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                                    <AlertTriangle size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-black text-slate-900">Tolak Permohonan Sertifikat</h3>
+                                    <p className="text-xs text-rose-700 font-medium">Berikan alasan jelas kepada karyawan terkait penolakan</p>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => { setRejectModalCert(null); setRejectReason(''); setRejectError(''); }}
+                                className="w-8 h-8 rounded-full bg-white hover:bg-rose-100 text-slate-400 hover:text-rose-700 flex items-center justify-center transition"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <form onSubmit={handleConfirmReject} className="p-6 space-y-4">
+                            <div className="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 space-y-1.5 text-xs">
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500 font-medium">Nama Karyawan:</span>
+                                    <span className="font-bold text-slate-900">{rejectModalCert.employee_name || rejectModalCert.employees?.nama_lengkap || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500 font-medium">Nama Sertifikat:</span>
+                                    <span className="font-bold text-slate-900">{rejectModalCert.certificate_types?.name || rejectModalCert.nama_sertifikat || '-'}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-slate-500 font-medium">Kategori:</span>
+                                    <span className="font-bold text-slate-900">
+                                        {rejectModalCert.category === 'General' || rejectModalCert.kategori === 'General' || rejectModalCert.is_general ? 'General / Umum' : 'K3 / HSE'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                                    Alasan Penolakan <span className="text-rose-600 font-extrabold">* (Wajib Diisi)</span>
+                                </label>
+                                <textarea
+                                    rows={4}
+                                    required
+                                    value={rejectReason}
+                                    onChange={(e) => {
+                                        setRejectReason(e.target.value);
+                                        if (rejectError) setRejectError('');
+                                    }}
+                                    placeholder="Tuliskan alasan penolakan secara jelas, misalnya: Foto/scan dokumen tidak terbaca dengan jelas, nomor sertifikat tidak terdaftar di instansi terkait, atau masa berlaku dokumen sudah lewat..."
+                                    className="w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs rounded-2xl p-3.5 focus:bg-white focus:border-rose-500 focus:ring-2 focus:ring-rose-200 outline-none transition resize-none font-medium leading-relaxed"
+                                    autoFocus
+                                />
+                                <p className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-1">
+                                    <HelpCircle size={13} className="text-slate-400 shrink-0" />
+                                    Alasan ini akan dikirimkan ke notifikasi & email karyawan agar dapat diperbaiki.
+                                </p>
+                            </div>
+
+                            {rejectError && (
+                                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl flex items-center gap-2 font-medium">
+                                    <AlertTriangle size={14} className="shrink-0" />
+                                    <span>{rejectError}</span>
+                                </div>
+                            )}
+
+                            {/* Footer Buttons */}
+                            <div className="pt-3 flex items-center justify-end gap-2 border-t border-slate-100">
+                                <button
+                                    type="button"
+                                    onClick={() => { setRejectModalCert(null); setRejectReason(''); setRejectError(''); }}
+                                    className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
+                                >
+                                    Batal
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={actionLoading === rejectModalCert.id || !rejectReason.trim()}
+                                    className="px-5 py-2.5 bg-rose-700 hover:bg-rose-800 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-rose-700/20 transition flex items-center gap-1.5 cursor-pointer"
+                                >
+                                    {actionLoading === rejectModalCert.id ? (
+                                        <>
+                                            <RefreshCw size={13} className="animate-spin" /> Menyimpan...
+                                        </>
+                                    ) : (
+                                        'Konfirmasi Tolak'
+                                    )}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>,
                 document.body

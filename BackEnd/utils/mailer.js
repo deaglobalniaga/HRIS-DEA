@@ -324,28 +324,107 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
 };
 
 /**
+ * Sends email to all HRGA Admins when an employee uploads a new General certificate
+ */
+const sendHrgaNewCertUploadEmail = async ({ toEmails, employeeName, certName, certNumber, issueDate, expiryDate, link }) => {
+    if (!toEmails || toEmails.length === 0) return { success: false, message: 'No HRGA admin emails provided' };
+
+    const actionLink = link || `${FRONTEND_URL}/organization?tab=certifications&subtab=pending`;
+    const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            ${getEmailHeaderHtml('Divisi HRGA & Manajemen SDM')}
+
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <h2 style="color: #0f172a; font-size: 16px; font-weight: 800; margin: 0 0 8px 0;">Pengajuan Verifikasi Sertifikat Umum / Pelatihan Baru</h2>
+                <p style="color: #475569; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+                    Karyawan telah mengunggah dokumen sertifikat umum/pelatihan baru dan memerlukan pemeriksaan serta verifikasi dari Admin HRGA:
+                </p>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b;">
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; width: 35%; border-radius: 6px 0 0 0;">Nama Karyawan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${employeeName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Jenis Sertifikasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: #1e40af;">${certName || '-'} (Kategori General)</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Nomor Registrasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-family: monospace;">${certNumber || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Tanggal Terbit</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${issueDate || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Masa Berlaku</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${expiryDate || 'Seumur Hidup / Tidak Terbatas'}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="${actionLink}" style="background-color: #1e40af; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block; box-shadow: 0 2px 6px rgba(30, 64, 175, 0.3);">
+                    Buka Portal & Verifikasi Dokumen HRGA
+                </a>
+            </div>
+
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0; line-height: 1.4;">
+                Email ini dikirimkan secara otomatis oleh Sistem HRIS PT DEA GLOBAL NIAGA kepada seluruh Admin HRGA terdaftar.
+            </p>
+        </div>
+    `;
+
+    const recipients = Array.isArray(toEmails) ? toEmails : [toEmails];
+    let sentCount = 0;
+    for (const recipient of recipients) {
+        if (!recipient || !recipient.includes('@')) continue;
+        try {
+            const info = await transporter.sendMail({
+                from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+                replyTo: SENDER_EMAIL,
+                to: recipient.trim(),
+                subject: `[HRIS HRGA] Pengajuan Verifikasi Sertifikat Umum Baru: ${employeeName} (${certName})`,
+                html: htmlContent,
+                attachments: getLogoAttachments()
+            });
+            sentCount++;
+            console.log(`HRGA cert upload email sent successfully to ${recipient.trim()}:`, info.messageId);
+        } catch (err) {
+            console.error(`Failed to send HRGA cert upload email to ${recipient}:`, err.message);
+        }
+    }
+    return { success: sentCount > 0 };
+};
+
+/**
  * Sends email to employee when their certificate is approved
  */
-const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, expiryDate, link }) => {
+const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, expiryDate, certCategory, link }) => {
     if (!toEmail) return { success: false, message: 'No employee email provided' };
 
+    const isGeneral = (certCategory || '').toLowerCase().includes('general') || (certCategory || '').toLowerCase().includes('umum');
+    const headerTitle = isGeneral ? 'Divisi HRGA & Manajemen SDM' : 'Portal Sertifikasi & Kompetensi Kerja';
+    const deptTitle = isGeneral ? 'Tim HRGA' : 'Tim HSE';
+    const certTitle = isGeneral ? 'Sertifikat Kompetensi / Umum Anda Telah Disetujui!' : 'Sertifikat K3 Anda Telah Disetujui!';
     const actionLink = link || `${FRONTEND_URL}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            ${getEmailHeaderHtml('Portal Sertifikasi & Kompetensi Kerja')}
+            ${getEmailHeaderHtml(headerTitle)}
 
             <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="margin-bottom: 8px;">
-                    <h2 style="color: #166534; font-size: 16px; font-weight: 800; margin: 0;">Sertifikat K3 Anda Telah Disetujui!</h2>
+                    <h2 style="color: #166534; font-size: 16px; font-weight: 800; margin: 0;">${certTitle}</h2>
                 </div>
                 <p style="color: #15803d; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
-                    Halo <strong>${employeeName || 'Karyawan'}</strong>, pengajuan berkas sertifikasi Anda telah diverifikasi dan disetujui resmi oleh Tim HSE.
+                    Halo <strong>${employeeName || 'Karyawan'}</strong>, pengajuan berkas sertifikasi Anda telah diverifikasi dan disetujui resmi oleh ${deptTitle}.
                 </p>
 
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b;">
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #e2e8f0; width: 35%;">Jenis Sertifikat</td>
-                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: #166534;">${certName || '-'}</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: #166534;">${certName || '-'}${isGeneral ? ' (General)' : ''}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #e2e8f0;">Nomor Sertifikat</td>
@@ -353,7 +432,7 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #e2e8f0;">Diverifikasi Oleh</td>
-                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${adminName || 'Admin HSE'}</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${adminName || (isGeneral ? 'Admin HRGA' : 'Admin HSE')}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #e2e8f0;">Masa Berlaku</td>
@@ -379,7 +458,7 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
             from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
             replyTo: SENDER_EMAIL,
             to: toEmail,
-            subject: `[HRIS DGN] Sertifikat Disetujui: ${certName}`,
+            subject: `[HRIS DGN] Sertifikat ${isGeneral ? 'General ' : ''}Disetujui: ${certName}`,
             html: htmlContent,
             attachments: getLogoAttachments()
         });
@@ -394,26 +473,29 @@ const sendCertApprovalEmail = async ({ toEmail, employeeName, certName, certNumb
 /**
  * Sends email to employee when their certificate is rejected
  */
-const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, reason, link }) => {
+const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNumber, adminName, reason, certCategory, link }) => {
     if (!toEmail) return { success: false, message: 'No employee email provided' };
 
+    const isGeneral = (certCategory || '').toLowerCase().includes('general') || (certCategory || '').toLowerCase().includes('umum');
+    const headerTitle = isGeneral ? 'Divisi HRGA & Manajemen SDM' : 'Divisi K3 & Keselamatan Kerja (HSE)';
+    const deptTitle = isGeneral ? 'Tim HRGA' : 'Tim HSE';
     const actionLink = link || `${FRONTEND_URL}/personal-certifications`;
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
-            ${getEmailHeaderHtml('Divisi K3 & Keselamatan Kerja (HSE)')}
+            ${getEmailHeaderHtml(headerTitle)}
 
             <div style="background-color: #fef2f2; border: 1px solid #fecaca; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
                 <div style="margin-bottom: 8px;">
                     <h2 style="color: #991b1b; font-size: 16px; font-weight: 800; margin: 0;">Pemberitahuan: Pengajuan Sertifikat Ditolak</h2>
                 </div>
                 <p style="color: #7f1d1d; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
-                    Halo <strong>${employeeName || 'Karyawan'}</strong>, berkas pengajuan sertifikat Anda belum dapat disetujui oleh Tim HSE dengan rincian sebagai berikut:
+                    Halo <strong>${employeeName || 'Karyawan'}</strong>, berkas pengajuan sertifikat Anda belum dapat disetujui oleh ${deptTitle} dengan rincian sebagai berikut:
                 </p>
 
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b; margin-bottom: 16px;">
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #fee2e2; width: 35%;">Jenis Sertifikat</td>
-                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca; font-weight: bold;">${certName || '-'}</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca; font-weight: bold;">${certName || '-'}${isGeneral ? ' (General)' : ''}</td>
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #fee2e2;">Nomor Registrasi</td>
@@ -421,12 +503,12 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
                     </tr>
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #fee2e2;">Diverifikasi Oleh</td>
-                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca;">${adminName || 'Admin HSE'}</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fecaca;">${adminName || (isGeneral ? 'Admin HRGA' : 'Admin HSE')}</td>
                     </tr>
                 </table>
 
                 <div style="background-color: #ffffff; border-left: 4px solid #dc2626; border-radius: 4px; padding: 12px 14px;">
-                    <p style="margin: 0; font-size: 12px; font-weight: bold; color: #991b1b;">Alasan Penolakan dari Admin HSE:</p>
+                    <p style="margin: 0; font-size: 12px; font-weight: bold; color: #991b1b;">Alasan Penolakan dari ${deptTitle}:</p>
                     <p style="margin: 4px 0 0 0; font-size: 13px; color: #334155; line-height: 1.4;">
                         ${reason || 'Dokumen buram / tidak sesuai dengan standar legalitas institusi penerbit.'}
                     </p>
@@ -454,7 +536,7 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
             from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
             replyTo: SENDER_EMAIL,
             to: toEmail,
-            subject: `[HRIS DGN] Pemberitahuan Penolakan Sertifikat K3: ${certName}`,
+            subject: `[HRIS DGN] Pemberitahuan Penolakan Sertifikat ${isGeneral ? 'General' : 'K3'}: ${certName}`,
             html: htmlContent,
             attachments: getLogoAttachments()
         });
@@ -721,6 +803,98 @@ const sendHseCertStatusNotificationEmail = async ({ toEmails, employeeName, cert
 };
 
 /**
+ * Sends notification email to HRGA Admins when a General certificate is approved or rejected
+ */
+const sendHrgaCertStatusNotificationEmail = async ({ toEmails, employeeName, certName, certNumber, adminName, status, reason, expiryDate, link }) => {
+    if (!toEmails || toEmails.length === 0) return { success: false, message: 'No HRGA admin emails provided' };
+
+    const isApproved = status === 'APPROVED';
+    const actionLink = link || `${FRONTEND_URL}/organization?tab=certifications`;
+    const statusColor = isApproved ? '#166534' : '#991b1b';
+    const statusBg = isApproved ? '#f0fdf4' : '#fef2f2';
+    const statusBorder = isApproved ? '#bbf7d0' : '#fecaca';
+    const statusLabel = isApproved ? 'Disetujui' : 'Ditolak';
+
+    const htmlContent = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
+            ${getEmailHeaderHtml('Divisi HRGA & Manajemen SDM')}
+
+            <div style="background-color: ${statusBg}; border: 1px solid ${statusBorder}; border-radius: 12px; padding: 20px; margin-bottom: 20px;">
+                <div style="margin-bottom: 8px;">
+                    <h2 style="color: ${statusColor}; font-size: 16px; font-weight: 800; margin: 0;">Laporan Verifikasi: Sertifikat Umum ${statusLabel}</h2>
+                </div>
+                <p style="color: #334155; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
+                    Pemberitahuan untuk Admin HRGA: Pengajuan berkas sertifikat umum berikut telah selesai diverifikasi oleh <strong>${adminName || 'Admin HRGA'}</strong>:
+                </p>
+
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b; margin-bottom: 12px;">
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; width: 35%; border-radius: 6px 0 0 0;">Nama Karyawan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${employeeName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Jenis Sertifikat</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: bold; color: ${statusColor};">${certName || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Nomor Registrasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-family: monospace;">${certNumber || '-'}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Status Verifikasi</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; font-weight: 900; color: ${statusColor};">${statusLabel}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9;">Diverifikasi Oleh</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${adminName || 'Admin HRGA'}</td>
+                    </tr>
+                    ${isApproved ? `
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Masa Berlaku</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0;">${expiryDate || 'Seumur Hidup'}</td>
+                    </tr>
+                    ` : `
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #f1f5f9; border-radius: 0 0 0 6px;">Alasan Penolakan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #e2e8f0; color: #991b1b;">${reason || '-'}</td>
+                    </tr>
+                    `}
+                </table>
+            </div>
+
+            <div style="text-align: center; margin: 28px 0;">
+                <a href="${actionLink}" style="background-color: ${isApproved ? '#1e40af' : '#991b1b'}; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block;">
+                    Buka Sertifikasi di Portal HRGA
+                </a>
+            </div>
+
+            <p style="color: #94a3b8; font-size: 11px; text-align: center; margin: 0;">
+                Email ini dikirim otomatis oleh Sistem HRIS PT DEA GLOBAL NIAGA kepada Admin HRGA.
+            </p>
+        </div>
+    `;
+
+    const recipients = Array.isArray(toEmails) ? toEmails : [toEmails];
+    for (const recipient of recipients) {
+        if (!recipient || !recipient.includes('@')) continue;
+        try {
+            await transporter.sendMail({
+                from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
+                replyTo: SENDER_EMAIL,
+                to: recipient.trim(),
+                subject: `[HRIS HRGA] Sertifikat General ${statusLabel}: ${employeeName} (${certName})`,
+                html: htmlContent,
+                attachments: getLogoAttachments()
+            });
+            console.log(`HRGA cert status email sent successfully to ${recipient.trim()}`);
+        } catch (err) {
+            console.error(`Failed to send HRGA cert status email to ${recipient}:`, err.message);
+        }
+    }
+    return { success: true };
+};
+
+/**
  * Helper to fetch all active HSE Admin emails dynamically
  */
 const getHseAdminEmails = async (supabaseClient) => {
@@ -787,6 +961,82 @@ const getHseAdminEmails = async (supabaseClient) => {
         return result;
     } catch (e) {
         console.error('getHseAdminEmails error:', e);
+        return [];
+    }
+};
+
+/**
+ * Helper to fetch all active HRGA Admin emails dynamically
+ */
+const getHrgaAdminEmails = async (supabaseClient) => {
+    try {
+        const { data: users, error } = await supabaseClient
+            .from('users')
+            .select(`
+                id,
+                username,
+                email,
+                recovery_email,
+                roles (name),
+                employees (
+                    department_id,
+                    jabatan,
+                    departments (name)
+                )
+            `)
+            .neq('is_active', false);
+
+        if (error || !users) {
+            console.error('getHrgaAdminEmails query error:', error?.message || error);
+            return [];
+        }
+
+        const emails = new Set();
+        users.forEach(u => {
+            const roleName = (u.roles?.name || '').toLowerCase();
+            const emp = Array.isArray(u.employees) ? u.employees[0] : u.employees;
+            const deptName = (emp?.departments?.name || '').toLowerCase();
+            const jabatan = (emp?.jabatan || '').toLowerCase();
+            const username = (u.username || '').toLowerCase();
+
+            // ONLY consider accounts that have an administrative role
+            const isAdmin = ['admin', 'superadmin', 'hrga_admin', 'hr_admin'].includes(roleName);
+            if (!isAdmin) return;
+
+            const isStrictlyHSE = roleName === 'hse_admin' || (username.includes('hse') && username !== 'admin') || (deptName.includes('hse') && !deptName.includes('hr'));
+            if (isStrictlyHSE && username !== 'admin') return;
+
+            const isHRGA = roleName === 'hrga_admin' || 
+                           roleName === 'hr_admin' || 
+                           roleName === 'admin' ||
+                           username === 'admin' || 
+                           username.includes('hr') || 
+                           deptName.includes('hr') || 
+                           deptName.includes('hrga') || 
+                           jabatan.includes('hr') || 
+                           jabatan.includes('hrga');
+
+            if (isHRGA) {
+                if (u.recovery_email && u.recovery_email.includes('@')) {
+                    emails.add(u.recovery_email.trim());
+                }
+                if (u.email && u.email.includes('@')) {
+                    emails.add(u.email.trim());
+                }
+            }
+        });
+
+        // Filter out fictional internal domains if real mailboxes exist
+        let result = Array.from(emails);
+        const realEmails = result.filter(e => !e.endsWith('@deaglobalniaga.com'));
+        if (realEmails.length > 0) {
+            result = realEmails;
+        }
+
+        console.log(`[MAILER] Resolved ${result.length} authoritative HRGA Admin recipient email(s):`, result);
+        return result;
+    } catch (e) {
+        console.error('getHrgaAdminEmails error:', e);
         return [];
     }
 };
@@ -879,10 +1129,13 @@ module.exports = {
     sendMfaOtpEmail,
     sendHseNewCertUploadEmail,
     sendHseCertStatusNotificationEmail,
+    sendHrgaNewCertUploadEmail,
+    sendHrgaCertStatusNotificationEmail,
     sendCertApprovalEmail,
     sendCertRejectionEmail,
     sendCertExpiringEmail,
     sendSecurityActivityEmail,
     getHseAdminEmails,
+    getHrgaAdminEmails,
     resolveUserPersonalEmail
 };

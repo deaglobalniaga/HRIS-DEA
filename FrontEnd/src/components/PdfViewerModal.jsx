@@ -43,6 +43,7 @@ const PdfViewerModal = ({
     initialIndex = 0, 
     onClose, 
     onDelete = null,
+    canDelete = null,
     fileName = "Dokumen Karyawan" 
 }) => {
     const rawUrl = url || pdfUrl || documentUrl || fileUrl;
@@ -75,7 +76,8 @@ const PdfViewerModal = ({
                     expiry: item?.is_lifetime ? 'Seumur Hidup' : (item?.tanggal_kadaluarsa || item?.expired_date || item?.expiry || ''),
                     isLifetime: Boolean(item?.is_lifetime),
                     url: u,
-                    hasFile: Boolean(u)
+                    hasFile: Boolean(u),
+                    certCategory: item?.certCategory || item?.kategori || item?.category || (item?.tipe === 'GENERAL' ? 'GENERAL' : 'K3')
                 };
             }).filter(d => Boolean(d.url));
         }
@@ -98,7 +100,8 @@ const PdfViewerModal = ({
                     expiry: typeof rawUrl === 'object' ? (rawUrl?.tanggal_kadaluarsa || '') : '',
                     isLifetime: typeof rawUrl === 'object' ? Boolean(rawUrl?.is_lifetime) : false,
                     url: fallbackUrl,
-                    hasFile: true
+                    hasFile: true,
+                    certCategory: typeof rawUrl === 'object' ? (rawUrl?.certCategory || rawUrl?.kategori || rawUrl?.category || 'K3') : 'K3'
                 };
                 docs = [fallbackDoc, ...docs];
             }
@@ -426,7 +429,7 @@ const PdfViewerModal = ({
                         </button>
                     )}
 
-                    {onDelete && (
+                    {onDelete && (typeof canDelete === 'function' ? canDelete(activeDoc) : true) && (
                         <button 
                             type="button"
                             onClick={() => onDelete(activeDoc)}

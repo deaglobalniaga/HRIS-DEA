@@ -46,7 +46,7 @@ const MobileBottomNav = () => {
     if (isHSEAdmin) {
       return [
         { label: 'Home', path: '/dashboard', icon: Home },
-        { label: 'Struktur Organisasi', path: '/organization', icon: Building2 },
+        { label: 'Struktur', path: '/organization', icon: Building2 },
         { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isSpecial: true },
         { label: 'Kalender', path: '/calendar', icon: CalendarDays },
         { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
@@ -67,7 +67,7 @@ const MobileBottomNav = () => {
     // 4. Default Employee / Karyawan
     return [
       { label: 'Home', path: '/dashboard', icon: Home },
-      { label: 'Struktur Organisasi', path: '/organization-tree', icon: Building2 },
+      { label: 'Struktur', path: '/organization-tree', icon: Building2 },
       { label: 'Presensi', path: '/attendance-hub', icon: Fingerprint, isSpecial: true },
       { label: 'Kalender', path: '/calendar', icon: CalendarDays },
       { label: 'Sertifikasi', path: '/personal-certifications', icon: Award },
