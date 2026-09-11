@@ -167,6 +167,8 @@ cron.schedule('30 9 * * *', async () => {
 });
 
 // 3. Daily Certificate Expiration Check (08:00 WITA = 00:00 UTC)
+const { notifyRole } = require('../controllers/notificationController');
+
 cron.schedule('0 0 * * *', async () => {
     console.log('[CRON] Running 08:00 WITA Certificate Expiration Check (<= 90 days)...');
     try {
@@ -178,13 +180,12 @@ cron.schedule('0 0 * * *', async () => {
                 expired_date,
                 is_lifetime,
                 notes,
-                certificate_types (name),
+                certificate_types (name, category),
                 employees (
                     id,
                     user_id,
                     nama_lengkap,
-                    email_office,
-                    users (email, recovery_email)
+                    email
                 )
             `)
             .eq('is_lifetime', false)
@@ -210,10 +211,19 @@ cron.schedule('0 0 * * *', async () => {
             if (diffDays >= 0 && diffDays <= 90) {
                 const emp = cert.employees || {};
                 const u = emp.users || {};
-                const empEmail = emp.email_office || u.recovery_email || u.email;
                 const certName = cert.certificate_types?.name || 'Sertifikat Kompetensi';
-                const isGeneral = notes.includes('[CATEGORY:GENERAL]') || cert.category === 'General';
+                const isGeneral = notes.includes('[CATEGORY:GENERAL]') || cert.category === 'General' || (cert.certificate_types?.category || '').toLowerCase().includes('general');
                 const certCategory = isGeneral ? 'General' : 'K3';
+
+                // Resolve real personal email for employee
+                let empEmail = await mailer.resolveUserPersonalEmail(supabase, {
+                    userId: emp.user_id,
+                    employeeId: emp.id,
+                    userObj: u
+                });
+                if (!empEmail) {
+                    empEmail = emp.email || emp.email_office || u.recovery_email || u.email;
+                }
 
                 // Reminder interval: every 10 days (90, 80, 70, 60, 50, 40, 30, 20, 10) and day 0
                 const isTenDayMilestone = (diffDays % 10 === 0) || (diffDays === 0);
@@ -252,6 +262,7 @@ cron.schedule('0 0 * * *', async () => {
                         await mailer.sendCertExpiringEmail({
                             toEmail: empEmail,
                             recipientName: emp.nama_lengkap || 'Karyawan',
+                            employeeName: emp.nama_lengkap || 'Karyawan',
                             certName,
                             certNumber: cert.certificate_number || '-',
                             expiryDate: cert.expired_date,
@@ -260,6 +271,55 @@ cron.schedule('0 0 * * *', async () => {
                             category: certCategory,
                             certId: cert.id
                         }).catch(e => console.error('[CRON] Cert expiring email to employee err:', e.message));
+                    }
+
+                    // 3. In-App Notification to Respective Admin Team (HSE for K3, HRGA for General)
+                    const targetAdminRole = isGeneral ? 'hrga_admin' : 'hse_admin';
+                    const adminNotifMsg = diffDays === 0
+                        ? `Sertifikat ${certCategory} "${certName}" milik ${emp.nama_lengkap || 'Karyawan'} habis masa berlakunya hari ini.`
+                        : `Sertifikat ${certCategory} "${certName}" milik ${emp.nama_lengkap || 'Karyawan'} akan kedaluwarsa dalam ${diffDays} hari.`;
+
+                    await notifyRole(
+                        targetAdminRole,
+                        '⚠️ Peringatan Masa Berlaku Sertifikat Karyawan',
+                        adminNotifMsg,
+                        'warning',
+                        '/organization?tab=certifications&expiry=expiring'
+                    ).catch(e => console.warn('[CRON] Admin in-app cert notification err:', e.message));
+
+                    // 4. Email Alert to Respective Admin Team (HSE for K3, HRGA for General)
+                    if (isGeneral) {
+                        const hrgaEmails = await mailer.getHrgaAdminEmails(supabase);
+                        for (const aEmail of hrgaEmails) {
+                            await mailer.sendCertExpiringEmail({
+                                toEmail: aEmail,
+                                recipientName: 'Tim HRGA Admin',
+                                employeeName: emp.nama_lengkap || 'Karyawan',
+                                certName,
+                                certNumber: cert.certificate_number || '-',
+                                expiryDate: cert.expired_date,
+                                daysLeft: diffDays,
+                                roleType: 'hrga_admin',
+                                category: 'General',
+                                certId: cert.id
+                            }).catch(e => console.error('[CRON] Cert expiring email to HRGA err:', e.message));
+                        }
+                    } else {
+                        const hseEmails = await mailer.getHseAdminEmails(supabase);
+                        for (const aEmail of hseEmails) {
+                            await mailer.sendCertExpiringEmail({
+                                toEmail: aEmail,
+                                recipientName: 'Tim HSE Compliance Admin',
+                                employeeName: emp.nama_lengkap || 'Karyawan',
+                                certName,
+                                certNumber: cert.certificate_number || '-',
+                                expiryDate: cert.expired_date,
+                                daysLeft: diffDays,
+                                roleType: 'hse_admin',
+                                category: 'K3',
+                                certId: cert.id
+                            }).catch(e => console.error('[CRON] Cert expiring email to HSE err:', e.message));
+                        }
                     }
                 }
             }

@@ -551,17 +551,29 @@ const sendCertRejectionEmail = async ({ toEmail, employeeName, certName, certNum
 /**
  * Sends warning email when certificate is expiring within 90 days
  */
-const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNumber, expiryDate, daysLeft, roleType, category = 'K3' }) => {
+const sendCertExpiringEmail = async ({ toEmail, recipientName, employeeName, certName, certNumber, expiryDate, daysLeft, roleType, category = 'K3' }) => {
     if (!toEmail) return { success: false, message: 'No email provided' };
 
     const resolvedCategory = (category && category.toLowerCase().includes('gen')) ? 'General' : 'K3';
-    const isHseRecipient = roleType === 'hse_admin';
-    const uploadLink = isHseRecipient 
+    const isAdminRecipient = roleType === 'hse_admin' || roleType === 'hrga_admin';
+    const uploadLink = isAdminRecipient 
         ? `${FRONTEND_URL}/organization?tab=certifications&expiry=expiring`
         : `${FRONTEND_URL}/personal-certifications?action=upload&certName=${encodeURIComponent(certName || '')}&category=${encodeURIComponent(resolvedCategory)}`;
 
     const verifierTeam = resolvedCategory === 'General' ? 'Tim HRGA' : 'Tim HSE';
     const remainingText = daysLeft === 0 ? 'Habis Masa Berlaku Hari Ini' : `${daysLeft} Hari Lagi`;
+
+    const greetingText = isAdminRecipient
+        ? `Halo <strong>${recipientName || (resolvedCategory === 'General' ? 'Tim HRGA' : 'Tim HSE')}</strong>, sistem mendeteksi sertifikat karyawan <strong>${employeeName || 'Karyawan'}</strong> berikut ini tersisa <strong>≤ 90 hari (${remainingText})</strong> sebelum kedaluwarsa:`
+        : `Halo <strong>${recipientName || 'Pengguna'}</strong>, sistem mendeteksi sertifikat Anda berikut ini tersisa <strong>≤ 90 hari</strong> sebelum kedaluwarsa:`;
+
+    const instructionsText = isAdminRecipient
+        ? `Silakan koordinasikan dengan karyawan yang bersangkutan agar memperbarui dokumen sertifikat atau lisensi sebelum masa berlaku berakhir. Klik tombol <strong>"Tinjau Matriks Sertifikasi"</strong> di bawah untuk membuka tab sertifikasi di sistem HRIS PT DEA GLOBAL NIAGA.`
+        : `Harap segera memperbarui dokumen sertifikat atau lisensi kompetensi Anda. Klik tombol <strong>"Perbarui Sertifikat Sekarang"</strong> di bawah untuk langsung membuka formulir pengunggahan sertifikat terbaru agar dapat diverifikasi oleh <strong>${verifierTeam}</strong> di sistem HRIS PT DEA GLOBAL NIAGA.`;
+
+    const buttonText = isAdminRecipient
+        ? `📋 Tinjau Matriks Sertifikasi di Portal HRIS`
+        : `🔄 Perbarui Sertifikat Sekarang`;
 
     const htmlContent = `
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 32px 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05);">
@@ -573,10 +585,16 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
                     <h2 style="color: #92400e; font-size: 16px; font-weight: 800; margin: 0;">Masa Berlaku Sertifikat Mendekati Batas Akhir</h2>
                 </div>
                 <p style="color: #78350f; font-size: 13px; margin: 0 0 16px 0; line-height: 1.5;">
-                    Halo <strong>${recipientName || 'Pengguna'}</strong>, sistem mendeteksi sertifikat Anda berikut ini tersisa <strong>≤ 90 hari</strong> sebelum kedaluwarsa:
+                    ${greetingText}
                 </p>
 
                 <table style="width: 100%; border-collapse: collapse; font-size: 13px; color: #1e293b;">
+                    ${isAdminRecipient ? `
+                    <tr>
+                        <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7; width: 35%;">Nama Karyawan</td>
+                        <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: bold;">${employeeName || '-'}</td>
+                    </tr>
+                    ` : ''}
                     <tr>
                         <td style="padding: 8px 12px; font-weight: bold; background: #fef3c7; width: 35%;">Kategori</td>
                         <td style="padding: 8px 12px; background: #ffffff; border: 1px solid #fde68a; font-weight: bold; color: ${resolvedCategory === 'General' ? '#2563eb' : '#b91c1c'};">${resolvedCategory}</td>
@@ -601,16 +619,16 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
             </div>
 
             <p style="font-size: 13px; color: #475569; line-height: 1.5; margin-bottom: 20px;">
-                Harap segera memperbarui dokumen sertifikat atau lisensi kompetensi Anda. Klik tombol <strong>"Perbarui Sertifikat Sekarang"</strong> di bawah untuk langsung membuka formulir pengunggahan sertifikat terbaru agar dapat diverifikasi oleh <strong>${verifierTeam}</strong> di sistem HRIS PT DEA GLOBAL NIAGA.
+                ${instructionsText}
             </p>
 
             <div style="text-align: center; margin: 26px 0;">
                 <a href="${uploadLink}" style="background: linear-gradient(135deg, #b91c1c, #dc2626); color: #ffffff; text-decoration: none; padding: 14px 32px; border-radius: 10px; font-size: 14px; font-weight: 800; display: inline-block; box-shadow: 0 4px 14px rgba(220, 38, 38, 0.35);">
-                    🔄 Perbarui Sertifikat Sekarang
+                    ${buttonText}
                 </a>
                 <div style="margin-top: 12px;">
-                    <a href="${FRONTEND_URL}/personal-certifications" style="color: #64748b; text-decoration: underline; font-size: 12px; font-weight: 600;">
-                        Atau lihat seluruh riwayat sertifikat saya
+                    <a href="${FRONTEND_URL}/${isAdminRecipient ? 'organization?tab=certifications' : 'personal-certifications'}" style="color: #64748b; text-decoration: underline; font-size: 12px; font-weight: 600;">
+                        ${isAdminRecipient ? 'Buka Ringkasan Matriks Sertifikasi Perusahaan' : 'Atau lihat seluruh riwayat sertifikat saya'}
                     </a>
                 </div>
             </div>
@@ -626,7 +644,7 @@ const sendCertExpiringEmail = async ({ toEmail, recipientName, certName, certNum
             from: `${SENDER_NAME} <${SENDER_EMAIL}>`,
             replyTo: SENDER_EMAIL,
             to: toEmail,
-            subject: `[HRIS DGN] Peringatan Masa Berlaku Sertifikat ${resolvedCategory} (${remainingText}): ${certName}`,
+            subject: `[HRIS DGN] Peringatan Masa Berlaku Sertifikat ${resolvedCategory} (${remainingText}): ${certName}${isAdminRecipient ? ` - ${employeeName || 'Karyawan'}` : ''}`,
             html: htmlContent,
             attachments: getLogoAttachments()
         });
