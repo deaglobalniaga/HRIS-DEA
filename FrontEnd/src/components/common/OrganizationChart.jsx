@@ -685,28 +685,32 @@ const OrganizationChart = ({ readOnly = false }) => {
             </>
           )}
 
-          <div className="flex bg-slate-100/70 backdrop-blur-md p-1 rounded-xl sm:rounded-2xl border border-slate-200/60 w-full sm:w-auto">
+          <div className="grid grid-cols-2 sm:flex bg-slate-100/70 backdrop-blur-md p-1 rounded-xl sm:rounded-2xl border border-slate-200/60 w-full sm:w-auto overflow-hidden">
             <button
               type="button"
               onClick={() => setViewMode('tree')}
-              className={`flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              className={`w-full sm:w-auto justify-center px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer truncate min-w-0 ${
                 viewMode === 'tree'
                   ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Building2 size={13} /> Hirarki Visual (Canvas)
+              <Building2 size={13} className="shrink-0" />
+              <span className="hidden sm:inline">Hirarki Visual (Canvas)</span>
+              <span className="sm:hidden truncate">Hirarki Bagan</span>
             </button>
             <button
               type="button"
               onClick={() => setViewMode('directory')}
-              className={`flex-1 sm:flex-none justify-center px-3 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              className={`w-full sm:w-auto justify-center px-2 sm:px-4 py-2 text-[11px] sm:text-xs font-black rounded-xl transition-all flex items-center gap-1 sm:gap-1.5 cursor-pointer truncate min-w-0 ${
                 viewMode === 'directory'
                   ? 'bg-gradient-to-r from-red-700 to-rose-700 text-white shadow-md shadow-red-900/20'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Users size={13} /> Direktori Anggota ({directoryMembers.length})
+              <Users size={13} className="shrink-0" />
+              <span className="hidden sm:inline">Direktori Anggota ({directoryMembers.length})</span>
+              <span className="sm:hidden truncate">Direktori ({directoryMembers.length})</span>
             </button>
           </div>
         </div>
@@ -757,7 +761,7 @@ const OrganizationChart = ({ readOnly = false }) => {
               onClick={() => setShowMobileCertLegend(true)}
               className="px-3 py-1.5 rounded-xl bg-white/95 backdrop-blur-md border border-slate-200/90 text-slate-800 text-[11px] font-black shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95 transition-all"
             >
-              <Award size={13} className="text-red-700" /> Matriks K3
+              <Award size={13} className="text-red-700" /> Sertifikasi Karyawan
             </button>
           </div>
 

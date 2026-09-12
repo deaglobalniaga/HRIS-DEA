@@ -637,9 +637,13 @@ exports.delete_certification = async (req, res) => {
         // Fetch the record first to get metadata and file_url before deleting
         const { data: cert } = await supabase
             .from('employee_certificates')
-            .select('file_url, notes, certificate_number, certificate_types(name, category), employees(nama_lengkap)')
+            .select('*, certificate_types(name, category), employees(id, nama_lengkap, nomor_pegawai)')
             .eq('id', id)
             .maybeSingle();
+
+        if (!cert) {
+            return res.status(404).json({ message: 'Sertifikat tidak ditemukan' });
+        }
 
         const typeCat = (cert?.certificate_types?.category || '').toLowerCase();
         const typeName = (cert?.certificate_types?.name || '').toLowerCase();
@@ -651,34 +655,80 @@ exports.delete_certification = async (req, res) => {
         const certName = cert?.certificate_types?.name || (isGeneral ? 'Sertifikat Umum' : 'Sertifikat K3');
         const empName = cert?.employees?.nama_lengkap || 'Karyawan';
 
-        // Delete the row from DB
-        const { error } = await supabase.from('employee_certificates').delete().eq('id', id);
-        if (error) throw error;
-
-        // If there was a file in Supabase Storage, delete it too
+        // 1. Move file to 'trash' bucket if stored in Supabase storage
+        let trashFilePath = null;
         if (cert?.file_url && cert.file_url.startsWith('http')) {
             const buckets = ['certificates', 'documents'];
             for (const bucket of buckets) {
                 const filePath = extractStoragePath(cert.file_url, bucket);
                 if (filePath) {
-                    await supabase.storage.from(bucket).remove([filePath]);
+                    try {
+                        const trashDest = `deleted_${Date.now()}_${filePath.split('/').pop()}`;
+                        const { data: fileBlob, error: dlErr } = await supabase.storage.from(bucket).download(filePath);
+                        if (!dlErr && fileBlob) {
+                            const buffer = Buffer.from(await fileBlob.arrayBuffer());
+                            await supabase.storage.from('trash').upload(trashDest, buffer, {
+                                contentType: fileBlob.type || 'application/octet-stream',
+                                upsert: true
+                            });
+                            // Remove from active bucket
+                            await supabase.storage.from(bucket).remove([filePath]);
+                            trashFilePath = trashDest;
+                        }
+                    } catch (mErr) {
+                        console.warn('File move to trash warning:', mErr.message);
+                    }
                     break;
                 }
             }
         }
+
+        // 2. Insert into file_trash table with 7-day retention period (purge_at = NOW() + 7 days)
+        const purgeDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // Exactly 1 week / 7 days
+
+        await supabase.from('file_trash').insert({
+            source_table: 'employee_certificates',
+            source_id: cert.id,
+            employee_id: cert.employee_id,
+            file_name: certName,
+            file_url: cert.file_url,
+            trash_file_path: trashFilePath,
+            metadata: {
+                certificate_number: cert.certificate_number,
+                certificate_type: certName,
+                category: isGeneral ? 'General' : 'K3',
+                employee_name: empName,
+                issue_date: cert.issue_date,
+                expired_date: cert.expired_date,
+                is_lifetime: cert.is_lifetime,
+                notes: cert.notes
+            },
+            deleted_by: req.userId || null,
+            deleted_at: new Date().toISOString(),
+            purge_at: purgeDate.toISOString(),
+            is_purged: false
+        });
+
+        // 3. Delete the row from active employee_certificates table
+        const { error } = await supabase.from('employee_certificates').delete().eq('id', id);
+        if (error) throw error;
 
         await invalidateCache('master:certifications_all');
 
         // Log Admin Audit Trail
         await logAdminActivity({
             userId: req.userId,
-            action: 'Sertifikasi Dihapus',
-            details: `Admin ${deptName} menghapus sertifikat "${certName}" (No: ${cert?.certificate_number || '-'}) milik karyawan ${empName}.`,
+            action: 'Sertifikasi Dihapus (Trash 7 Hari)',
+            details: `Admin ${deptName} menghapus sertifikat "${certName}" (No: ${cert?.certificate_number || '-'}) milik karyawan ${empName}. Berkas dipindahkan ke trash dan akan dibersihkan otomatis setelah 1 minggu (7 hari).`,
             req
         });
 
-        res.json({ message: 'Sertifikat berhasil dihapus beserta file dokumennya.' });
+        res.json({ 
+            message: 'Sertifikat berhasil dihapus dan dipindahkan ke trash. Berkas akan otomatis dibersihkan permanen dari database & storage setelah 1 minggu (7 hari).',
+            purge_at: purgeDate.toISOString()
+        });
     } catch (err) {
+        console.error('Delete certification error:', err);
         res.status(500).json({ error: err.message });
     }
 };

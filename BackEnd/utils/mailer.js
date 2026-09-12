@@ -291,7 +291,7 @@ const sendHseNewCertUploadEmail = async ({ toEmails, employeeName, certName, cer
 
             <div style="text-align: center; margin: 28px 0;">
                 <a href="${actionLink}" style="background-color: #991b1b; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-size: 13px; font-weight: 800; display: inline-block; box-shadow: 0 2px 6px rgba(153, 27, 27, 0.3);">
-                    Buka Matriks K3 & Verifikasi Dokumen
+                    Buka Sertifikasi Karyawan & Verifikasi Dokumen
                 </a>
             </div>
 

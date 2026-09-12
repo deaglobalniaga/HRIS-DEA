@@ -16,6 +16,7 @@ const EmployeeDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Calendar State
   const [calDate, setCalDate] = useState(new Date());
@@ -292,7 +293,7 @@ const EmployeeDashboard = () => {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={logout}
+              onClick={() => setShowLogoutConfirm(true)}
               className="w-10 h-10 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/25 transition-all border border-white/20 active:scale-95 cursor-pointer shadow-sm"
               title="Keluar dari Akun"
             >
@@ -686,12 +687,61 @@ const EmployeeDashboard = () => {
 
                 <button
                   type="button"
-                  onClick={() => { setShowProfileModal(false); logout(); }}
+                  onClick={() => { setShowProfileModal(false); setShowLogoutConfirm(true); }}
                   className="w-full p-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center justify-center gap-2 text-xs font-black text-rose-700 transition mt-3 cursor-pointer"
                 >
                   <LogOut size={16} /> Keluar dari Akun (Logout)
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Confirmation Modal for Employee Logout */}
+      {showLogoutConfirm && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative scale-100 animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setShowLogoutConfirm(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30 mb-4">
+              <LogOut size={26} />
+            </div>
+
+            <h3 className="text-base sm:text-lg font-black text-slate-900 mb-1.5">
+              Konfirmasi Keluar
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed mb-6">
+              Apakah Anda yakin ingin keluar dari akun HRIS ini? Sesi Anda akan diakhiri dan dialihkan ke halaman login.
+            </p>
+
+            <div className="flex items-center gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutConfirm(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white font-black text-xs shadow-md shadow-red-900/20 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <LogOut size={14} />
+                <span>Ya, Keluar</span>
+              </button>
             </div>
           </div>
         </div>,

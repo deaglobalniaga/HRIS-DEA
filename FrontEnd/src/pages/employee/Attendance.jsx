@@ -715,7 +715,7 @@ const Attendance = () => {
       )}
 
       {/* 2. RESPONSIVE AUTO-SCALE TOP HEADER (Z-20) */}
-      <div className="relative z-20 p-3 sm:p-4 lg:p-5 space-y-2 max-w-xl mx-auto w-full pointer-events-auto shrink-0">
+      <div className="relative z-20 p-3 sm:p-4 lg:p-5 pt-[calc(3.75rem+env(safe-area-inset-top,0px))] lg:pt-5 space-y-2 max-w-xl mx-auto w-full pointer-events-auto shrink-0">
         <div className="flex items-center justify-between">
           <button
             type="button"

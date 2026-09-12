@@ -1,14 +1,18 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Calendar, Users, Clock, Activity, Briefcase, 
   LogOut, Calculator, FileText, ShieldCheck, Award, Building2, 
-  User, Settings, Shield, PanelLeftClose, PanelLeftOpen 
+  User, Settings, Shield, PanelLeftClose, PanelLeftOpen, X 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => {
   const { logout, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const role = (user?.role || '').toLowerCase();
   const dept = (user?.department || user?.department_name || user?.departments?.name || '').toLowerCase();
   const jabatan = (user?.jabatan || '').toLowerCase();
@@ -49,7 +53,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
           items: [
             { name: 'Dashboard HSE', path: '/dashboard', icon: LayoutDashboard },
             { name: 'Struktur Organisasi', path: '/organization', icon: Building2 },
-            { name: 'Sertifikasi Pribadi', path: '/personal-certifications', icon: ShieldCheck },
+            { name: 'Sertifikasi Saya', path: '/personal-certifications', icon: ShieldCheck },
           ]
         },
         {
@@ -57,8 +61,8 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
           items: [
             { name: 'Pusat Kehadiran', path: '/attendance-hub', icon: Clock },
             { name: 'Jam Kerja (Timesheet)', path: '/timesheet', icon: Calculator },
-            { name: 'Rekap Kehadiran Site', path: '/reports', icon: FileText },
-            { name: 'Kalender Site', path: '/calendar', icon: Calendar },
+            { name: 'Rekap Kehadiran', path: '/reports', icon: FileText },
+            { name: 'Kalender Tim', path: '/calendar', icon: Calendar },
           ]
         }
       ];
@@ -220,8 +224,9 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
       {/* Logout */}
       <div className={`border-t border-slate-100 ${isCollapsed ? 'p-2' : 'p-3.5'}`}>
         <button
-          onClick={logout}
-          className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center lg:px-2 px-4' : 'px-4'} py-3 rounded-2xl text-xs sm:text-sm font-black text-slate-500 hover:bg-red-50 hover:text-red-900 hover:shadow-sm transition-all duration-200`}
+          type="button"
+          onClick={() => setShowLogoutModal(true)}
+          className={`group relative w-full flex items-center ${isCollapsed ? 'justify-center lg:px-2 px-4' : 'px-4'} py-3 rounded-2xl text-xs sm:text-sm font-black text-slate-500 hover:bg-red-50 hover:text-red-900 hover:shadow-sm transition-all duration-200 cursor-pointer`}
         >
           <LogOut size={18} strokeWidth={2.5} className="shrink-0 transition-transform duration-200 group-hover:rotate-12" />
           <span className={`${isCollapsed ? 'lg:hidden ml-3' : 'ml-3'}`}>Keluar</span>
@@ -235,6 +240,55 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed = false, toggleCollapse }) => 
           )}
         </button>
       </div>
+
+      {/* Confirmation Modal for Sidebar Logout */}
+      {showLogoutModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative scale-100 animate-in zoom-in-95 duration-150">
+            <button
+              onClick={() => setShowLogoutModal(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition cursor-pointer"
+              title="Tutup"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-600 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-red-500/30 mb-4">
+              <LogOut size={26} />
+            </div>
+
+            <h3 className="text-base sm:text-lg font-black text-slate-900 mb-1.5">
+              Konfirmasi Keluar
+            </h3>
+            <p className="text-xs text-slate-500 leading-relaxed mb-6">
+              Apakah Anda yakin ingin keluar dari akun HRIS ini? Sesi Anda akan diakhiri dan dialihkan ke halaman login.
+            </p>
+
+            <div className="flex items-center gap-3 w-full">
+              <button
+                type="button"
+                onClick={() => setShowLogoutModal(false)}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-bold text-xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowLogoutModal(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-rose-700 hover:from-red-800 hover:to-rose-800 text-white font-black text-xs shadow-md shadow-red-900/20 transition cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <LogOut size={14} />
+                <span>Ya, Keluar</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </aside>
   );
 };

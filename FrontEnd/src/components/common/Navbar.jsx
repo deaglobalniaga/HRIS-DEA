@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   Search, Bell, X, User, Users, Layout, Briefcase, ChevronRight, 
   Menu, LogOut, Shield, Settings as SettingsIcon 
@@ -40,8 +41,8 @@ const getAllMenus = (role, user = {}) => {
             { title: 'Sertifikasi Saya', path: '/personal-certifications', icon: Briefcase },
             { title: 'Pusat Kehadiran', path: '/attendance-hub', icon: Users },
             { title: 'Jam Kerja (Timesheet)', path: '/timesheet', icon: Layout },
-            { title: 'Rekap Kehadiran Site', path: '/reports', icon: Briefcase },
-            { title: 'Kalender Site', path: '/calendar', icon: Layout },
+            { title: 'Rekap Kehadiran', path: '/reports', icon: Briefcase },
+            { title: 'Kalender Tim', path: '/calendar', icon: Layout },
             { title: 'Kotak Masuk Notifikasi', path: '/notifications', icon: Bell }
         ];
     }
@@ -206,7 +207,13 @@ const Navbar = ({ toggleSidebar }) => {
   else if (location.pathname.includes('/payroll')) pageTitle = 'Penggajian';
 
     return (
-    <header className="h-14 sm:h-16 w-full px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-6 bg-white/95 sm:bg-slate-50/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs">
+    <header 
+      style={{
+        paddingTop: 'max(0.625rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: '0.625rem',
+      }}
+      className="w-full px-3 sm:px-6 flex items-center justify-between gap-2 sm:gap-6 bg-white/95 sm:bg-slate-50/95 backdrop-blur-md border-b border-slate-200/80 sticky top-0 z-40 shadow-xs h-auto min-h-[3.5rem] sm:min-h-[4rem]"
+    >
       
       {/* Left section: Breadcrumbs / Title */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0 min-w-0">
@@ -504,11 +511,11 @@ const Navbar = ({ toggleSidebar }) => {
           )}
         </div>
 
-        {/* Direct Logout Button */}
+        {/* Direct Logout Button - Hidden (Logout handled via Profile menu & Sidebar with Confirmation) */}
         <button
           type="button"
           onClick={() => setShowLogoutModal(true)}
-          className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 flex items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
+          className="hidden w-8 h-8 sm:w-10 sm:h-10 rounded-xl sm:rounded-full bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 items-center justify-center transition-all cursor-pointer shadow-xs active:scale-95 shrink-0"
           title="Keluar (Logout)"
         >
           <LogOut size={15} />
@@ -516,8 +523,8 @@ const Navbar = ({ toggleSidebar }) => {
       </div>
 
       {/* Modern Confirmation Modal for Logout */}
-      {showLogoutModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
+      {showLogoutModal && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl p-6 sm:p-7 max-w-sm w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center relative scale-100 animate-in zoom-in-95 duration-150">
             <button
               onClick={() => setShowLogoutModal(false)}
@@ -560,7 +567,8 @@ const Navbar = ({ toggleSidebar }) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </header>
   );

@@ -76,9 +76,15 @@ const HSEDashboard = () => {
         const certs = Array.isArray(certRes.data) ? certRes.data : [];
         const employees = Array.isArray(empRes.data) ? empRes.data : [];
 
-        // Filter approved/active certs vs pending vs rejected
-        const approvedCerts = certs.filter(c => c.status === 'Approved' || (!c.status && c.is_approved !== false && !c.notes?.includes('[STATUS:REJECTED]')));
-        const pendingCerts = certs.filter(c => c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]'));
+        // Helper to identify K3 vs General certificates
+        const isK3Cert = (c) => {
+          const isGen = c.category === 'General' || c.kategori === 'General' || c.is_general || c.notes?.includes('[CATEGORY:GENERAL]');
+          return !isGen;
+        };
+
+        // Filter approved/active certs vs pending vs rejected (Strictly K3 for HSE Dashboard)
+        const approvedCerts = certs.filter(c => (c.status === 'Approved' || (!c.status && c.is_approved !== false && !c.notes?.includes('[STATUS:REJECTED]'))) && isK3Cert(c));
+        const pendingCerts = certs.filter(c => (c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]')) && isK3Cert(c));
 
         // Cert type distribution for approved certs
         const certCounts = {};
@@ -243,7 +249,7 @@ const HSEDashboard = () => {
             <span className="font-semibold text-slate-100">{data.standard || 'Kemenaker / ESDM'}</span>
           </div>
           <div className="pt-1 text-[10px] text-slate-400 border-t border-slate-700 mt-1">
-            Klik Matriks K3 untuk melihat daftar nama karyawan
+            Klik Sertifikasi Karyawan untuk melihat daftar nama karyawan
           </div>
         </div>
       );
@@ -273,7 +279,7 @@ const HSEDashboard = () => {
           {hseData.pendingCertsCount > 0 && (
             <div className="flex items-center gap-2 shrink-0">
               <button
-                onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
+                onClick={() => navigate('/organization?tab=certifications&subtab=pending_hse')}
                 className="flex items-center gap-1.5 px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 text-slate-950 font-black text-xs rounded-2xl shadow-xs animate-pulse transition-all cursor-pointer shrink-0"
               >
                 <ShieldCheck size={14} />
@@ -308,7 +314,7 @@ const HSEDashboard = () => {
             title="Permohonan User"
             subtitle="Verifikasi HSE"
             colorClass={hseData.pendingCertsCount > 0 ? "text-purple-600 font-black" : "text-slate-400"}
-            onClick={() => navigate('/organization?tab=certifications&subtab=pending')}
+            onClick={() => navigate('/organization?tab=certifications&subtab=pending_hse')}
           />
           <TopBadge
             icon={AlertTriangle}

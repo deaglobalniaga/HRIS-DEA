@@ -290,7 +290,7 @@ const Reports = () => {
 
         <div 
           onClick={() => navigate('/calendar')}
-          title="Operasional Site PT DEA GLOBAL NIAGA aktif Senin s/d Minggu penuh. Libur mengikuti rotasi Roster 13/1 dan Cuti Roster (8/2 atau 6/2). Klik untuk membuka Kalender Site."
+          title="Operasional Site PT DEA GLOBAL NIAGA aktif Senin s/d Minggu penuh. Libur mengikuti rotasi Roster 13/1 dan Cuti Roster (8/2 atau 6/2). Klik untuk membuka Kalender Tim."
           className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col justify-between hover:border-emerald-400 hover:shadow-md hover:scale-[1.01] transition-all cursor-pointer group"
         >
           <div className="flex items-center justify-between mb-1">

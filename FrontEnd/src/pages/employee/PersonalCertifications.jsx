@@ -107,7 +107,12 @@ const PersonalCertifications = () => {
         try {
           const allCertsRes = await api.get('/hris/certifications');
           const allC = allCertsRes.data || [];
-          const pendingCount = allC.filter(c => (c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]')) && c.status !== 'Rejected').length;
+          const pendingCount = allC.filter(c => {
+            const isPending = (c.status === 'Pending' || c.notes?.includes('[STATUS:PENDING]')) && c.status !== 'Rejected';
+            if (!isPending) return false;
+            const isGen = c.category === 'General' || c.kategori === 'General' || c.is_general || c.notes?.includes('[CATEGORY:GENERAL]');
+            return !isGen;
+          }).length;
           setPendingHSECount(pendingCount);
         } catch (e) {
           // ignore
@@ -359,7 +364,7 @@ const PersonalCertifications = () => {
             onClick={() => navigate('/organization?tab=certifications')}
             className="flex items-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white text-xs font-black rounded-xl shadow-md transition-all shrink-0 cursor-pointer"
           >
-            Matriks K3 <ArrowRight size={14} />
+            Sertifikasi Karyawan <ArrowRight size={14} />
           </button>
         </div>
       )}
@@ -811,7 +816,7 @@ const PersonalCertifications = () => {
                 </div>
                 <div>
                   <h2 className="text-base font-black text-slate-900">
-                    {searchParams.get('action') === 'upload' ? 'Perbarui Lisensi & Sertifikasi' : 'Tambah Lisensi & Sertifikasi Pribadi'}
+                    {searchParams.get('action') === 'upload' ? 'Perbarui Lisensi & Sertifikasi' : 'Tambah Lisensi & Sertifikasi'}
                   </h2>
                   <p className="text-[10px] text-slate-400 font-medium">
                     {formData.category === 'General'

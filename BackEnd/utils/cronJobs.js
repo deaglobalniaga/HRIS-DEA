@@ -331,4 +331,86 @@ cron.schedule('0 0 * * *', async () => {
     }
 });
 
-console.log('Cron jobs for Push Notifications & Certificate Lifecycle initialized.');
+// Helper to extract storage path from a Supabase public URL
+const extractStoragePath = (fileUrl, bucketName) => {
+    if (!fileUrl || !bucketName) return null;
+    try {
+        const marker = `/storage/v1/object/public/${bucketName}/`;
+        const idx = fileUrl.indexOf(marker);
+        if (idx !== -1) {
+            return decodeURIComponent(fileUrl.substring(idx + marker.length));
+        }
+    } catch (_) {}
+    return null;
+};
+
+/**
+ * 4. Daily Auto-Purge: Clean up deleted files from trash older than 1 week (7 days)
+ * Scheduled at 02:00 WITA (18:00 UTC) every day
+ */
+const autoPurgeTrashFiles = async () => {
+    try {
+        const nowIso = new Date().toISOString();
+        const { data: expiredTrash, error } = await supabase
+            .from('file_trash')
+            .select('*')
+            .lte('purge_at', nowIso)
+            .eq('is_purged', false);
+
+        if (error) {
+            console.warn('[TRASH-PURGE] Could not fetch expired trash items:', error.message);
+            return;
+        }
+
+        if (!expiredTrash || expiredTrash.length === 0) {
+            console.log('[TRASH-PURGE] Tidak ada berkas sampah yang melewati batas 1 minggu (7 hari).');
+            return;
+        }
+
+        console.log(`[TRASH-PURGE] Memproses pembersihan permanen untuk ${expiredTrash.length} berkas yang telah dihapus > 1 minggu...`);
+
+        for (const item of expiredTrash) {
+            try {
+                // Delete physical file from 'trash' storage bucket
+                if (item.trash_file_path) {
+                    await supabase.storage.from('trash').remove([item.trash_file_path]);
+                }
+
+                // Also check if original file_url was located in certificates or documents
+                if (item.file_url && item.file_url.startsWith('http')) {
+                    const buckets = ['certificates', 'documents', 'trash'];
+                    for (const b of buckets) {
+                        const fp = extractStoragePath(item.file_url, b);
+                        if (fp) {
+                            await supabase.storage.from(b).remove([fp]).catch(() => {});
+                        }
+                    }
+                }
+
+                // Update trash record to is_purged = true
+                await supabase
+                    .from('file_trash')
+                    .update({
+                        is_purged: true,
+                        purged_at: new Date().toISOString()
+                    })
+                    .eq('id', item.id);
+
+                console.log(`[TRASH-PURGE] Berhasil membersihkan berkas secara permanen: ID ${item.id} (${item.file_name})`);
+            } catch (err) {
+                console.error(`[TRASH-PURGE] Gagal membersihkan item ${item.id}:`, err.message);
+            }
+        }
+    } catch (e) {
+        console.error('[TRASH-PURGE] Error in autoPurgeTrashFiles:', e);
+    }
+};
+
+// Schedule daily at 02:00 WITA
+cron.schedule('0 18 * * *', autoPurgeTrashFiles);
+
+// Execute once on startup
+autoPurgeTrashFiles().catch(() => {});
+
+console.log('Cron jobs for Push Notifications, Certificate Lifecycle & Trash Auto-Purge (1 Week) initialized.');
+

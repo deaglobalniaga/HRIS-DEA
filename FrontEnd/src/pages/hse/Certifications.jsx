@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { 
     Award, Upload, Trash2, Search, FileText, Plus, Eye, CheckCircle2, 
     AlertTriangle, X, RefreshCw, Filter, ShieldCheck, Download,
-    ExternalLink, Building, Calendar, Check, HelpCircle, FileCheck
+    ExternalLink, Building, Calendar, Check, HelpCircle, FileCheck, Lock
 } from 'lucide-react';
 import api from '../../api/api';
 import { useAuth } from '../../context/AuthContext';
@@ -89,27 +89,33 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const isSuperAdmin = ['superadmin', 'super_admin', 'super admin'].includes(role);
 
-    // HSE role: can manage and approve/reject K3 certifications
-    const isHSERole = isSuperAdmin || (
+    // Strictly identify if user belongs to HSE domain
+    const isHSEOnly = !isSuperAdmin && (
         ['hse_admin', 'hse', 'hse_officer'].includes(role) ||
         (role.includes('hse') && !role.includes('hr')) ||
         username === 'hse_admin' ||
-        username.includes('hse') ||
+        (username.includes('hse') && username !== 'admin') ||
         dept.includes('hse') || dept.includes('k3') || dept.includes('safety') || dept.includes('pengelola k3') ||
         jabatan.includes('hse') || jabatan.includes('k3') || jabatan.includes('safety') ||
         (name.includes('hse') && !dept.includes('hr'))
     );
 
-    // HRGA role: can manage and approve/reject General certifications
-    const isHRGARole = isSuperAdmin || (
-        ['admin', 'hrga_admin', 'hr_admin', 'admin_hrga', 'hr', 'hrga'].includes(role) ||
-        (role.includes('hr') && !role.includes('hse')) ||
-        (role.includes('admin') && !role.includes('hse')) ||
-        username === 'admin' || dept.includes('hr') || dept.includes('hrga')
+    // Strictly identify if user belongs to HRGA domain (must NOT be HSE)
+    const isHRGAOnly = !isSuperAdmin && !isHSEOnly && (
+        ['admin', 'hrga_admin', 'hr_admin', 'admin_hrga', 'admin_hr', 'hr', 'hrga'].includes(role) ||
+        dept.includes('hr') || dept.includes('hrga') ||
+        jabatan.includes('hr') || jabatan.includes('hrga') ||
+        username === 'admin' || username.includes('hr')
     );
 
+    // HSE authority: can manage and approve/reject K3 certifications (SuperAdmin or HSE Admin)
+    const isHSERole = isSuperAdmin || isHSEOnly;
+
+    // HRGA authority: can manage and approve/reject General certifications (SuperAdmin or HRGA Admin)
+    const isHRGARole = isSuperAdmin || isHRGAOnly;
+
     // canManage: can VIEW all cert data (both HSE and HRGA), but actions differ by category
-    const canManage = isHSERole || isHRGARole;
+    const canManage = isSuperAdmin || isHSEOnly || isHRGAOnly;
 
     const [certifications, setCertifications] = useState([]);
     const [employees, setEmployees] = useState([]);
@@ -130,15 +136,34 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     // Filter Expiry State ('ALL' | 'expiring' | 'expired' | 'active')
     const [expiryFilter, setExpiryFilter] = useState(searchParams.get('expiry') || 'ALL');
     const [selectedCategoryFilter, setSelectedCategoryFilter] = useState('ALL'); // 'ALL' | 'K3' | 'General'
-    const [activeTab, setActiveTab] = useState(searchParams.get('subtab') || 'matrix'); // 'matrix' | 'pending'
+    
+    // Dedicated subtabs: 'matrix' | 'pending_hse' | 'pending_hrga'
+    const getInitialSubtab = () => {
+        const sub = searchParams.get('subtab');
+        if (sub === 'pending_hse') return 'pending_hse';
+        if (sub === 'pending_hrga') return 'pending_hrga';
+        if (sub === 'pending') {
+            return isHRGAOnly ? 'pending_hrga' : 'pending_hse';
+        }
+        return 'matrix';
+    };
+    const [activeTab, setActiveTab] = useState(getInitialSubtab);
     const [actionLoading, setActionLoading] = useState(null);
 
     useEffect(() => {
         const exp = searchParams.get('expiry') || 'ALL';
         setExpiryFilter(exp);
-        const sub = searchParams.get('subtab') || 'matrix';
-        setActiveTab(sub);
-    }, [searchParams]);
+        const sub = searchParams.get('subtab');
+        if (sub === 'pending_hse') {
+            setActiveTab('pending_hse');
+        } else if (sub === 'pending_hrga') {
+            setActiveTab('pending_hrga');
+        } else if (sub === 'pending') {
+            setActiveTab(isHRGAOnly ? 'pending_hrga' : 'pending_hse');
+        } else if (sub === 'matrix') {
+            setActiveTab('matrix');
+        }
+    }, [searchParams, isHRGAOnly]);
 
     // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
@@ -159,7 +184,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const [rejectError, setRejectError] = useState('');
     
     // LinkedIn-Style Form state
-    const [certCategory, setCertCategory] = useState(isHRGARole && !isHSERole ? 'General' : 'K3');
+    const [certCategory, setCertCategory] = useState(isHRGAOnly ? 'General' : 'K3');
     const [selectedUserId, setSelectedUserId] = useState('');
     const [namaSertifikat, setNamaSertifikat] = useState('');
     const [certNumber, setCertNumber] = useState('');
@@ -350,7 +375,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
 
     const resetForm = () => {
         if (!preSelectedUser) setSelectedUserId('');
-        setCertCategory(isHRGARole && !isHSERole ? 'General' : 'K3');
+        setCertCategory(isHRGAOnly ? 'General' : 'K3');
         setNamaSertifikat('');
         setCertNumber('');
         setInstitusi('');
@@ -522,38 +547,77 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
     const displayRows = getDisplayRows();
     const totalPages = Math.max(1, Math.ceil(displayRows.length / itemsPerPage));
     const paginatedRows = displayRows.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
-    const pendingCerts = certifications.filter(c => c.status === 'Pending');
+    const pendingCerts = (certifications || []).filter(c => c.status === 'Pending');
+
+    const pendingK3Certs = pendingCerts.filter(c => {
+        const isGen = c.category === 'General' || c.kategori === 'General' || c.is_general || c.notes?.includes('[CATEGORY:GENERAL]');
+        return !isGen;
+    });
+
+    const pendingGeneralCerts = pendingCerts.filter(c => {
+        const isGen = c.category === 'General' || c.kategori === 'General' || c.is_general || c.notes?.includes('[CATEGORY:GENERAL]');
+        return isGen;
+    });
+
+    // Count of pending certs requiring action specifically from this logged-in admin role
+    const pendingActionCount = isSuperAdmin
+        ? pendingCerts.length
+        : (isHSEOnly ? pendingK3Certs.length : pendingGeneralCerts.length);
 
     return (
         <div className="w-full flex flex-col gap-5 relative font-sans">
             {/* Sub-Tab Navigation */}
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-2">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                     <button
                         onClick={() => setActiveTab('matrix')}
-                        className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-2 ${
+                        className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-2 cursor-pointer ${
                             activeTab === 'matrix'
                                 ? 'bg-slate-900 text-white shadow-sm'
                                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                         }`}
                     >
-                        <Award size={15} /> Matriks K3 Seluruh Karyawan
+                        <Award size={15} /> Sertifikasi Karyawan
                     </button>
                     
+                    {/* Tab 1: Verifikasi HSE (Khusus K3) */}
                     <button
-                        onClick={() => setActiveTab('pending')}
-                        className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-2 ${
-                            activeTab === 'pending'
+                        onClick={() => setActiveTab('pending_hse')}
+                        className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                            activeTab === 'pending_hse'
                                 ? 'bg-red-700 text-white shadow-sm'
                                 : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
                         }`}
                     >
-                        <ShieldCheck size={15} /> Permohonan Sertifikat User
-                        {pendingCerts.length > 0 && (
+                        <ShieldCheck size={15} /> Verifikasi HSE {isHRGAOnly ? '(Read Only)' : ''}
+                        {pendingK3Certs.length > 0 && (
                             <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
-                                activeTab === 'pending' ? 'bg-white text-red-700' : 'bg-amber-500 text-white animate-pulse'
+                                activeTab === 'pending_hse'
+                                    ? 'bg-white text-red-700'
+                                    : (isHSEOnly ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-200 text-slate-700')
                             }`}>
-                                {pendingCerts.length}
+                                {pendingK3Certs.length}
+                            </span>
+                        )}
+                    </button>
+
+                    {/* Tab 2: Verifikasi HRGA (Khusus General) */}
+                    <button
+                        onClick={() => setActiveTab('pending_hrga')}
+                        className={`px-4 py-2 text-xs font-black rounded-xl transition flex items-center gap-2 cursor-pointer ${
+                            activeTab === 'pending_hrga'
+                                ? 'bg-blue-700 text-white shadow-sm'
+                                : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'
+                        }`}
+                    >
+                        <ShieldCheck size={15} /> Verifikasi HRGA {isHSEOnly ? '(Read Only)' : ''}
+                        {pendingGeneralCerts.length > 0 && (
+                            <span className={`px-2 py-0.5 text-[10px] font-black rounded-full ${
+                                activeTab === 'pending_hrga'
+                                    ? 'bg-white text-blue-700'
+                                    : (isHRGAOnly ? 'bg-blue-600 text-white animate-pulse' : 'bg-slate-200 text-slate-700')
+                            }`}>
+                                {pendingGeneralCerts.length}
                             </span>
                         )}
                     </button>
@@ -562,7 +626,7 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 <div className="flex items-center gap-2">
                     <button 
                         onClick={fetchData} 
-                        className="p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 transition-all shadow-sm"
+                        className="p-2 bg-white hover:bg-slate-100 text-slate-700 rounded-xl border border-slate-200 transition-all shadow-sm cursor-pointer"
                         title="Refresh Data"
                     >
                         <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
@@ -580,42 +644,46 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                 </div>
             </div>
 
-            {/* PENDING APPROVAL TAB VIEW */}
-            {activeTab === 'pending' ? (
+            {/* TAB VIEW 1: VERIFIKASI HSE (KHUSUS K3) */}
+            {activeTab === 'pending_hse' ? (
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-4 space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-3 gap-2">
                         <div>
                             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                                <ShieldCheck className="text-red-700" size={18} /> Permohonan Sertifikat & Lisensi Mandiri (Verifikasi HSE / HRGA)
+                                <ShieldCheck className="text-red-700" size={18} /> Verifikasi Sertifikat K3 {isHRGAOnly ? '(Read Only)' : ''}
                             </h3>
                             <p className="text-xs text-slate-500 mt-0.5">
-                                Tinjau berkas sertifikat yang diunggah oleh karyawan. Sertifikat K3 diverifikasi oleh Tim HSE, dan Sertifikat General diverifikasi oleh Tim HRGA.
+                                Fokus khusus tinjauan permohonan sertifikat & lisensi K3 karyawan. Dikelola dan diverifikasi langsung oleh Tim HSE.
                             </p>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-xs font-bold">
-                                {pendingCerts.length} Menunggu Persetujuan
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {isHSERole && pendingK3Certs.length > 0 && (
+                                <span className="px-3 py-1 bg-red-700 text-white rounded-xl text-xs font-black animate-pulse">
+                                    {pendingK3Certs.length} Perlu Verifikasi HSE
+                                </span>
+                            )}
+                            <span className="px-3 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold">
+                                Total {pendingK3Certs.length} Permohonan K3
                             </span>
                         </div>
                     </div>
 
                     {loading ? (
                         <div className="py-12 text-center text-slate-400 font-bold">
-                            <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat data permohonan sertifikasi...
+                            <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat data permohonan sertifikasi K3...
                         </div>
-                    ) : pendingCerts.length === 0 ? (
+                    ) : pendingK3Certs.length === 0 ? (
                         <div className="py-12 text-center text-slate-400">
                             <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-2" />
-                            <p className="font-bold text-slate-700 text-sm">Semua Permohonan Telah Diproses</p>
-                            <p className="text-xs text-slate-400 mt-0.5">Tidak ada sertifikat user yang sedang menunggu persetujuan.</p>
+                            <p className="font-bold text-slate-700 text-sm">Semua Permohonan K3 Telah Diproses</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Tidak ada berkas sertifikat K3 yang sedang menunggu persetujuan Tim HSE.</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {pendingCerts.map((cert) => {
+                            {pendingK3Certs.map((cert) => {
                                 const emp = cert.karyawan || {};
                                 const isBusy = actionLoading === cert.id;
-                                const isGen = cert.category === 'General' || cert.kategori === 'General' || cert.is_general || cert.notes?.includes('[CATEGORY:GENERAL]');
-                                const canAction = isSuperAdmin || (isGen ? isHRGARole : isHSERole);
+                                const canAction = isHSERole;
 
                                 return (
                                     <div key={cert.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between gap-3.5 hover:border-slate-300 transition">
@@ -631,10 +699,8 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-1.5 shrink-0">
-                                                <span className={`px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider ${
-                                                    isGen ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-red-50 text-red-700 border-red-200'
-                                                }`}>
-                                                    {isGen ? 'General' : 'K3'}
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-red-50 text-red-700 border-red-200">
+                                                    K3
                                                 </span>
                                                 <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black">
                                                     Menunggu Verifikasi
@@ -705,20 +771,159 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                                             type="button"
                                                             disabled={isBusy}
                                                             onClick={() => handleApprove(cert.id)}
-                                                            className={`px-3.5 py-1.5 text-white text-xs font-black rounded-xl shadow-sm transition flex items-center gap-1 disabled:opacity-50 cursor-pointer ${
-                                                                isGen ? 'bg-blue-600 hover:bg-blue-700' : 'bg-emerald-600 hover:bg-emerald-700'
-                                                            }`}
+                                                            className="px-3.5 py-1.5 text-white text-xs font-black rounded-xl shadow-sm transition flex items-center gap-1 disabled:opacity-50 cursor-pointer bg-emerald-600 hover:bg-emerald-700"
                                                         >
-                                                            <CheckCircle2 size={13} /> {isBusy ? "Memproses..." : `Setujui (${isGen ? 'HRGA' : 'HSE'})`}
+                                                            <CheckCircle2 size={13} /> {isBusy ? "Memproses..." : "Setujui (HSE)"}
                                                         </button>
                                                     </>
                                                 ) : (
-                                                    <span className={`text-[10px] px-2.5 py-1 rounded-xl font-bold border ${
-                                                        isGen 
-                                                            ? 'text-blue-700 bg-blue-50 border-blue-200' 
-                                                            : 'text-amber-700 bg-amber-50 border-amber-200'
-                                                    }`}>
-                                                        {isGen ? 'Wewenang Tim HRGA (Hanya Baca)' : 'Wewenang Tim HSE (Hanya Baca)'}
+                                                    <span className="text-[10px] px-2.5 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 text-amber-700 bg-amber-50/90 border-amber-200">
+                                                        <Lock size={12} /> Wewenang Tim HSE (Read Only)
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            ) : activeTab === 'pending_hrga' ? (
+                /* TAB VIEW 2: VERIFIKASI HRGA (KHUSUS GENERAL) */
+                <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden p-4 space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                                <ShieldCheck className="text-blue-700" size={18} /> Verifikasi Sertifikat General (HRGA) {isHSEOnly ? '(Read Only)' : ''}
+                            </h3>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                                Tinjauan berkas permohonan sertifikat pelatihan teknis/umum non-K3 karyawan. Dikelola dan diverifikasi langsung oleh Tim HRGA.
+                            </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {isHRGARole && pendingGeneralCerts.length > 0 && (
+                                <span className="px-3 py-1 bg-blue-700 text-white rounded-xl text-xs font-black animate-pulse">
+                                    {pendingGeneralCerts.length} Perlu Verifikasi HRGA
+                                </span>
+                            )}
+                            <span className="px-3 py-1 bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold">
+                                Total {pendingGeneralCerts.length} Permohonan General
+                            </span>
+                        </div>
+                    </div>
+
+                    {loading ? (
+                        <div className="py-12 text-center text-slate-400 font-bold">
+                            <RefreshCw className="animate-spin mb-2 mx-auto" size={24} /> Memuat data permohonan sertifikasi General...
+                        </div>
+                    ) : pendingGeneralCerts.length === 0 ? (
+                        <div className="py-12 text-center text-slate-400">
+                            <CheckCircle2 size={32} className="mx-auto text-emerald-500 mb-2" />
+                            <p className="font-bold text-slate-700 text-sm">Semua Permohonan General Telah Diproses</p>
+                            <p className="text-xs text-slate-400 mt-0.5">Tidak ada sertifikat umum/general yang sedang menunggu persetujuan Tim HRGA.</p>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {pendingGeneralCerts.map((cert) => {
+                                const emp = cert.karyawan || {};
+                                const isBusy = actionLoading === cert.id;
+                                const canAction = isHRGARole;
+
+                                return (
+                                    <div key={cert.id} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm flex flex-col justify-between gap-3.5 hover:border-slate-300 transition">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="flex items-start gap-3">
+                                                <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center font-black text-sm shrink-0">
+                                                    {(emp.nama_lengkap || 'K').charAt(0)}
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-black text-slate-900">{emp.nama_lengkap}</h4>
+                                                    <p className="text-[11px] text-slate-500">{emp.jabatan} • {emp.departemen}</p>
+                                                    <span className="text-[10px] font-mono text-slate-400">No. Pegawai: {emp.nomor_pegawai}</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 shrink-0">
+                                                <span className="px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-wider bg-blue-50 text-blue-700 border-blue-200">
+                                                    General
+                                                </span>
+                                                <span className="px-2.5 py-1 bg-amber-100 text-amber-800 border border-amber-300 rounded-full text-[10px] font-black">
+                                                    Menunggu Verifikasi
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 bg-white rounded-xl border border-slate-200/80 space-y-1.5 text-xs">
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400 text-[10px] uppercase font-bold">Nama Sertifikat</span>
+                                                <span className="font-bold text-slate-900">{cert.nama_sertifikat}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400 text-[10px] uppercase font-bold">No. Sertifikat / Registrasi</span>
+                                                <span className="font-mono text-slate-700 font-bold">{cert.nomor_sertifikat || '-'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400 text-[10px] uppercase font-bold">Penerbit</span>
+                                                <span className="text-slate-700">{cert.institusi_penerbit || '-'}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <span className="text-slate-400 text-[10px] uppercase font-bold">Masa Berlaku</span>
+                                                <span className="font-bold text-slate-800">
+                                                    {cert.is_lifetime ? 'Seumur Hidup' : cert.tanggal_kadaluarsa || '-'}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div className="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
+                                            {cert.file_url || cert.file_path ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const userCerts = certifications.filter(c => 
+                                                            (c.karyawan && (c.karyawan.id === emp.id || c.karyawan.nama_lengkap === emp.nama_lengkap || c.karyawan.nama === emp.nama)) ||
+                                                            c.user_id === emp.id || 
+                                                            c.employee_id === emp.id ||
+                                                            c.id === cert.id
+                                                        );
+                                                        setPreviewDoc({ 
+                                                            id: cert.id,
+                                                            url: cert.file_url || cert.file_path || cert.attachments || cert.url, 
+                                                            name: `${emp.nama || emp.nama_lengkap || 'Karyawan'} - ${cert.nama_sertifikat || 'Sertifikat'}`,
+                                                            userCerts: userCerts,
+                                                            karyawan: emp
+                                                        });
+                                                    }}
+                                                    className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer"
+                                                >
+                                                    <Eye size={13} /> Pratinjau Berkas
+                                                </button>
+                                            ) : (
+                                                <span className="text-[10px] text-slate-400 italic">Tidak ada lampiran berkas</span>
+                                            )}
+
+                                            <div className="flex items-center gap-2 ml-auto">
+                                                {canAction ? (
+                                                    <>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() => { setRejectModalCert(cert); setRejectReason(''); setRejectError(''); }}
+                                                            className="px-3 py-1.5 bg-slate-200 hover:bg-rose-50 text-slate-700 hover:text-rose-700 text-xs font-bold rounded-xl transition disabled:opacity-50 cursor-pointer"
+                                                        >
+                                                            Tolak
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            disabled={isBusy}
+                                                            onClick={() => handleApprove(cert.id)}
+                                                            className="px-3.5 py-1.5 text-white text-xs font-black rounded-xl shadow-sm transition flex items-center gap-1 disabled:opacity-50 cursor-pointer bg-blue-600 hover:bg-blue-700"
+                                                        >
+                                                            <CheckCircle2 size={13} /> {isBusy ? "Memproses..." : "Setujui (HRGA)"}
+                                                        </button>
+                                                    </>
+                                                ) : (
+                                                    <span className="text-[10px] px-2.5 py-1.5 rounded-xl font-bold border flex items-center gap-1.5 text-blue-700 bg-blue-50/90 border-blue-200">
+                                                        <Lock size={12} /> Wewenang Tim HRGA (Read Only)
                                                     </span>
                                                 )}
                                             </div>
@@ -853,24 +1058,26 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedCategoryFilter('K3')}
-                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                            onClick={() => setSelectedCategoryFilter(prev => prev === 'K3' ? 'ALL' : 'K3')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 selectedCategoryFilter === 'K3'
                                                     ? 'bg-red-700 text-white shadow-xs'
-                                                    : 'text-slate-500 hover:text-slate-800'
+                                                    : 'text-slate-600 hover:text-red-700 hover:bg-red-50'
                                             }`}
                                         >
-                                            K3 & Keselamatan
+                                            <span className={`w-2 h-2 rounded-full ${selectedCategoryFilter === 'K3' ? 'bg-white' : 'bg-red-500'}`}></span>
+                                            K3
                                         </button>
                                         <button
                                             type="button"
-                                            onClick={() => setSelectedCategoryFilter('General')}
-                                            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                            onClick={() => setSelectedCategoryFilter(prev => prev === 'General' ? 'ALL' : 'General')}
+                                            className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                                                 selectedCategoryFilter === 'General'
                                                     ? 'bg-blue-700 text-white shadow-xs'
-                                                    : 'text-slate-500 hover:text-slate-800'
+                                                    : 'text-slate-600 hover:text-blue-700 hover:bg-blue-50'
                                             }`}
                                         >
+                                            <span className={`w-2 h-2 rounded-full ${selectedCategoryFilter === 'General' ? 'bg-white' : 'bg-blue-500'}`}></span>
                                             General (HRGA)
                                         </button>
                                     </div>
@@ -1411,10 +1618,10 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                 <div className="grid grid-cols-2 gap-2.5">
                                     <button
                                         type="button"
-                                        disabled={isHRGARole && !isSuperAdmin}
+                                        disabled={isHRGAOnly}
                                         onClick={() => setCertCategory('K3')}
                                         className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
-                                            isHRGARole && !isSuperAdmin ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'
+                                            isHRGAOnly ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'
                                         } ${
                                             certCategory === 'K3'
                                                 ? 'border-red-600 bg-red-50/70 text-red-950 font-bold ring-2 ring-red-600/20'
@@ -1425,17 +1632,17 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                             {certCategory === 'K3' && <div className="w-1.5 h-1.5 rounded-full bg-red-600" />}
                                         </div>
                                         <div>
-                                            <div className="text-xs font-bold">K3 & Keselamatan</div>
+                                            <div className="text-xs font-bold">K3</div>
                                             <div className="text-[10px] text-slate-500 font-normal">Dikelola Tim HSE</div>
                                         </div>
                                     </button>
 
                                     <button
                                         type="button"
-                                        disabled={isHSERole && !isSuperAdmin && !isHRGARole}
+                                        disabled={isHSEOnly}
                                         onClick={() => setCertCategory('General')}
                                         className={`p-2.5 rounded-xl border text-left transition flex items-center gap-2.5 ${
-                                            isHSERole && !isSuperAdmin && !isHRGARole ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'
+                                            isHSEOnly ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'
                                         } ${
                                             certCategory === 'General'
                                                 ? 'border-blue-600 bg-blue-50/70 text-blue-950 font-bold ring-2 ring-blue-600/20'
@@ -1451,14 +1658,19 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
                                         </div>
                                     </button>
                                 </div>
-                                {isHRGARole && !isSuperAdmin && (
+                                {isHRGAOnly && (
                                     <p className="text-[10px] text-blue-600 font-medium mt-1">
                                         * Sebagai Admin HRGA, Anda berwenang mendaftarkan dan memverifikasi sertifikat kategori General (pelatihan teknis/umum non-K3).
                                     </p>
                                 )}
-                                {isHSERole && !isHRGARole && !isSuperAdmin && (
+                                {isHSEOnly && (
                                     <p className="text-[10px] text-red-600 font-medium mt-1">
-                                        * Sebagai Admin HSE, Anda berwenang mendaftarkan dan memverifikasi sertifikat kategori K3 & Keselamatan Kerja.
+                                        * Sebagai Admin HSE, Anda berwenang mendaftarkan dan memverifikasi sertifikat kategori K3.
+                                    </p>
+                                )}
+                                {isSuperAdmin && (
+                                    <p className="text-[10px] text-purple-600 font-medium mt-1">
+                                        * Sebagai Super Admin, Anda berwenang mendaftarkan seluruh kategori sertifikat (K3 maupun General).
                                     </p>
                                 )}
                             </div>
