@@ -686,58 +686,6 @@ const Employees = ({ readOnly = false }) => {
         }
     };
 
-    const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        setCsvFile(file);
-        if (file) {
-            const ext = file.name.split('.').pop().toLowerCase();
-            if (ext === 'xlsx' || ext === 'xls') {
-                const reader = new FileReader();
-                reader.onload = (evt) => {
-                    const bstr = evt.target.result;
-                    const wb = XLSX.read(bstr, { type: 'binary' });
-                    const wsname = wb.SheetNames[0];
-                    const ws = wb.Sheets[wsname];
-                    const data = XLSX.utils.sheet_to_json(ws);
-                    setBulkData(data);
-                };
-                reader.readAsBinaryString(file);
-            } else {
-                Papa.parse(file, {
-                    header: true,
-                    skipEmptyLines: true,
-                    complete: function (results) {
-                        setBulkData(results.data);
-                    }
-                });
-            }
-        }
-    };
-
-    const handleBulkSubmit = async () => {
-        if (!bulkData.length) return;
-        setSubmitting(true);
-        setMessage('');
-        try {
-            await api.post('/hris/employees/bulk', { employees: bulkData });
-            addToast(`${bulkData.length} Karyawan berhasil diimport!`, 'success');
-            setTimeout(() => {
-                setShowBulkModal(false);
-                setBulkData([]);
-                setCsvFile(null);
-                setMessage('');
-                fetchEmployees();
-            }, 2000);
-        } catch (err) {
-            console.error(err);
-            const msg = err.response?.data?.error || err.response?.data?.message || 'Gagal mengimport data karyawan.';
-            addToast('Error: ' + msg, 'error');
-            setMessage('Error: ' + msg);
-        } finally {
-            setSubmitting(false);
-        }
-    };
-
     // Functional Filter States
     const [selectedDeptFilter, setSelectedDeptFilter] = useState('ALL');
     const [selectedPlacementFilter, setSelectedPlacementFilter] = useState('ALL');

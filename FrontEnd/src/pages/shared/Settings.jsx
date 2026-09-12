@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
     User, Lock, Shield, ShieldCheck, Smartphone, Key, RefreshCw, CheckCircle2, AlertCircle, Save, X,
     FileText, Award, Building2, Briefcase, Calendar, CreditCard, Hash, MapPin, Eye, Check,
@@ -18,6 +18,7 @@ const Settings = () => {
     const [loading, setLoading] = useState(false);
     const [previewDocUrl, setPreviewDocUrl] = useState(null);
     const [previewDocTitle, setPreviewDocTitle] = useState('');
+    const [photoPreview, setPhotoPreview] = useState(null);
     
     // Form States
     const [profileData, setProfileData] = useState({

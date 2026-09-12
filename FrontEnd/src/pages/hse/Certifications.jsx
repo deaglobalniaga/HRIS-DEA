@@ -559,11 +559,6 @@ const Certifications = ({ preSelectedUser = null, uploadTrigger = 0 }) => {
         return isGen;
     });
 
-    // Count of pending certs requiring action specifically from this logged-in admin role
-    const pendingActionCount = isSuperAdmin
-        ? pendingCerts.length
-        : (isHSEOnly ? pendingK3Certs.length : pendingGeneralCerts.length);
-
     return (
         <div className="w-full flex flex-col gap-5 relative font-sans">
             {/* Sub-Tab Navigation */}

@@ -43,7 +43,6 @@ const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, bgClass, onC
 
 const HRGADashboard = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
   const { addToast } = useToast();
   const [stats, setStats] = useState({
     totalEmployees: 0,

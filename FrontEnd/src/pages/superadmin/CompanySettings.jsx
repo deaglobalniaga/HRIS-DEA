@@ -337,14 +337,6 @@ const CompanySettings = () => {
     }
   };
 
-  const toggleSelectAllDevices = () => {
-    if (selectedDeviceIds.length === devices.length && devices.length > 0) {
-      setSelectedDeviceIds([]);
-    } else {
-      setSelectedDeviceIds(devices.map(d => d.id));
-    }
-  };
-
   const toggleSelectDevice = (id) => {
     setSelectedDeviceIds(prev =>
       prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]

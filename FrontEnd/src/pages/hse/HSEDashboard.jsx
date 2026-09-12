@@ -36,8 +36,6 @@ const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick, cla
 
 const HSEDashboard = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
-  const [loading, setLoading] = useState(true);
   const [serverTime, setServerTime] = useState(new Date());
   const [recentLimit, setRecentLimit] = useState(10); // 10, 20, 30, or all
   const [searchRecent, setSearchRecent] = useState('');
@@ -208,8 +206,6 @@ const HSEDashboard = () => {
         });
       } catch (e) {
         console.error('Fetch HSE data error:', e);
-      } finally {
-        setLoading(false);
       }
     };
     fetchHSEData();

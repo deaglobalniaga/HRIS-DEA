@@ -18,7 +18,6 @@ const Permissions = () => {
   const isHRAdmin = (['admin', 'hrga_admin', 'hr'].includes(role) || dept.includes('hr') || dept.includes('hrga') || username === 'admin') && !isHSE;
 
   // Only HRGA and Superadmin are authorized to record or delete leaves. HSE is strictly forbidden.
-  const canManage = isSuperAdmin || isHRAdmin;
   const isAdmin = isSuperAdmin || isHRAdmin;
 
   const [leaves, setLeaves] = useState([]);

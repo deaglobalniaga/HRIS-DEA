@@ -37,10 +37,7 @@ const TopBadge = ({ icon: Icon, value, title, subtitle, colorClass, onClick }) =
 
 const SuperAdminDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
   const { addToast } = useToast();
-
-  const [loading, setLoading] = useState(true);
   const [serverTime, setServerTime] = useState(new Date());
 
   const [systemStats, setSystemStats] = useState({
@@ -107,8 +104,6 @@ const SuperAdminDashboard = () => {
       }
     } catch (e) {
       console.error('Fetch superadmin live stats error:', e);
-    } finally {
-      setLoading(false);
     }
   };
 

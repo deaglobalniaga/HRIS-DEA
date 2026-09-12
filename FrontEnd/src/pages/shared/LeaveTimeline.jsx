@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Calendar as CalendarIcon, Users, Clock, AlertCircle, Plus, X, ChevronLeft,
@@ -19,7 +19,6 @@ const LeaveTimeline = () => {
   // Hak kelola agenda (Tambah, Edit, Hapus, Bersihkan):
   // Diberikan kepada SEMUA role admin KECUALI superadmin dan user/karyawan:
   const canManageAgenda = !isSuperAdmin && !isUser;
-  const isHRGA = canManageAgenda;
 
   const [selectedDate, setSelectedDate] = useState(null);
   const [selectedAgendaDetail, setSelectedAgendaDetail] = useState(null);
@@ -387,8 +386,9 @@ const LeaveTimeline = () => {
                 >
                   <ChevronLeft size={16} />
                 </button>
-                <span className="text-xs font-black text-slate-800 px-2 min-w-[110px] text-center whitespace-nowrap">
+                <span className="text-xs font-black text-slate-800 px-2 min-w-[110px] text-center whitespace-nowrap flex items-center justify-center gap-1.5">
                   {monthNames[currentMonth]} {currentYear}
+                  {loading && <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping inline-block" />}
                 </span>
                 <button
                   onClick={nextMonth}
