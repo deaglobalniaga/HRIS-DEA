@@ -268,14 +268,14 @@ const Login = () => {
                 <iframe
                     src='https://my.spline.design/nexbotrobotcharacterconcept-Od5WflpjroNUX6I1cGMg9fvj/'
                     frameBorder='0'
-                    className="absolute w-[130%] h-[calc(100%+140px)] -left-[15%] lg:-left-[18%] -top-[15px] pointer-events-auto opacity-100"
+                    className="absolute w-[130%] h-[calc(100%+140px)] -left-[15%] -top-[15px] scale-[0.52] sm:scale-[0.7] lg:scale-100 origin-[50%_30%] lg:origin-center lg:-left-[18%] pointer-events-auto opacity-100"
                     title="Interactive 3D Robot Scene"
                     allow="autoplay; fullscreen; vr"
                 ></iframe>
             </div>
 
             {/* Left Floating Typography (Enlarged slightly with bold presence) */}
-            <div className="absolute top-7 sm:top-12 md:top-16 lg:top-32 xl:top-36 left-5 sm:left-8 lg:left-14 xl:left-18 z-20 flex flex-col pointer-events-none select-none max-w-[85vw] sm:max-w-md lg:max-w-lg animate-in fade-in slide-in-from-top-4 duration-700">
+            <div className="absolute top-16 sm:top-18 md:top-20 lg:top-32 xl:top-36 left-5 sm:left-8 lg:left-14 xl:left-18 z-20 flex flex-col pointer-events-none select-none max-w-[88vw] sm:max-w-md lg:max-w-lg animate-in fade-in slide-in-from-top-4 duration-700">
                 <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-3">
                     <img src="/dea.png" alt="DEA Logo" className="h-6 sm:h-8 w-auto object-contain drop-shadow-lg" onError={(e) => { e.target.style.display = 'none' }} />
                     <span className="text-[10px] sm:text-xs lg:text-sm font-black tracking-[0.22em] text-red-500 uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
