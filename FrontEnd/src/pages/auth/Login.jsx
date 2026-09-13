@@ -259,7 +259,7 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen w-full relative overflow-hidden flex items-center justify-center lg:justify-end lg:pr-28 xl:pr-40 2xl:pr-52 bg-black select-none font-sans">
+        <div className="min-h-screen min-h-[100dvh] w-full relative overflow-hidden flex items-end justify-center pb-4 sm:pb-6 lg:pb-0 lg:items-center lg:justify-end lg:pr-28 xl:pr-40 2xl:pr-52 bg-black select-none font-sans">
             {/* Clean White Orbiting Auth Transition Overlay on Login */}
             {isLoggingIn && <AuthTransitionOverlay />}
 
@@ -275,17 +275,17 @@ const Login = () => {
             </div>
 
             {/* Left Floating Typography (Enlarged slightly with bold presence) */}
-            <div className="absolute top-20 sm:top-24 lg:top-32 xl:top-36 left-6 sm:left-8 lg:left-14 xl:left-18 z-20 flex flex-col pointer-events-none select-none max-w-lg animate-in fade-in slide-in-from-top-4 duration-700">
-                <div className="flex items-center gap-3 mb-3">
-                    <img src="/dea.png" alt="DEA Logo" className="h-8 w-auto object-contain drop-shadow-lg" onError={(e) => { e.target.style.display = 'none' }} />
-                    <span className="text-xs sm:text-sm font-black tracking-[0.22em] text-red-500 uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <div className="absolute top-7 sm:top-12 md:top-16 lg:top-32 xl:top-36 left-5 sm:left-8 lg:left-14 xl:left-18 z-20 flex flex-col pointer-events-none select-none max-w-[85vw] sm:max-w-md lg:max-w-lg animate-in fade-in slide-in-from-top-4 duration-700">
+                <div className="flex items-center gap-2 sm:gap-3 mb-1.5 sm:mb-3">
+                    <img src="/dea.png" alt="DEA Logo" className="h-6 sm:h-8 w-auto object-contain drop-shadow-lg" onError={(e) => { e.target.style.display = 'none' }} />
+                    <span className="text-[10px] sm:text-xs lg:text-sm font-black tracking-[0.22em] text-red-500 uppercase drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
                         PT DEA GLOBAL NIAGA
                     </span>
                 </div>
-                <h1 className="text-4xl sm:text-5xl xl:text-6xl font-black text-white tracking-tight leading-none drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
+                <h1 className="text-2xl sm:text-4xl lg:text-5xl xl:text-6xl font-black text-white tracking-tight leading-tight lg:leading-none drop-shadow-[0_4px_16px_rgba(0,0,0,0.95)]">
                     Smart <span className="text-red-500">HRIS</span> Portal
                 </h1>
-                <p className="text-slate-100/90 text-sm sm:text-base font-semibold mt-3 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] max-w-md">
+                <p className="text-slate-100/90 text-xs sm:text-sm lg:text-base font-semibold mt-1 sm:mt-2 lg:mt-3 leading-snug sm:leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.9)] max-w-xs sm:max-w-md">
                     Integrated Employee Attendance & Workforce Management System
                 </p>
             </div>
@@ -293,7 +293,7 @@ const Login = () => {
             {/* Interactive 3D Tilt Login Card Container (Enlarged max-w-md, Shifted Left, High-Fidelity Depth) */}
             <div 
                 style={{ perspective: '1400px' }}
-                className={`relative z-20 w-full max-w-[430px] pointer-events-none flex flex-col items-center px-4 transition-all duration-500 ease-out ${
+                className={`relative z-20 w-full max-w-[360px] sm:max-w-[400px] lg:max-w-[430px] pointer-events-none flex flex-col items-center px-3 sm:px-4 transition-all duration-500 ease-out ${
                     isMorphing 
                         ? 'scale-90 -rotate-y-90 opacity-0 blur-xs' 
                         : 'scale-100 rotate-y-0 opacity-100'
@@ -301,7 +301,7 @@ const Login = () => {
             >
                 {/* Dynamic Ambient Glow Halo */}
                 <div 
-                    className="absolute -inset-3 bg-gradient-to-b from-white/30 via-red-500/20 to-black/60 rounded-t-[4.5rem] rounded-b-[3rem] blur-2xl opacity-75 pointer-events-none transition-all duration-300" 
+                    className="absolute -inset-2 sm:-inset-3 bg-gradient-to-b from-white/30 via-red-500/20 to-black/60 rounded-t-[3rem] sm:rounded-t-[3.75rem] lg:rounded-t-[4.5rem] rounded-b-[2rem] sm:rounded-b-[2.5rem] lg:rounded-b-[3rem] blur-xl sm:blur-2xl opacity-75 pointer-events-none transition-all duration-300" 
                     style={{
                         transform: isHovered ? `scale(1.06) translate(${cardTilt.y * 2}px, ${-cardTilt.x * 2}px)` : 'scale(1)'
                     }}
@@ -318,7 +318,7 @@ const Login = () => {
                             : 'perspective(1200px) rotateX(0deg) rotateY(0deg) scale3d(1, 1, 1)',
                         transition: isHovered ? 'transform 0.08s ease-out' : 'transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1)'
                     }}
-                    className="relative w-full bg-white/94 backdrop-blur-2xl rounded-t-[4rem] rounded-b-[2.5rem] shadow-[0_30px_70px_rgba(0,0,0,0.65)] p-7 sm:p-8 pt-6 border border-white/85 pointer-events-auto transition-shadow duration-300 hover:shadow-[0_35px_80px_rgba(0,0,0,0.85)] overflow-hidden cursor-default"
+                    className="relative w-full bg-white/94 backdrop-blur-2xl rounded-t-[2.75rem] sm:rounded-t-[3.5rem] lg:rounded-t-[4rem] rounded-b-[1.75rem] sm:rounded-b-[2.25rem] lg:rounded-b-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] lg:shadow-[0_30px_70px_rgba(0,0,0,0.65)] p-5 sm:p-7 lg:p-8 pt-3.5 sm:pt-5 lg:pt-6 border border-white/85 pointer-events-auto transition-shadow duration-300 hover:shadow-[0_35px_80px_rgba(0,0,0,0.85)] overflow-hidden cursor-default"
                 >
                     {/* Interactive Dynamic Glare Spotlight */}
                     <div 
@@ -332,23 +332,23 @@ const Login = () => {
                     />
 
                     {/* Top Notch Decorative Arc */}
-                    <div className="w-14 h-1.5 bg-slate-300/80 rounded-full mx-auto mb-3" />
+                    <div className="w-10 sm:w-14 h-1 sm:h-1.5 bg-slate-300/80 rounded-full mx-auto mb-2 sm:mb-3" />
 
                     {/* Header with 3D Depth Floating Logo Badge */}
                     <div 
-                        className="text-center mb-6 relative"
+                        className="text-center mb-3 sm:mb-5 lg:mb-6 relative"
                         style={{
                             transform: isHovered ? 'translateZ(35px)' : 'translateZ(0px)',
                             transition: 'transform 0.2s ease-out'
                         }}
                     >
-                        <div className="relative inline-block mx-auto mb-2.5 group">
-                            <div className="w-20 h-20 sm:w-22 sm:h-22 rounded-3xl bg-white p-3 shadow-xl shadow-slate-300/70 border border-slate-100 flex items-center justify-center mx-auto transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-2xl">
+                        <div className="relative inline-block mx-auto mb-1.5 sm:mb-2 lg:mb-2.5 group">
+                            <div className="w-13 h-13 sm:w-18 sm:h-18 lg:w-22 lg:h-22 rounded-2xl sm:rounded-3xl bg-white p-2 sm:p-2.5 lg:p-3 shadow-md sm:shadow-xl shadow-slate-300/70 border border-slate-100 flex items-center justify-center mx-auto transition-all duration-300 group-hover:scale-110 group-hover:rotate-3 group-hover:shadow-2xl">
                                 <img src="/dea.png" alt="DEA Logo" className="w-full h-full object-contain filter drop-shadow-sm select-none" onError={(e) => { e.target.style.display = 'none' }} />
                             </div>
                         </div>
-                        <h2 className="text-2xl sm:text-[1.7rem] font-black text-slate-900 tracking-tight">Welcome Back</h2>
-                        <p className="text-slate-500 text-[11px] mt-0.5 font-black uppercase tracking-widest">
+                        <h2 className="text-xl sm:text-2xl lg:text-[1.7rem] font-black text-slate-900 tracking-tight">Welcome Back</h2>
+                        <p className="text-slate-500 text-[10px] sm:text-[11px] mt-0.5 font-black uppercase tracking-widest">
                             DEA GLOBAL NIAGA HRIS
                         </p>
                     </div>
@@ -369,7 +369,7 @@ const Login = () => {
                         </div>
                     )}
 
-                    <form onSubmit={handleLogin} className="space-y-4 relative z-10">
+                    <form onSubmit={handleLogin} className="space-y-3 sm:space-y-3.5 lg:space-y-4 relative z-10">
                         {requireMfa ? (
                             <div className="group relative animate-in fade-in slide-in-from-bottom-2 space-y-3.5">
                                 <div className="p-3.5 bg-red-50/90 border border-red-200 rounded-2xl text-center">
@@ -382,18 +382,18 @@ const Login = () => {
                                 </div>
 
                                 <div>
-                                    <label className="block text-[11px] font-bold text-slate-500 mb-1.5 uppercase">
+                                    <label className="block text-[10px] sm:text-[11px] font-bold text-slate-500 mb-1 sm:mb-1.5 uppercase">
                                         Kode Verifikasi 6 Digit
                                     </label>
                                     <div className="relative">
-                                        <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-[18px] sm:h-[18px] text-slate-400 z-10" />
                                         <input 
                                             type="text" 
                                             value={mfaToken} 
                                             required 
                                             disabled={remainingSeconds > 0}
                                             onChange={(e) => setMfaToken(e.target.value)} 
-                                            className="w-full pl-9 pr-4 py-3 text-base bg-white/70 border border-slate-200 rounded-xl focus:ring-4 focus:ring-red-900/15 focus:border-red-900 outline-none transition-all font-bold backdrop-blur-sm text-center tracking-widest font-mono text-slate-900" 
+                                            className="w-full pl-9 pr-4 py-2.5 sm:py-3 text-sm sm:text-base bg-white/70 border border-slate-200 rounded-xl focus:ring-4 focus:ring-red-900/15 focus:border-red-900 outline-none transition-all font-bold backdrop-blur-sm text-center tracking-widest font-mono text-slate-900" 
                                             placeholder="000000" 
                                             maxLength="6"
                                         />
@@ -428,17 +428,17 @@ const Login = () => {
                                     Login pertama. Silakan atur password baru.
                                 </div>
                                 <div className="relative">
-                                    <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 z-10" />
+                                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-[18px] sm:h-[18px] text-slate-400 z-10" />
                                     <input 
                                         type={showPassword ? "text" : "password"} 
                                         value={newPassword} 
                                         required 
                                         onChange={(e) => setNewPassword(e.target.value)} 
-                                        className="w-full pl-9 pr-10 py-3 text-sm bg-white/70 border border-slate-200 rounded-xl focus:ring-4 focus:ring-red-900/15 outline-none transition-all font-medium backdrop-blur-sm" 
+                                        className="w-full pl-9 pr-10 py-2.5 sm:py-3 text-sm bg-white/70 border border-slate-200 rounded-xl focus:ring-4 focus:ring-red-900/15 outline-none transition-all font-medium backdrop-blur-sm" 
                                         placeholder="Password Baru (min 6 karakter)" 
                                     />
                                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                                        {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        {showPassword ? <EyeOff className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> : <Eye className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
                                     </button>
                                 </div>
                             </div>
@@ -452,9 +452,9 @@ const Login = () => {
                                         transition: 'transform 0.2s ease-out'
                                     }}
                                 >
-                                    <label className="block text-[11px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Username / Nama Lengkap</label>
+                                    <label className="block text-[10px] sm:text-[11px] font-black text-slate-500 mb-1 sm:mb-1.5 uppercase tracking-wider">Username / Nama Lengkap</label>
                                     <div className="relative">
-                                        <Mail size={18} className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200 z-10 pointer-events-none ${focusedField === 'nama' ? 'text-red-700' : 'text-slate-500'}`} />
+                                        <Mail className={`absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-[18px] sm:h-[18px] transition-colors duration-200 z-10 pointer-events-none ${focusedField === 'nama' ? 'text-red-700' : 'text-slate-500'}`} />
                                         <input 
                                             type="text" 
                                             name="nama" 
@@ -463,7 +463,7 @@ const Login = () => {
                                             onChange={handleChange} 
                                             onFocus={() => setFocusedField('nama')} 
                                             onBlur={() => setFocusedField(null)} 
-                                            className={`w-full pl-10 pr-4 py-3 text-sm bg-white/70 border rounded-2xl outline-none transition-all font-semibold backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 placeholder:text-slate-400 ${
+                                            className={`w-full pl-9 sm:pl-10 pr-4 py-2.5 sm:py-3 text-xs sm:text-sm bg-white/70 border rounded-xl sm:rounded-2xl outline-none transition-all font-semibold backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 placeholder:text-slate-400 ${
                                                 focusedField === 'nama' 
                                                     ? 'border-red-800 ring-4 ring-red-900/15 bg-white shadow-md' 
                                                     : 'border-slate-200/90 hover:border-slate-300'
@@ -481,9 +481,9 @@ const Login = () => {
                                         transition: 'transform 0.2s ease-out'
                                     }}
                                 >
-                                    <label className="block text-[11px] font-black text-slate-500 mb-1.5 uppercase tracking-wider">Password</label>
+                                    <label className="block text-[10px] sm:text-[11px] font-black text-slate-500 mb-1 sm:mb-1.5 uppercase tracking-wider">Password</label>
                                     <div className="relative">
-                                        <Lock size={18} className={`absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors duration-200 z-10 pointer-events-none ${focusedField === 'password' ? 'text-red-700' : 'text-slate-500'}`} />
+                                        <Lock className={`absolute left-3 sm:left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-[18px] sm:h-[18px] transition-colors duration-200 z-10 pointer-events-none ${focusedField === 'password' ? 'text-red-700' : 'text-slate-500'}`} />
                                         <input 
                                             type={showPassword ? "text" : "password"} 
                                             name="password" 
@@ -492,21 +492,21 @@ const Login = () => {
                                             onChange={handleChange} 
                                             onFocus={() => setFocusedField('password')} 
                                             onBlur={() => setFocusedField(null)} 
-                                            className={`w-full pl-10 pr-11 py-3 text-sm bg-white/70 border rounded-2xl outline-none transition-all font-semibold backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 placeholder:text-slate-400 ${
+                                            className={`w-full pl-9 sm:pl-10 pr-10 sm:pr-11 py-2.5 sm:py-3 text-xs sm:text-sm bg-white/70 border rounded-xl sm:rounded-2xl outline-none transition-all font-semibold backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed text-slate-900 placeholder:text-slate-400 ${
                                                 focusedField === 'password' 
                                                     ? 'border-red-800 ring-4 ring-red-900/15 bg-white shadow-md' 
                                                     : 'border-slate-200/90 hover:border-slate-300'
                                             }`} 
                                             placeholder="••••••••" 
                                         />
-                                        <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={remainingSeconds > 0} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 focus:outline-none disabled:opacity-40 transition p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
-                                            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                                        <button type="button" onClick={() => setShowPassword(!showPassword)} disabled={remainingSeconds > 0} className="absolute right-3 sm:right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 focus:outline-none disabled:opacity-40 transition p-1 rounded-lg hover:bg-slate-100 cursor-pointer">
+                                            {showPassword ? <EyeOff className="w-4 h-4 sm:w-[18px] sm:h-[18px]" /> : <Eye className="w-4 h-4 sm:w-[18px] sm:h-[18px]" />}
                                         </button>
                                     </div>
                                 </div>
 
-                                <div className="flex justify-end -mt-1">
-                                    <Link to="/forgot-password" className="text-[11px] text-slate-500 hover:text-red-900 font-bold transition-colors">
+                                <div className="flex justify-end -mt-0.5 sm:-mt-1">
+                                    <Link to="/forgot-password" className="text-[10px] sm:text-[11px] text-slate-500 hover:text-red-900 font-bold transition-colors">
                                         Lupa Password?
                                     </Link>
                                 </div>
@@ -524,13 +524,13 @@ const Login = () => {
                                 type="submit" 
                                 disabled={loading || remainingSeconds > 0} 
                                 onClick={requireSetupPassword ? handleSetupPassword : null}
-                                className="mt-2 w-full bg-gradient-to-r from-red-900 via-red-800 to-red-950 hover:from-red-800 hover:to-red-900 hover:shadow-xl hover:shadow-red-900/40 hover:scale-[1.015] active:scale-[0.98] disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-black py-3.5 rounded-2xl transition-all shadow-lg shadow-red-950/25 text-xs sm:text-sm uppercase tracking-widest cursor-pointer border border-red-700/40 flex items-center justify-center gap-2">
+                                className="mt-1 sm:mt-2 w-full bg-gradient-to-r from-red-900 via-red-800 to-red-950 hover:from-red-800 hover:to-red-900 hover:shadow-xl hover:shadow-red-900/40 hover:scale-[1.015] active:scale-[0.98] disabled:bg-slate-400 disabled:cursor-not-allowed text-white font-black py-2.5 sm:py-3 lg:py-3.5 rounded-xl sm:rounded-2xl transition-all shadow-lg shadow-red-950/25 text-xs sm:text-sm uppercase tracking-widest cursor-pointer border border-red-700/40 flex items-center justify-center gap-2">
                                 {remainingSeconds > 0 ? `Terkunci (${Math.ceil(remainingSeconds / 60)}m)` : (loading ? 'Memproses...' : (requireSetupPassword ? 'Simpan Password Baru' : (requireMfa ? 'Verifikasi MFA' : 'Login')))}
                             </button>
                         </div>
                     </form>
 
-                    <div className="mt-5 pt-3.5 border-t border-slate-200/70 text-center text-[11px] font-bold uppercase text-slate-500 relative z-10">
+                    <div className="mt-3 sm:mt-4 lg:mt-5 pt-2.5 sm:pt-3 lg:pt-3.5 border-t border-slate-200/70 text-center text-[10px] sm:text-[11px] font-bold uppercase text-slate-500 relative z-10">
                         Don't have an account?{' '}
                         <button 
                             type="button" 
