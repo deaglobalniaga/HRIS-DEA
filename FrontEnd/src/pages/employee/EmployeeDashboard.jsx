@@ -747,6 +747,11 @@ const EmployeeDashboard = () => {
         </div>,
         document.body
       )}
+
+      {/* Clean Copyright Footer */}
+      <div className="pt-6 pb-2 text-center text-xs font-semibold text-slate-400">
+        Copyright © 2026 by Adiwira Caraka
+      </div>
     </div>
   );
 };

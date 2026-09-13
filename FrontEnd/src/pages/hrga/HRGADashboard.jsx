@@ -725,7 +725,7 @@ const HRGADashboard = () => {
 
       {/* Clean Copyright Footer */}
       <div className="pt-6 pb-2 text-center text-xs font-semibold text-slate-400">
-        © 2025 HRGA Management System. All rights reserved.
+        Copyright © 2026 by Adiwira Caraka
       </div>
 
     </div>
